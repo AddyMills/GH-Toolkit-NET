@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.33424.131
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GH-Toolkit-Core", "GH-Toolkit-Core.csproj", "{C2E443D5-E121-4CD5-99B9-003838FA85E5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QBKey-Gen", "..\QBKey-Gen\QBKey-Gen.csproj", "{131287E0-34CD-4968-9AC4-9D49E456B8B7}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C2E443D5-E121-4CD5-99B9-003838FA85E5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C2E443D5-E121-4CD5-99B9-003838FA85E5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C2E443D5-E121-4CD5-99B9-003838FA85E5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C2E443D5-E121-4CD5-99B9-003838FA85E5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{131287E0-34CD-4968-9AC4-9D49E456B8B7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{131287E0-34CD-4968-9AC4-9D49E456B8B7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{131287E0-34CD-4968-9AC4-9D49E456B8B7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{131287E0-34CD-4968-9AC4-9D49E456B8B7}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1BCDF6E6-BD30-43F1-95FD-8666DBF4A42D}
+	EndGlobalSection
+EndGlobal
