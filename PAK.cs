@@ -36,12 +36,12 @@ namespace GH_Toolkit_Core
         [DebuggerDisplay("Entry: {FullName}")]
         public class PakEntry
         {
-            public object Extension { get; set; } // This can be either uint or string
+            public string Extension { get; set; } // This can be either uint or string
             public uint StartOffset { get; set; }
             public uint FileSize { get; set; }
-            public object AssetContext { get; set; } // This can be either uint or string
-            public object FullName { get; set; } // This can be either uint or string
-            public object NameNoExt { get; set; } // This can be either uint or string
+            public string AssetContext { get; set; } // This can be either uint or string
+            public string FullName { get; set; } // This can be either uint or string
+            public string NameNoExt { get; set; } // This can be either uint or string
             public uint Parent { get; set; }
             public uint Flags { get; set; }
             public byte[] EntryData { get; set; }
@@ -67,7 +67,7 @@ namespace GH_Toolkit_Core
                 return buffer;
             }
 
-            object DebugCheck(uint check)
+            string DebugCheck(uint check)
             {
                 if (headers.TryGetValue(check, out string result))
                 {
@@ -86,13 +86,17 @@ namespace GH_Toolkit_Core
                 uint header_start = (uint)stream.Position; // To keep track of which entry since the offset in the header needs to be added to the StartOffset below
                 
                 uint extension = BitConverter.ToUInt32(ReadAndMaybeFlipBytes(stream, UnitSize));
-                if (extension != 0x2cb3ef3b)
+                if (extension != 0x2cb3ef3b && extension != 0xb524565f)
                 {
                     entry.Extension = DebugCheck(extension);
                 }
                 else
                 {
                     break;
+                }
+                if (!entry.Extension.StartsWith("."))
+                {
+                    entry.Extension = "." + entry.Extension;
                 }
                 uint offset = BitConverter.ToUInt32(ReadAndMaybeFlipBytes(stream, UnitSize));
                 entry.StartOffset = offset+header_start;
@@ -104,10 +108,45 @@ namespace GH_Toolkit_Core
                 entry.FullName = DebugCheck(fullname);
                 uint name = BitConverter.ToUInt32(ReadAndMaybeFlipBytes(stream, UnitSize));
                 entry.NameNoExt = DebugCheck(name);
+                if (entry.FullName.StartsWith("0x"))
+                {
+                    entry.FullName = $"{entry.FullName}.{entry.NameNoExt}";
+                }
                 uint parent = BitConverter.ToUInt32(ReadAndMaybeFlipBytes(stream, UnitSize));
                 entry.Parent = parent;
                 uint flags = BitConverter.ToUInt32(ReadAndMaybeFlipBytes(stream, UnitSize));
                 entry.Flags = flags;
+                switch (flags)
+                {
+                    case 0:
+                        break;
+                    case 0x20:
+                        var skipTo = stream.Position + 160;
+                        string tempString = ReadUntilNullByte(stream);
+                        switch (tempString)
+                        {
+                            case string s when s.StartsWith("ones\\"):
+                                tempString = "z" + tempString;
+                                break;
+                            case string s when s.StartsWith("cripts\\"):
+                                tempString = "s" + tempString;
+                                break;
+                            case string s when s.StartsWith("kies\\"):
+                                tempString = "s" + tempString;
+                                break;
+                            case string s when s.StartsWith("ongs\\"):
+                                tempString = "s" + tempString;
+                                break;
+                            case string s when s.StartsWith("odels\\"):
+                                tempString = "m" + tempString;
+                                break;
+                        }
+                        entry.FullName = tempString;
+                        stream.Position = skipTo;
+                        break;
+                    default:
+                        throw new Exception("Flag not implemented");
+                }
                 entry.EntryData = new byte[entry.FileSize];
                 Array.Copy(PakBytes, entry.StartOffset, entry.EntryData, 0, entry.FileSize);
                 PakList.Add(entry);
@@ -117,9 +156,23 @@ namespace GH_Toolkit_Core
             return PakList;
         }
 
-        public static string GetExtension()
+        public static string ReadUntilNullByte(MemoryStream memoryStream)
         {
-            return "test";
+            List<byte> byteList = new List<byte>();
+            int currentByte;
+
+            // Read byte by byte
+            while ((currentByte = memoryStream.ReadByte()) != -1) // -1 means end of stream
+            {
+                // Break if currentByte is null byte
+                if (currentByte == 0)
+                    break;
+
+                byteList.Add((byte)currentByte);
+            }
+
+            // Convert byte list to string using UTF-8 encoding
+            return Encoding.UTF8.GetString(byteList.ToArray());
         }
     }
 

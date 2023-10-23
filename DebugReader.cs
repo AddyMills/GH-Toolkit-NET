@@ -51,7 +51,7 @@ namespace GH_Toolkit_Core
             return funcDict;
         }
 
-        public static object DbgCheck(uint toCheck)
+        public static string DbgCheck(uint toCheck)
         {
             if (DebugReader.ChecksumDbg.TryGetValue(toCheck, out var checksum))
             {
