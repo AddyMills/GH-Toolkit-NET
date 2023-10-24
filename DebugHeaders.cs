@@ -16,7 +16,7 @@ namespace GH_Toolkit_Core
         private static readonly string[] othersWT = { "_facial", "_localized_strings", "_scriptevents", "_song_startup", "_vox_sp", "_ghost_notes", "_double_kick" };
         private static readonly string[] drumWT = { "DrumFill", "DrumUnmute" };
         private static readonly string[] vocalsWT = { "_freeform", "_phrases", "_note_range", "_markers" };
-        private static readonly string[] songsFolder = { ".mid.qb", "_song_scripts.qb",".mid.qs", ".note", ".perf",".perf.xml.qb" };
+        private static readonly string[] songsFolder = { ".mid.qb", "_song_scripts.qb",".mid.qs", ".note", ".perf",".perf.xml.qb", ".qs.de", ".qs.en", ".qs.es", ".qs.fr", ".qs.it", "_rms.qd" };
         private static readonly string[] qsExtensions = { ".qs.de", ".qs.en", ".qs.es", ".qs.fr", ".qs.it" };
         private static readonly string[] animsPre = { "car_female_anim_struct_", "car_male_anim_struct_", "car_female_alt_anim_struct_", "car_male_alt_anim_struct_" };
 
