@@ -15,21 +15,19 @@ namespace GH_Toolkit_Core
         [DebuggerDisplay("Entry: {FullName}")]
         public class PakEntry
         {
-            public string Extension { get; set; } // This can be either uint or string
+            public string? Extension { get; set; }
             public uint StartOffset { get; set; }
             public uint FileSize { get; set; }
-            public string AssetContext { get; set; } // This can be either uint or string
-            public string FullName { get; set; } // This can be either uint or string
-            public string NameNoExt { get; set; } // This can be either uint or string
+            public string? AssetContext { get; set; }
+            public string? FullName { get; set; }
+            public string? NameNoExt { get; set; }
             public uint Parent { get; set; }
             public uint Flags { get; set; }
-            public byte[] EntryData { get; set; }
+            public byte[]? EntryData { get; set; }
         }
 
         public static List<PakEntry> ExtractPAK(byte[] PakBytes, string endian = "big", string songName = "")
         {
-            const int ChunkSize = 32;  // Size of each read chunk for PAK Header
-            const int UnitSize = 4;    // Size of each unit in one entry
             bool flipBytes = Readers.FlipCheck(endian);
             if (Compression.isCompressed(PakBytes))
             {
@@ -41,15 +39,7 @@ namespace GH_Toolkit_Core
 
             string DebugCheck(uint check)
             {
-                if (headers.TryGetValue(check, out string result))
-                {
-                    return result;
-                }
-                else
-                {
-                    return DebugReader.DbgCheck(check);
-                }
-
+                return headers.TryGetValue(check, out string? result) ? result : DebugReader.DbgCheck(check);
             }
             bool TryGH3 = false;
             while (true)

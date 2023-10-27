@@ -32,7 +32,6 @@ namespace GH_Toolkit_Core
 
         public static byte[] DecompressWTPak(byte[] compData)
         {
-            const int UnitSize = 4;    // Size of each unit in one entry
             // Compressed PAK files are always 360/PS3 and thus always big-endian
             bool flipBytes = Readers.FlipCheck("big");
             MemoryStream stream = new MemoryStream(compData);
