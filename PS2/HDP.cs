@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static GH_Toolkit_Core.PS2.HED;
 
 namespace GH_Toolkit_Core.PS2
 {
@@ -27,7 +28,29 @@ namespace GH_Toolkit_Core.PS2
             public HdpFolderEntry? HdpFolders { get; set; }
             public HdpFileEntry? HdpFiles { get; set; }
         }
-        public static HdpFile ReadHDPFile(byte[] HdpBytes)
+        public static Dictionary<uint, string> CreateHDPDict(List<HedEntry> hedEntries)
+        {
+            Dictionary<uint, string> entries = new Dictionary<uint, string>();
+            foreach (HedEntry entry in hedEntries)
+            {
+                string folderPath = Path.GetDirectoryName(entry.FilePath);
+                if (folderPath.StartsWith("\\"))
+                {
+                    folderPath = folderPath.Substring(1);
+                }
+                try
+                {
+                    var key = Convert.ToUInt32(folderPath, 16);
+                    entries[key] = folderPath;
+                }
+                catch
+                {
+                    // If an exception occurs, ignore and continue processing the next line.
+                }
+            }
+            return entries;
+        }
+        public static HdpFile ReadHDPFile(byte[] HdpBytes, Dictionary<uint, string>? folderEntries)
         {
             // PS2 files are always little-endian
             bool flipBytes = Readers.FlipCheck("little");
