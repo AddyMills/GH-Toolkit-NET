@@ -14,7 +14,7 @@ using System.Threading.Tasks;
  * 
  */
 
-namespace GH_Toolkit_Core
+namespace GH_Toolkit_Core.Checksum
 {
     public class CRC
     {
@@ -129,12 +129,12 @@ namespace GH_Toolkit_Core
             foreach (var b in textBytes)
             {
                 uint numA = (crc ^ b) & 0xFF;
-                crc = CRC32Table[numA] ^ ((crc >> 8) & 0x00ffffff);
+                crc = CRC32Table[numA] ^ crc >> 8 & 0x00ffffff;
             }
 
             uint finalCRC = ~crc;
             long value = -finalCRC - 1;
-            string result = ((value & 0xffffffff)).ToString("x8");
+            string result = (value & 0xffffffff).ToString("x8");
 
             // Pad to 8 characters
             result = result.PadLeft(8, '0');
@@ -157,16 +157,17 @@ namespace GH_Toolkit_Core
                 int old_hex = Convert.ToInt32(dbg_hex.Substring(2), 16);
                 int new_hex = Convert.ToInt32(new_string, 16);
 
-                if (old_hex != new_hex) 
-                { 
-                    Console.WriteLine(String.Format("{0} checksum {1} does not match {2}", orig_string, dbg_hex, new_string));
+                if (old_hex != new_hex)
+                {
+                    Console.WriteLine(string.Format("{0} checksum {1} does not match {2}", orig_string, dbg_hex, new_string));
                 }
             }
         }
 
         public static void QBKeyGen()
         {
-            while (true) { 
+            while (true)
+            {
 
                 Console.Write("Please enter a string: ");
                 string userInput = Console.ReadLine();
@@ -175,7 +176,7 @@ namespace GH_Toolkit_Core
                 {
                     break;
                 }
-                Console.WriteLine("The QBKey of your string is: " + qbKey);   
+                Console.WriteLine("The QBKey of your string is: " + qbKey);
             }
         }
     }

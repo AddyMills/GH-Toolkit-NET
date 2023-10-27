@@ -34,22 +34,22 @@ namespace GH_Toolkit_Core
         {
             const int UnitSize = 4;    // Size of each unit in one entry
             // Compressed PAK files are always 360/PS3 and thus always big-endian
-            bool flipBytes = FlipCheck("big");
+            bool flipBytes = Readers.FlipCheck("big");
             MemoryStream stream = new MemoryStream(compData);
             List<ChnkEntry> ChnkList = new List<ChnkEntry>();
             List<byte[]> decompressedDataList = new List<byte[]>();
             while (true)
             {
                 uint baseOffset = (uint)stream.Position;
-                byte[] buffer = PAK.ReadAndMaybeFlipBytes(stream, 4, false);
+                byte[] buffer = Readers.ReadAndMaybeFlipBytes(stream, 4, false);
                 string magic = Encoding.UTF8.GetString(buffer);
                 ChnkEntry entry = new ChnkEntry();
-                entry.Offset = BitConverter.ToUInt32(PAK.ReadAndMaybeFlipBytes(stream, UnitSize, flipBytes)) + baseOffset;
-                entry.CompSize = BitConverter.ToUInt32(PAK.ReadAndMaybeFlipBytes(stream, UnitSize, flipBytes));
-                entry.NextChnkOffset = BitConverter.ToUInt32(PAK.ReadAndMaybeFlipBytes(stream, UnitSize, flipBytes));
-                entry.NextChnkLength = BitConverter.ToUInt32(PAK.ReadAndMaybeFlipBytes(stream, UnitSize, flipBytes));
-                entry.DecompSize = BitConverter.ToUInt32(PAK.ReadAndMaybeFlipBytes(stream, UnitSize, flipBytes));
-                entry.DecompOffset = BitConverter.ToUInt32(PAK.ReadAndMaybeFlipBytes(stream, UnitSize, flipBytes));
+                entry.Offset = Readers.ReadUInt32(stream, flipBytes) + baseOffset;
+                entry.CompSize = Readers.ReadUInt32(stream, flipBytes);;
+                entry.NextChnkOffset = Readers.ReadUInt32(stream, flipBytes);;
+                entry.NextChnkLength = Readers.ReadUInt32(stream, flipBytes);;
+                entry.DecompSize = Readers.ReadUInt32(stream, flipBytes);;
+                entry.DecompOffset = Readers.ReadUInt32(stream, flipBytes);;
                 ChnkList.Add(entry);
 
                 // Decompress the current chunk
@@ -57,7 +57,7 @@ namespace GH_Toolkit_Core
                 stream.Position = entry.Offset;
                 stream.Read(compressedChunk, 0, (int)entry.CompSize);
 
-                byte[] decompressedChunk = DecompressChunk(compressedChunk);
+                byte[] decompressedChunk = DecompressData(compressedChunk);
                 decompressedDataList.Add(decompressedChunk); // Save the decompressed data
 
                 if (entry.NextChnkOffset != 0xffffffff)
@@ -82,7 +82,7 @@ namespace GH_Toolkit_Core
             return result;
         }
 
-        public static byte[] DecompressChunk(byte[] compressedChunk)
+        public static byte[] DecompressData(byte[] compressedChunk)
         {
             using MemoryStream compressedStream = new MemoryStream(compressedChunk);
             using DeflateStream deflateStream = new DeflateStream(compressedStream, CompressionMode.Decompress);

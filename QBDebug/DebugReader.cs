@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace GH_Toolkit_Core
+namespace GH_Toolkit_Core.Debug
 {
     public class DebugReader
     {
@@ -53,13 +53,13 @@ namespace GH_Toolkit_Core
 
         public static string DbgCheck(uint toCheck)
         {
-            if (DebugReader.ChecksumDbg.TryGetValue(toCheck, out var checksum))
+            if (ChecksumDbg.TryGetValue(toCheck, out var checksum))
             {
                 return checksum;
             }
             else
             {
-                return "0x"+toCheck.ToString("X");
+                return "0x" + toCheck.ToString("X");
             }
         }
 
