@@ -72,22 +72,7 @@ namespace GH_Toolkit_Core.PS2
             }
             return entries;
         }
-        public static void ExtractWADFile(List<HedEntry> HedFiles, byte[] wad, string extractPath)
-        {
-            for (int i = 0; i < HedFiles.Count; i++)
-            {
-                byte[] fileData = new byte[HedFiles[i].FileSize];
-                Array.Copy(wad, HedFiles[i].SectorIndex * 2048, fileData, 0, HedFiles[i].FileSize);
-                if (HedFiles[i].FilePath.StartsWith("\\"))
-                {
-                    HedFiles[i].FilePath = HedFiles[i].FilePath.Substring(1);
-                }
-                string extractFilePath = Path.Combine(extractPath, HedFiles[i].FilePath);
-                Directory.CreateDirectory(Path.GetDirectoryName(extractFilePath));
-                Console.WriteLine($"Extracting File {i+1}/{HedFiles.Count}: {HedFiles[i].FilePath}");
-                File.WriteAllBytes(extractFilePath, fileData);
-            }
-        }
+
         public static HdpFile ReadHDPFile(byte[] HdpBytes, Dictionary<uint, string>? folderChecksums)
         {
             // PS2 files are always little-endian

@@ -12,7 +12,12 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PAK Extractor", "..\PAK Ext
 		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PS2ArchiveExplorer", "..\PS2ArchiveExplorer\PS2ArchiveExplorer.csproj", "{C7F0FDBE-3BB5-4E3E-A84B-36C1098C42F4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PS2ArchiveExplorer", "..\PS2ArchiveExplorer\PS2ArchiveExplorer.csproj", "{C7F0FDBE-3BB5-4E3E-A84B-36C1098C42F4}"
+	ProjectSection(ProjectDependencies) = postProject
+		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WAD Compiler", "..\WAD Compiler\WAD Compiler.csproj", "{81C1045D-29D2-4300-B0DE-A086C4EC5795}"
 	ProjectSection(ProjectDependencies) = postProject
 		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
 	EndProjectSection
@@ -39,6 +44,10 @@ Global
 		{C7F0FDBE-3BB5-4E3E-A84B-36C1098C42F4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C7F0FDBE-3BB5-4E3E-A84B-36C1098C42F4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C7F0FDBE-3BB5-4E3E-A84B-36C1098C42F4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{81C1045D-29D2-4300-B0DE-A086C4EC5795}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{81C1045D-29D2-4300-B0DE-A086C4EC5795}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{81C1045D-29D2-4300-B0DE-A086C4EC5795}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{81C1045D-29D2-4300-B0DE-A086C4EC5795}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
