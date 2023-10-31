@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -12,13 +13,27 @@ namespace GH_Toolkit_Core.PS2
 {
     public class WAD
     {
-        [DebuggerDisplay("{RelPath}")]
+        private const uint SECTORSIZE = 2048;
+        private const uint HEADERSIZE = 16;
+        private const uint EOF = 0xffffffff;
+        private readonly bool flipBytes = InitializeFlipBytes();
+        private static bool InitializeFlipBytes()
+        {
+            // Your logic to determine the value of flipBytes
+            return ReadWrite.FlipCheck("little");
+        }
+        [DebuggerDisplay("{RelPath} at index {sectorIndex}")]
         public class WadEntry
         {
             public string? AbsPath { get; set; }
             public string? RelPath { get; set; }
             public string? FilePath { get; set; }
             public string? FolderPath { get; set; }
+            public uint fileQbKey { get; set; }
+            public uint folderQbKey { get; set; }
+            public uint fileSize { get; set; }
+            public uint paddedSize { get; set; }
+            public uint sectorIndex { get; set; }
             public byte[] bytes { get; set; }
 
             public WadEntry(string? absPath, string? mainPath)
@@ -27,7 +42,8 @@ namespace GH_Toolkit_Core.PS2
                 RelPath = Path.GetRelativePath(mainPath, absPath);
                 FilePath = Path.GetFileName(RelPath);
                 FolderPath = Path.GetDirectoryName(RelPath);
-
+                fileQbKey = Convert.ToUInt32(CRC.QBKey(FilePath), 16);
+                folderQbKey = Convert.ToUInt32(CRC.QBKey(FolderPath), 16);
             }
             public void LoadFileAndPad()
             {
@@ -39,68 +55,220 @@ namespace GH_Toolkit_Core.PS2
                 // Load file bytes
                 bytes = File.ReadAllBytes(AbsPath);
 
+                fileSize = (uint)bytes.Length;
+
                 // Determine the padding required
-                int paddingSize = 2048 - (bytes.Length % 2048);
-                if (paddingSize != 0) // If exactly 2048, no padding needed
+                uint paddingSize = SECTORSIZE - ((uint)bytes.Length % SECTORSIZE);
+                if (paddingSize != SECTORSIZE) // If exactly 2048, no padding needed
                 {
                     // Create a padded array and copy the original bytes
                     byte[] paddedBytes = new byte[bytes.Length + paddingSize];
                     bytes.CopyTo(paddedBytes, 0);
 
                     // Fill the rest with zeroes
-                    Array.Clear(paddedBytes, bytes.Length, paddingSize);
+                    Array.Clear(paddedBytes, bytes.Length, (int)paddingSize);
 
                     // Assign the padded array to the bytes variable
                     bytes = paddedBytes;
                 }
+                paddedSize = (uint)bytes.Length;
+
             }
         }
         [DebuggerDisplay("{folderName} [{wadEntries} in folder]")]
         public class FolderEntry
         {
             public string? folderName { get; set; }
-            public uint wadEntries { get; set; }
-            public uint pdOffset { get; set; }
-            public FolderEntry(string folder, uint offset)
+            public List<WadEntry> wadEntries { get; set; }
+            public FolderEntry(string folder, WadEntry wadEntry)
             {
                 folderName = folder;
-                wadEntries = 1;
-                pdOffset = offset;
+                wadEntries = new List<WadEntry>() { wadEntry};
             }
         }
-        public static void CompileWADFile(string filePath)
+
+        private static void ValidateFilePath(string filePath)
         {
             if (!Directory.Exists(filePath))
-            {
-                throw new Exception("File path specified does not exist!");
-            }
+                throw new DirectoryNotFoundException("File path specified does not exist!");
+        }
+        private static List<WadEntry> LoadWadEntries(string filePath)
+        {
             string[] entries = Directory.GetFileSystemEntries(filePath, "*", SearchOption.AllDirectories);
-            List<WadEntry> gameFiles = new List<WadEntry>();
+            List<WadEntry> hedEntries = new List<WadEntry>();
             foreach (string entry in entries)
             {
                 if (File.Exists(entry))
                 {
                     WadEntry wadEntry = new WadEntry(entry, filePath);
                     wadEntry.LoadFileAndPad();
-                    gameFiles.Add(wadEntry);
+                    hedEntries.Add(wadEntry);
                 }
             }
-            gameFiles.Sort((entry1, entry2) => string.Compare(entry1.RelPath, entry2.RelPath));
-            Dictionary<string, FolderEntry> folders = new Dictionary<string, FolderEntry>();
+            return hedEntries;
+        }
+        private static void ProcessEntries(List<WadEntry> hedEntries, Dictionary<uint, FolderEntry> folders, List<uint> folderChecks, HedFile hedFile)
+        {
+            uint sectorIndex = 0;
 
-            for (int i = 0; i < gameFiles.Count; i++)
+            foreach (var entry in hedEntries)
             {
-                FolderEntry folderEntry = new FolderEntry(gameFiles[i].FolderPath, (uint)i);
-                string qbKey = CRC.QBKey(gameFiles[i].FolderPath);
-                if (!folders.ContainsKey(qbKey))
+                entry.sectorIndex = sectorIndex;
+                UpdateFolderEntries(entry, folders, folderChecks);
+                hedFile.AddEntry(sectorIndex, entry.fileSize, "\\" + entry.RelPath);
+                sectorIndex += entry.paddedSize / SECTORSIZE;
+            }
+        }
+        private static void UpdateFolderEntries(WadEntry entry, Dictionary<uint, FolderEntry> folders, List<uint> folderChecks)
+        {
+            uint qbKey = entry.folderQbKey;
+
+            if (!folders.ContainsKey(qbKey))
+            {
+                var folderEntry = new FolderEntry(entry.FolderPath, entry);
+                folders.Add(qbKey, folderEntry);
+                folderChecks.Add(qbKey);
+            }
+            else
+            {
+                folders[qbKey].wadEntries.Add(entry);
+            }
+        }
+        private static void InitializeDataStreams(MemoryStream datapd, MemoryStream datapf, List<WadEntry> hedEntries, uint foldersCount, bool flipBytes)
+        {
+            uint fileOffset = HEADERSIZE + ((foldersCount + 1) * 12);
+
+            // Initialize datapd stream
+            ReadWrite.WriteUInt32(datapd, (uint)hedEntries.Count, flipBytes);
+            ReadWrite.WriteUInt32(datapd, fileOffset, flipBytes);
+            ReadWrite.WriteUInt32(datapd, (uint)16, flipBytes);
+            ReadWrite.WriteUInt32(datapd, (uint)0, flipBytes);
+
+            // Initialize datapf stream
+            hedEntries.Sort((entry1, entry2) => entry1.fileQbKey.CompareTo(entry2.fileQbKey));
+            ReadWrite.WriteUInt32(datapf, (uint)hedEntries.Count, flipBytes);
+            ReadWrite.WriteUInt32(datapf, HEADERSIZE, flipBytes);
+            ReadWrite.WriteUInt32(datapf, (uint)0, flipBytes);
+            ReadWrite.WriteUInt32(datapf, (uint)0, flipBytes);
+        }
+        private static void PopulateFolderStreams(MemoryStream pd_folders, MemoryStream pd_files, Dictionary<uint, FolderEntry> folders, List<uint> folderChecks, bool flipBytes)
+        {
+            uint fileOffset = HEADERSIZE + (((uint)folders.Count + 1) * 12);
+
+            foreach (uint check in folderChecks)
+            {
+                var curr = folders[check].wadEntries;
+                ReadWrite.WriteUInt32(pd_folders, (uint)curr.Count, flipBytes);
+                ReadWrite.WriteUInt32(pd_folders, check, flipBytes);
+                ReadWrite.WriteUInt32(pd_folders, fileOffset, flipBytes);
+                fileOffset += 12 * (uint)curr.Count;
+
+                PopulateFileStreams(pd_files, curr, flipBytes);
+                /*foreach (var entry in curr)
                 {
-                    folders.Add(qbKey, folderEntry);
-                }
-                else
+                    ReadWrite.WriteUInt32(pd_files, entry.sectorIndex, flipBytes);
+                    ReadWrite.WriteUInt32(pd_files, entry.fileSize, flipBytes);
+                    ReadWrite.WriteUInt32(pd_files, entry.fileQbKey, flipBytes);
+                }*/
+            }
+
+            // Write footer
+            ReadWrite.WriteUInt32(pd_folders, 0xffffffff, flipBytes);
+            ReadWrite.WriteUInt32(pd_folders, 0xcdcdcdcd, flipBytes);
+            ReadWrite.WriteUInt32(pd_folders, 0xcdcdcdcd, flipBytes);
+        }
+        private static void PopulateFileStreams(MemoryStream stream, List<WadEntry> entries, bool flipBytes)
+        {
+            foreach (var entry in entries)
+            {
+                ReadWrite.WriteUInt32(stream, entry.sectorIndex, flipBytes);
+                ReadWrite.WriteUInt32(stream, entry.fileSize, flipBytes);
+                ReadWrite.WriteUInt32(stream, entry.fileQbKey, flipBytes);
+            }
+        }
+        private static void FinalizeStreams(MemoryStream pd_folders, MemoryStream pd_files, MemoryStream datapd, MemoryStream datapf, MemoryStream pf_files)
+        {
+            ReadWrite.CopyStreamClose(pd_folders, datapd);
+            ReadWrite.CopyStreamClose(pd_files, datapd);
+            ReadWrite.CopyStreamClose(pf_files, datapf);
+        }
+        private static MemoryStream MakeHedFile(HedFile hedFile, bool flipBytes)
+        {
+            MemoryStream stream = new MemoryStream();
+            foreach (HedEntry entry in hedFile.HedEntries)
+            {
+                ReadWrite.WriteUInt32(stream, entry.SectorIndex, flipBytes);
+                ReadWrite.WriteUInt32(stream, entry.FileSize, flipBytes);
+                ReadWrite.WriteNullTermString(stream, entry.FilePath);
+                uint padding = 4 - (uint)stream.Length % 4;
+                if (padding != 4)
                 {
-                    folders[qbKey].wadEntries++;
+                    ReadWrite.FillNullTermString(stream, padding);
                 }
             }
+            ReadWrite.WriteUInt32(stream, EOF, flipBytes);
+            return stream;
+        }
+        private static void SaveStreamToFile(MemoryStream stream, string filePath)
+        {
+            using (FileStream file = new FileStream(filePath, FileMode.Create, FileAccess.Write))
+            {
+                stream.Position = 0; // Reset the position of MemoryStream to the beginning
+                stream.CopyTo(file);
+            }
+            stream.Close();
+        }
+        private static void SaveWadToFile(List<WadEntry> wadFiles, string filePath)
+        {
+            using (FileStream file = new FileStream(filePath, FileMode.Create, FileAccess.Write))
+            {
+                foreach (WadEntry entry in wadFiles)
+                {
+                    file.Write(entry.bytes, 0, entry.bytes.Length);
+                }
+            }
+
+        }
+        public static void CompileWADFile(string filePath)
+        {
+            ValidateFilePath(filePath);
+            string parentFolder = Path.GetDirectoryName(filePath);
+            string saveFolder = Path.Combine(parentFolder, "WAD Compile");
+            Directory.CreateDirectory(saveFolder);
+            bool flipBytes = ReadWrite.FlipCheck("little");
+
+            var hedEntries = LoadWadEntries(filePath);
+            hedEntries.Sort((entry1, entry2) => string.Compare(entry1.RelPath, entry2.RelPath));
+
+            Dictionary<uint, FolderEntry> folders = new Dictionary<uint, FolderEntry>();
+            List<uint> folderChecks = new List<uint>();
+
+            HedFile hedFile = new HedFile(); // All entries by Sector Index and file names
+
+            ProcessEntries(hedEntries, folders, folderChecks, hedFile);
+            SaveWadToFile(hedEntries, Path.Combine(saveFolder, "DATAP.WAD"));
+
+            MemoryStream datapd = new MemoryStream(); // File of all entries by folder name
+            MemoryStream datapf = new MemoryStream(); // All entries by checksum order
+            InitializeDataStreams(datapd, datapf, hedEntries, (uint)folders.Count, flipBytes);
+
+            MemoryStream pd_folders = new MemoryStream();
+            MemoryStream pd_files = new MemoryStream();
+            MemoryStream pf_files = new MemoryStream();
+            PopulateFolderStreams(pd_folders, pd_files, folders, folderChecks, flipBytes);
+
+
+
+            hedEntries.Sort((entry1, entry2) => entry1.fileQbKey.CompareTo(entry2.fileQbKey));
+            PopulateFileStreams(pf_files, hedEntries, flipBytes);
+
+            FinalizeStreams(pd_folders, pd_files, datapd, datapf, pf_files);
+
+            MemoryStream datahed = MakeHedFile(hedFile, flipBytes);
+
+            SaveStreamToFile(datapd, Path.Combine(saveFolder, "DATAPD.HDP"));
+            SaveStreamToFile(datapf, Path.Combine(saveFolder, "DATAPF.HDP"));
+            SaveStreamToFile(datahed, Path.Combine(saveFolder, "DATAP.HED"));
             return;
         }
         public static void ExtractWADFile(List<HedEntry> HedFiles, byte[] wad, string extractPath)
@@ -119,5 +287,6 @@ namespace GH_Toolkit_Core.PS2
                 File.WriteAllBytes(extractFilePath, fileData);
             }
         }
+
     }
 }

@@ -33,22 +33,22 @@ namespace GH_Toolkit_Core
         public static byte[] DecompressWTPak(byte[] compData)
         {
             // Compressed PAK files are always 360/PS3 and thus always big-endian
-            bool flipBytes = Readers.FlipCheck("big");
+            bool flipBytes = ReadWrite.FlipCheck("big");
             MemoryStream stream = new MemoryStream(compData);
             List<ChnkEntry> ChnkList = new List<ChnkEntry>();
             List<byte[]> decompressedDataList = new List<byte[]>();
             while (true)
             {
                 uint baseOffset = (uint)stream.Position;
-                byte[] buffer = Readers.ReadAndMaybeFlipBytes(stream, 4, false);
+                byte[] buffer = ReadWrite.ReadAndMaybeFlipBytes(stream, 4, false);
                 string magic = Encoding.UTF8.GetString(buffer);
                 ChnkEntry entry = new ChnkEntry();
-                entry.Offset = Readers.ReadUInt32(stream, flipBytes) + baseOffset;
-                entry.CompSize = Readers.ReadUInt32(stream, flipBytes);;
-                entry.NextChnkOffset = Readers.ReadUInt32(stream, flipBytes);;
-                entry.NextChnkLength = Readers.ReadUInt32(stream, flipBytes);;
-                entry.DecompSize = Readers.ReadUInt32(stream, flipBytes);;
-                entry.DecompOffset = Readers.ReadUInt32(stream, flipBytes);;
+                entry.Offset = ReadWrite.ReadUInt32(stream, flipBytes) + baseOffset;
+                entry.CompSize = ReadWrite.ReadUInt32(stream, flipBytes);;
+                entry.NextChnkOffset = ReadWrite.ReadUInt32(stream, flipBytes);;
+                entry.NextChnkLength = ReadWrite.ReadUInt32(stream, flipBytes);;
+                entry.DecompSize = ReadWrite.ReadUInt32(stream, flipBytes);;
+                entry.DecompOffset = ReadWrite.ReadUInt32(stream, flipBytes);;
                 ChnkList.Add(entry);
 
                 // Decompress the current chunk

@@ -6,29 +6,11 @@ using System.Threading.Tasks;
 
 namespace GH_Toolkit_Core
 {
-    public class Readers
+    public class ReadWrite
     {
         public static bool FlipCheck(string endian)
         {
-            bool big_endian;
-            bool little_arc;
-            if (endian == "little")
-            {
-                big_endian = false;
-            }
-            else
-            {
-                big_endian = true;
-            }
-            if (BitConverter.IsLittleEndian)
-            {
-                little_arc = true;
-            }
-            else
-            {
-                little_arc = false;
-            }
-            return big_endian && little_arc;
+            return (endian == "little") != BitConverter.IsLittleEndian;
         }
         public static string ReadUntilNullByte(MemoryStream memoryStream)
         {
@@ -48,7 +30,17 @@ namespace GH_Toolkit_Core
             // Convert byte list to string using UTF-8 encoding
             return Encoding.UTF8.GetString(byteList.ToArray());
         }
-
+        public static void WriteNullTermString(MemoryStream stream, string str)
+        {
+            str += "\0";
+            byte[] byteArray = Encoding.UTF8.GetBytes(str);
+            stream.Write(byteArray, 0, byteArray.Length);
+        }
+        public static void FillNullTermString(MemoryStream stream, uint padding)
+        {
+            byte[] nullBytes = new byte[padding];
+            stream.Write(nullBytes, 0, nullBytes.Length);
+        }
         public static byte[] ReadAndMaybeFlipBytes(MemoryStream s, int count, bool flipBytes)
         {
             byte[] buffer = new byte[count];
@@ -70,6 +62,24 @@ namespace GH_Toolkit_Core
         public static uint ReadUInt32(MemoryStream stream, bool flipBytes)
         {
             return BitConverter.ToUInt32(ReadAndMaybeFlipBytes(stream, 4, flipBytes), 0);
+        }
+        public static void WriteAndMaybeFlipBytes(MemoryStream s, byte[] data, bool flipBytes)
+        {
+            if (flipBytes)
+            {
+                Array.Reverse(data);
+            }
+            s.Write(data);
+        }
+        public static void WriteUInt32(MemoryStream stream, uint data, bool flipBytes)
+        {
+            WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes((uint)data), flipBytes);
+        }
+        public static void CopyStreamClose(MemoryStream source, MemoryStream dest)
+        {
+            source.Seek(0, SeekOrigin.Begin);
+            source.CopyTo(dest);
+            source.Close();
         }
     }
 }

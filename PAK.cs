@@ -25,15 +25,77 @@ namespace GH_Toolkit_Core
             public uint Flags { get; set; }
             public byte[]? EntryData { get; set; }
         }
-
-        public static List<PakEntry> ExtractPAK(byte[] PakBytes, string endian = "big", string songName = "")
+        public static void ProcessPAKFromFile(string file)
         {
-            bool flipBytes = Readers.FlipCheck(endian);
-            if (Compression.isCompressed(PakBytes))
+            string fileName = Path.GetFileName(file);
+            if (fileName.IndexOf(".pak", 0, fileName.Length, StringComparison.CurrentCultureIgnoreCase) == -1)
             {
-                PakBytes = Compression.DecompressWTPak(PakBytes);
+                throw new Exception("Invalid File");
             }
-            MemoryStream stream = new MemoryStream(PakBytes);
+            string fileNoExt = fileName.Substring(0, fileName.IndexOf(".pak"));
+            string fileExt = Path.GetExtension(file);
+            Console.WriteLine($"Extracting {fileNoExt}");
+            string folderPath = Path.GetDirectoryName(file);
+            string NewFolderPath = Path.Combine(folderPath, fileNoExt);
+            string songCheck = "_song";
+            string songName = "";
+            List<PakEntry> pakEntries;
+            if (fileName.Contains(songCheck))
+            {
+                songName = fileName.Substring(0, fileName.IndexOf(songCheck));
+            }
+
+            byte[] test_pak = File.ReadAllBytes(file);
+            byte[] test_pab = null;
+
+            // Check for a corresponding .pab file
+            string pabFilePath = Path.Combine(folderPath, fileNoExt + $".pab{fileExt}");
+            if (File.Exists(pabFilePath))
+            {
+                test_pab = File.ReadAllBytes(pabFilePath);
+            }
+
+            string endian;
+            if (fileExt == ".ps2")
+            {
+                endian = "little";
+            }
+            else
+            {
+                endian = "big";
+                fileExt = ".xen";
+            }
+            try
+            {
+                pakEntries = ExtractPAK(test_pak, test_pab, endian: endian, songName: songName);
+            }
+            catch
+            {
+                throw;
+            }
+
+            foreach (PakEntry entry in pakEntries)
+            {
+                string pakFileName = (string)entry.FullName;
+                if (!pakFileName.EndsWith((string)entry.Extension, StringComparison.CurrentCultureIgnoreCase) && !pakFileName.EndsWith(".ps2", StringComparison.CurrentCultureIgnoreCase))
+                {
+                    pakFileName += entry.Extension;
+                }
+
+                pakFileName += fileExt;
+                string saveName = Path.Combine(NewFolderPath, pakFileName);
+                Directory.CreateDirectory(Path.GetDirectoryName(saveName));
+                File.WriteAllBytes(saveName, entry.EntryData);
+            }
+        }
+        public static List<PakEntry> ExtractPAK(byte[] pakBytes, byte[] pabBytes, string endian = "big", string songName = "")
+        {
+            bool flipBytes = ReadWrite.FlipCheck(endian);
+            if (Compression.isCompressed(pakBytes))
+            {
+                pakBytes = Compression.DecompressWTPak(pakBytes);
+            }
+            MemoryStream stream = new MemoryStream(pakBytes);
             List<PakEntry> PakList = new List<PakEntry>();
             Dictionary<uint, string> headers = DebugReader.MakeDictFromName(songName);
 
@@ -47,7 +109,7 @@ namespace GH_Toolkit_Core
                 PakEntry entry = new PAK.PakEntry();
                 uint header_start = (uint)stream.Position; // To keep track of which entry since the offset in the header needs to be added to the StartOffset below
 
-                uint extension = Readers.ReadUInt32(stream, flipBytes);
+                uint extension = ReadWrite.ReadUInt32(stream, flipBytes);
                 if (extension != 0x2cb3ef3b && extension != 0xb524565f)
                 {
                     entry.Extension = DebugCheck(extension);
@@ -60,23 +122,23 @@ namespace GH_Toolkit_Core
                 {
                     entry.Extension = "." + entry.Extension;
                 }
-                uint offset = Readers.ReadUInt32(stream, flipBytes);
+                uint offset = ReadWrite.ReadUInt32(stream, flipBytes);
                 entry.StartOffset = offset + header_start;
-                uint filesize = Readers.ReadUInt32(stream, flipBytes);
+                uint filesize = ReadWrite.ReadUInt32(stream, flipBytes);
                 entry.FileSize = filesize;
-                uint asset = Readers.ReadUInt32(stream, flipBytes);
+                uint asset = ReadWrite.ReadUInt32(stream, flipBytes);
                 entry.AssetContext = DebugCheck(asset);
-                uint fullname = Readers.ReadUInt32(stream, flipBytes);
+                uint fullname = ReadWrite.ReadUInt32(stream, flipBytes);
                 entry.FullName = DebugCheck(fullname);
-                uint name = Readers.ReadUInt32(stream, flipBytes);
+                uint name = ReadWrite.ReadUInt32(stream, flipBytes);
                 entry.NameNoExt = DebugCheck(name);
                 if (entry.FullName.StartsWith("0x"))
                 {
                     entry.FullName = $"{entry.FullName}.{entry.NameNoExt}";
                 }
-                uint parent = Readers.ReadUInt32(stream, flipBytes);
+                uint parent = ReadWrite.ReadUInt32(stream, flipBytes);
                 entry.Parent = parent;
-                uint flags = Readers.ReadUInt32(stream, flipBytes);
+                uint flags = ReadWrite.ReadUInt32(stream, flipBytes);
                 entry.Flags = flags;
                 switch (flags)
                 {
@@ -84,7 +146,7 @@ namespace GH_Toolkit_Core
                         break;
                     case 0x20:
                         var skipTo = stream.Position + 160;
-                        string tempString = Readers.ReadUntilNullByte(stream);
+                        string tempString = ReadWrite.ReadUntilNullByte(stream);
                         switch (tempString)
                         {
                             case string s when s.StartsWith("ones\\"):
@@ -102,6 +164,9 @@ namespace GH_Toolkit_Core
                             case string s when s.StartsWith("odels\\"):
                                 tempString = "m" + tempString;
                                 break;
+                            case string s when s.StartsWith("ak\\"):
+                                tempString = "p" + tempString;
+                                break;
                         }
                         entry.FullName = tempString;
                         stream.Position = skipTo;
@@ -110,7 +175,7 @@ namespace GH_Toolkit_Core
                 try
                 {
                     entry.EntryData = new byte[entry.FileSize];
-                    Array.Copy(PakBytes, entry.StartOffset, entry.EntryData, 0, entry.FileSize);
+                    Array.Copy(pakBytes, entry.StartOffset, entry.EntryData, 0, entry.FileSize);
                     PakList.Add(entry);
                 }
                 catch (Exception ex)
@@ -122,8 +187,8 @@ namespace GH_Toolkit_Core
                     }
                     Console.WriteLine("Could not find last entry. Trying Guitar Hero 3 Compression.");
                     PakList.Clear();
-                    PakBytes = Compression.DecompressData(PakBytes);
-                    stream = new MemoryStream(PakBytes);
+                    pakBytes = Compression.DecompressData(pakBytes);
+                    stream = new MemoryStream(pakBytes);
                     TryGH3 = true;
                 }
             }

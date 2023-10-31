@@ -17,6 +17,12 @@ namespace GH_Toolkit_Core.PS2
             public uint FileCount { get; set; } // Number of files in folder path
             public string? FolderChecksum { get; set; } // Checksum of folder path
             public uint HdpOffset { get; set; } // Offset in DATAPD file of first file in folder
+            public HdpFolderEntry(uint count, string checksum, uint offset)
+            {
+                FileCount = count;
+                FolderChecksum = checksum;
+                HdpOffset = offset;
+            }
         }
         [DebuggerDisplay("{FileChecksum} at {SectorIndex*2048} in WAD, sector {SectorIndex} [{DataLength} bytes long]")]
         public class HdpFileEntry
@@ -24,11 +30,27 @@ namespace GH_Toolkit_Core.PS2
             public uint SectorIndex { get; set; } // Data starts at this value * 2048 in the WAD file
             public uint DataLength { get; set; } // Length of the data. This does not include padding to next 2048 byte boundary
             public string? FileChecksum { get; set; } // Checksum of file path
+            public HdpFileEntry(uint sectorIndex, uint dataLength, string fileChecksum)
+            {
+                SectorIndex = sectorIndex;
+                DataLength = dataLength;
+                FileChecksum = fileChecksum;
+            }
         }
         public class HdpFile
         {
             public List<HdpFolderEntry>? HdpFolders { get; set; }
             public List<HdpFileEntry>? HdpFiles { get; set; }
+            public void AddFileEntry(uint sectorIndex, uint dataLength, string fileChecksum)
+            {
+                HdpFileEntry hdpFileEntry = new HdpFileEntry(sectorIndex, dataLength, fileChecksum);
+                HdpFiles.Add(hdpFileEntry);
+            }
+            public void AddFolderEntry(uint count, string checksum, uint offset)
+            {
+                HdpFolderEntry hdpFolderEntry = new HdpFolderEntry(count, checksum, offset);
+                HdpFolders.Add(hdpFolderEntry);
+            }
         }
         private static void AddToDict(Dictionary<uint, string> dict, string entry)
         {
@@ -76,7 +98,7 @@ namespace GH_Toolkit_Core.PS2
         public static HdpFile ReadHDPFile(byte[] HdpBytes, Dictionary<uint, string>? folderChecksums)
         {
             // PS2 files are always little-endian
-            bool flipBytes = Readers.FlipCheck("little");
+            bool flipBytes = ReadWrite.FlipCheck("little");
             HdpFile hdpFile = new HdpFile();
             MemoryStream stream = new MemoryStream(HdpBytes);
             if (folderChecksums == null)
@@ -86,10 +108,10 @@ namespace GH_Toolkit_Core.PS2
             }
             hdpFile.HdpFiles = new List<HdpFileEntry>();
 
-            uint numEntries = Readers.ReadUInt32(stream, flipBytes);
-            uint fileOffset = Readers.ReadUInt32(stream, flipBytes);
-            uint folderOffset = Readers.ReadUInt32(stream, flipBytes);
-            uint unkOffset = Readers.ReadUInt32(stream, flipBytes);
+            uint numEntries = ReadWrite.ReadUInt32(stream, flipBytes);
+            uint fileOffset = ReadWrite.ReadUInt32(stream, flipBytes);
+            uint folderOffset = ReadWrite.ReadUInt32(stream, flipBytes);
+            uint unkOffset = ReadWrite.ReadUInt32(stream, flipBytes);
 
             if (folderOffset > 0)
             {
@@ -97,42 +119,44 @@ namespace GH_Toolkit_Core.PS2
                 stream.Seek(folderOffset, SeekOrigin.Begin);
                 while (true)
                 {
-                    HdpFolderEntry folderEntry = new HdpFolderEntry();
-                    folderEntry.FileCount = Readers.ReadUInt32(stream, flipBytes);
-                    if (folderEntry.FileCount == 0xffffffff || stream.Position >= fileOffset)
+                    uint fileCount = ReadWrite.ReadUInt32(stream, flipBytes);
+                    if (fileCount == 0xffffffff || stream.Position >= fileOffset)
                     {
                         break;
                     }
-                    uint checksum = Readers.ReadUInt32(stream, flipBytes);
+                    uint checksum = ReadWrite.ReadUInt32(stream, flipBytes);
+                    string folderChecksum;
                     if (folderChecksums.ContainsKey(checksum))
                     {
-                        folderEntry.FolderChecksum = folderChecksums[checksum];
+                        folderChecksum = folderChecksums[checksum];
                     }
                     else
                     {
                         Console.WriteLine($"Could not find string for {checksum}.");
-                        folderEntry.FolderChecksum = "0x" + checksum.ToString("X");
+                        folderChecksum = "0x" + checksum.ToString("X");
                     }
-                    folderEntry.HdpOffset = Readers.ReadUInt32(stream, flipBytes);
+                    uint hdpOffset = ReadWrite.ReadUInt32(stream, flipBytes);
+                    HdpFolderEntry folderEntry = new HdpFolderEntry(fileCount, folderChecksum, hdpOffset);
                     hdpFile.HdpFolders.Add(folderEntry);
                 }
             }
             stream.Seek(fileOffset, SeekOrigin.Begin);
             while (true)
             {
-                HdpFileEntry fileEntry = new HdpFileEntry();
-                fileEntry.SectorIndex = Readers.ReadUInt32(stream, flipBytes);
-                fileEntry.DataLength = Readers.ReadUInt32(stream, flipBytes);
-                uint checksum = Readers.ReadUInt32(stream, flipBytes);
+                uint sectorIndex = ReadWrite.ReadUInt32(stream, flipBytes);
+                uint dataLength = ReadWrite.ReadUInt32(stream, flipBytes);
+                uint checksum = ReadWrite.ReadUInt32(stream, flipBytes);
+                string fileChecksum;
                 if (folderChecksums.ContainsKey(checksum))
                 {
-                    fileEntry.FileChecksum = folderChecksums[checksum];
+                    fileChecksum = folderChecksums[checksum];
                 }
                 else
                 {
-                    fileEntry.FileChecksum = "0x" + checksum.ToString("X");
-                    Console.WriteLine($"Could not find string for {fileEntry.FileChecksum}.");
+                    fileChecksum = "0x" + checksum.ToString("X");
+                    Console.WriteLine($"Could not find string for {fileChecksum}.");
                 }
+                HdpFileEntry fileEntry = new HdpFileEntry(sectorIndex, dataLength, fileChecksum);
                 hdpFile.HdpFiles.Add(fileEntry);
                 if (hdpFile.HdpFiles.Count >= numEntries)
                 {
