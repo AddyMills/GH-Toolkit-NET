@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Linq;
+using System.Reflection.Metadata.Ecma335;
 using System.Security.Cryptography;
 using System.Security.Policy;
 using System.Text;
@@ -29,6 +30,10 @@ namespace GH_Toolkit_Core
         public static void ProcessPAKFromFile(string file)
         {
             string fileName = Path.GetFileName(file);
+            if (fileName.IndexOf(".pab", 0, fileName.Length, StringComparison.CurrentCultureIgnoreCase) != -1)
+            {
+                return;
+            }
             if (fileName.IndexOf(".pak", 0, fileName.Length, StringComparison.CurrentCultureIgnoreCase) == -1)
             {
                 throw new Exception("Invalid File");
@@ -88,10 +93,14 @@ namespace GH_Toolkit_Core
                 File.WriteAllBytes(saveName, entry.EntryData);
             }
         }
-        private static uint CheckPabType(byte[] pakBytes)
+        private static uint CheckPabType(byte[] pakBytes, bool flipBytes)
         {
             byte[] pabCheck = new byte[4];
             Array.Copy(pakBytes, 4, pabCheck, 0, 4);
+            if (flipBytes)
+            {
+                Array.Reverse(pabCheck);
+            }
             uint pabOff = BitConverter.ToUInt32(pabCheck);
             if (pabOff == 0)
             {
@@ -102,13 +111,14 @@ namespace GH_Toolkit_Core
         public static List<PakEntry> ExtractPAK(byte[] pakBytes, byte[]? pabBytes, string endian = "big", string songName = "")
         {
             bool newPak = false;
+            bool flipBytes = ReadWrite.FlipCheck(endian);
             if (Compression.isCompressed(pakBytes))
             {
                 pakBytes = Compression.DecompressWTPak(pakBytes);
             }
             if (pabBytes != null)
             {
-                uint pabType = CheckPabType(pakBytes);
+                uint pabType = CheckPabType(pakBytes, flipBytes);
                 switch (pabType)
                 {
                     case 0:
@@ -121,15 +131,15 @@ namespace GH_Toolkit_Core
                         break;
                 }
             }
-            List<PakEntry> pakList = ExtractOldPak(pakBytes, endian, songName);
+            List<PakEntry> pakList = ExtractOldPak(pakBytes, flipBytes, songName);
 
 
 
             return pakList;
         }
-        public static List<PakEntry> ExtractOldPak(byte[] pakBytes, string endian = "big", string songName = "")
+        public static List<PakEntry> ExtractOldPak(byte[] pakBytes, bool flipBytes, string songName = "")
         {
-            bool flipBytes = ReadWrite.FlipCheck(endian);
+            
             MemoryStream stream = new MemoryStream(pakBytes);
             List<PakEntry> PakList = new List<PakEntry>();
             Dictionary<uint, string> headers = DebugReader.MakeDictFromName(songName);
