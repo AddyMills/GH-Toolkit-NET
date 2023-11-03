@@ -4,12 +4,24 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static GH_Toolkit_Core.PAK;
 
 namespace GH_Toolkit_Core
 {
-    internal class QB
+    public class QB
     {
-        public static Dictionary<string, uint[]> qbNodeHeaders = new Dictionary<string, uint[]>()
+        public class QbEntry
+        {
+            
+        }
+        private class QbHeader
+        {
+            public uint Flags { get; set; }
+            public uint FileSize { get; set; }
+
+        }
+
+        public static Dictionary<string, uint[]> QbNodeHeaders = new Dictionary<string, uint[]>()
         {
                                                         //Wii-PC-360      PS2
             { "Flag", new uint[]                        { 0x00000000, 0x00000000 } },
@@ -53,22 +65,52 @@ namespace GH_Toolkit_Core
             { "Floats", new uint[]                      { 0x00010000, 0x00000100 } },
             { "StructHeader", new uint[]                { 0x00000100, 0x00010000 } }
         };
+        public static Dictionary<uint, string> QbTypeNext { get; private set; }
+        public static Dictionary<uint, string> QbTypePS2 { get; private set; }
 
-        public static string GetQBType(uint qb_key, string console) // Might turn this into a reverse-lookup dictionary
+        static QB()
+        {
+            QbTypeNext = GetQBType("360");
+            QbTypePS2 = GetQBType("PS2");
+        }
+
+        public static Dictionary<uint, string> GetQBType(string console) // Might turn this into a reverse-lookup dictionary
         {
             byte selector = 0;
+            Dictionary<uint, string> keyValuePairs = new Dictionary<uint, string>();
             if (console == "PS2")
             {
                 selector = 1;
             }
-            foreach (var item in qbNodeHeaders)
+            foreach (var kvp in QbNodeHeaders) 
             {
-                if (item.Value[selector] == qb_key)
-                {
-                    return item.Key;
-                }
+                keyValuePairs[kvp.Value[selector]] = kvp.Key;
             }
-            return null;
+            return keyValuePairs;
+        }
+        private static void ReadQbHeader(MemoryStream stream)
+        {
+
+        }
+        public static void DecompilePAKFile(string file)
+        {
+            string fileName = Path.GetFileName(file);
+            if (fileName.IndexOf(".qb", 0, fileName.Length, StringComparison.CurrentCultureIgnoreCase) == -1)
+            {
+                throw new Exception("Invalid File");
+            }
+            string fileNoExt = fileName.Substring(0, fileName.IndexOf(".qb"));
+            string fileExt = Path.GetExtension(file);
+            Console.WriteLine($"Extracting {fileNoExt}");
+            string folderPath = Path.GetDirectoryName(file);
+            string NewFilePath = Path.Combine(folderPath, fileNoExt, $"{fileNoExt}.q");
+            string songCheck = ".mid";
+            string songName = "";
+            List<QbEntry> qbSections = new List<QbEntry>();
+            if (fileName.Contains(songCheck))
+            {
+                songName = fileName.Substring(0, fileName.IndexOf(songCheck));
+            }
         }
     }
 }

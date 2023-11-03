@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Security.Policy;
 using System.Text;
 using System.Threading.Tasks;
 using GH_Toolkit_Core.Debug;
@@ -77,24 +78,58 @@ namespace GH_Toolkit_Core
             foreach (PakEntry entry in pakEntries)
             {
                 string pakFileName = (string)entry.FullName;
-                if (!pakFileName.EndsWith((string)entry.Extension, StringComparison.CurrentCultureIgnoreCase) && !pakFileName.EndsWith(".ps2", StringComparison.CurrentCultureIgnoreCase))
-                {
+                if (!pakFileName.EndsWith(fileExt, StringComparison.CurrentCultureIgnoreCase))
+                { 
                     pakFileName += entry.Extension;
                 }
 
-                pakFileName += fileExt;
                 string saveName = Path.Combine(NewFolderPath, pakFileName);
                 Directory.CreateDirectory(Path.GetDirectoryName(saveName));
                 File.WriteAllBytes(saveName, entry.EntryData);
             }
         }
-        public static List<PakEntry> ExtractPAK(byte[] pakBytes, byte[] pabBytes, string endian = "big", string songName = "")
+        private static uint CheckPabType(byte[] pakBytes)
         {
-            bool flipBytes = ReadWrite.FlipCheck(endian);
+            byte[] pabCheck = new byte[4];
+            Array.Copy(pakBytes, 4, pabCheck, 0, 4);
+            uint pabOff = BitConverter.ToUInt32(pabCheck);
+            if (pabOff == 0)
+            {
+                return 0;
+            }
+            return pabOff;
+        }
+        public static List<PakEntry> ExtractPAK(byte[] pakBytes, byte[]? pabBytes, string endian = "big", string songName = "")
+        {
+            bool newPak = false;
             if (Compression.isCompressed(pakBytes))
             {
                 pakBytes = Compression.DecompressWTPak(pakBytes);
             }
+            if (pabBytes != null)
+            {
+                uint pabType = CheckPabType(pakBytes);
+                switch (pabType)
+                {
+                    case 0:
+                        throw new Exception("PAK type not yet implemented.");
+                    case uint size when size >= pakBytes.Length:
+                        byte[] bytes = new byte[pabType + pabBytes.Length];
+                        Array.Copy(pakBytes, 0, bytes, 0, pakBytes.Length);
+                        Array.Copy(pabBytes, 0, bytes, pabType, pabBytes.Length);
+                        pakBytes = bytes;
+                        break;
+                }
+            }
+            List<PakEntry> pakList = ExtractOldPak(pakBytes, endian, songName);
+
+
+
+            return pakList;
+        }
+        public static List<PakEntry> ExtractOldPak(byte[] pakBytes, string endian = "big", string songName = "")
+        {
+            bool flipBytes = ReadWrite.FlipCheck(endian);
             MemoryStream stream = new MemoryStream(pakBytes);
             List<PakEntry> PakList = new List<PakEntry>();
             Dictionary<uint, string> headers = DebugReader.MakeDictFromName(songName);
@@ -145,6 +180,7 @@ namespace GH_Toolkit_Core
                     case 0:
                         break;
                     case 0x20:
+                    case 0x22:
                         var skipTo = stream.Position + 160;
                         string tempString = ReadWrite.ReadUntilNullByte(stream);
                         switch (tempString)
@@ -171,6 +207,8 @@ namespace GH_Toolkit_Core
                         entry.FullName = tempString;
                         stream.Position = skipTo;
                         break;
+                    default: 
+                        throw new InvalidOperationException("Unknown flag found");
                 }
                 try
                 {
@@ -194,8 +232,6 @@ namespace GH_Toolkit_Core
             }
 
             Console.WriteLine("Success!");
-
-
             return PakList;
         }
     }
