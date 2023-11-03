@@ -21,6 +21,47 @@ namespace GH_Toolkit_Core
 
         }
 
+        private static readonly Dictionary<byte, string> QbFlags = new Dictionary<byte, string>()
+        {
+            {0x20, "Section"},
+            {0x4, "Section"},
+            {0x1, "Array"},
+
+        };
+
+        private static readonly Dictionary<byte, string> QbType = new Dictionary<byte, string>()
+        {
+            {0x00, "Flag" }, // Should only be used in structs
+            {0x01, "Integer" },
+            {0x02, "Float" },
+            {0x03, "String" },
+            {0x04, "WideString" },
+            {0x05, "Pair" }, // Two float values
+            {0x06, "Vector" }, // Three float values
+            {0x07, "Script" },
+            {0x0A, "Struct"},
+            {0x0C, "Array" },
+            {0x0D, "QbKey" },
+            {0x1A, "QbKeyGlobal" },
+            {0x1C, "QsKey" }, // AKA localized string
+        };
+
+        private static readonly Dictionary<byte, string> QbTypePs2Struct = new Dictionary<byte, string>()
+        {
+            {0x00, "Flag" },
+            {0x03, "Integer" },
+            {0x05, "Float" },
+            {0x07, "String" },
+            {0x09, "WideString" },
+            {0x0B, "Pair" }, // Two float values
+            {0x0D, "Vector" }, // Three float values
+            {0x15, "Struct"},
+            {0x19, "Array" },
+            {0x1B, "QbKey" },
+            {0x35, "QbKeyGlobal" },
+        };
+
+
         public static Dictionary<string, uint[]> QbNodeHeaders = new Dictionary<string, uint[]>()
         {
                                                         //Wii-PC-360      PS2
@@ -92,7 +133,7 @@ namespace GH_Toolkit_Core
         {
 
         }
-        public static void DecompilePAKFile(string file)
+        public static void DecompileQbFile(string file)
         {
             string fileName = Path.GetFileName(file);
             if (fileName.IndexOf(".qb", 0, fileName.Length, StringComparison.CurrentCultureIgnoreCase) == -1)
@@ -101,7 +142,7 @@ namespace GH_Toolkit_Core
             }
             string fileNoExt = fileName.Substring(0, fileName.IndexOf(".qb"));
             string fileExt = Path.GetExtension(file);
-            Console.WriteLine($"Extracting {fileNoExt}");
+            Console.WriteLine($"Decompiling {fileName}");
             string folderPath = Path.GetDirectoryName(file);
             string NewFilePath = Path.Combine(folderPath, fileNoExt, $"{fileNoExt}.q");
             string songCheck = ".mid";
@@ -110,6 +151,17 @@ namespace GH_Toolkit_Core
             if (fileName.Contains(songCheck))
             {
                 songName = fileName.Substring(0, fileName.IndexOf(songCheck));
+            }
+            byte[] qb_bytes = File.ReadAllBytes(file);
+            string endian;
+            if (fileExt == ".ps2")
+            {
+                endian = "little";
+            }
+            else
+            {
+                endian = "big";
+                fileExt = ".xen";
             }
         }
     }
