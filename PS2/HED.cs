@@ -39,7 +39,7 @@ namespace GH_Toolkit_Core.PS2
         public static List<HedEntry> ReadHEDFile(byte[] HedBytes)
         {
             // PS2 files are always little-endian
-            bool flipBytes = ReadWrite.FlipCheck("little");
+            ReadWrite reader = new ReadWrite("little");
             // There are no headers in a HED file so go right into reading the data
             MemoryStream stream = new MemoryStream(HedBytes);
             List<HedEntry> HedList = new List<HedEntry>();
@@ -54,15 +54,15 @@ namespace GH_Toolkit_Core.PS2
                 else
                 {
                     
-                    uint sectorIndex = ReadWrite.ReadUInt32(stream, flipBytes);
-                    uint fileSize = ReadWrite.ReadUInt32(stream, flipBytes);
+                    uint sectorIndex = reader.ReadUInt32(stream);
+                    uint fileSize = reader.ReadUInt32(stream);
                     string filePath = ReadWrite.ReadUntilNullByte(stream);
                     HedEntry entry = new HedEntry(sectorIndex, fileSize, filePath);
                     HedList.Add(entry);
                 }
                 originalPosition = (uint)stream.Position;
 
-                checkend = ReadWrite.ReadUInt32(stream, flipBytes);
+                checkend = reader.ReadUInt32(stream);
                 stream.Seek(originalPosition, SeekOrigin.Begin);
             }
             stream.Close();

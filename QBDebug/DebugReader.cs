@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -18,7 +19,7 @@ namespace GH_Toolkit_Core.Debug
         {
             var funcDict = new Dictionary<uint, string>();
             var rootFolder = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-            var dbgPath = Path.Combine(rootFolder, "debug.txt");
+            var dbgPath = Path.Combine(rootFolder,"QBDebug", "debug.txt");
 
             try
             {
@@ -50,8 +51,11 @@ namespace GH_Toolkit_Core.Debug
 
             return funcDict;
         }
-
-        public static string DbgCheck(uint toCheck)
+        public static string DebugCheck(Dictionary<uint, string> headers, uint check)
+        {
+            return headers.TryGetValue(check, out string? result) ? result : DbgString(check);
+        }
+        public static string DbgString(uint toCheck)
         {
             if (ChecksumDbg.TryGetValue(toCheck, out var checksum))
             {

@@ -77,7 +77,12 @@ namespace GH_Toolkit_Core
             }
             catch
             {
-                throw;
+                test_pak = Compression.DecompressData(test_pak);
+                if (test_pab != null) 
+                { 
+                    test_pab = Compression.DecompressData(test_pab);
+                }
+                pakEntries = ExtractPAK(test_pak, test_pab, endian: endian, songName: songName);
             }
 
             foreach (PakEntry entry in pakEntries)
@@ -85,7 +90,7 @@ namespace GH_Toolkit_Core
                 string pakFileName = (string)entry.FullName;
                 if (!pakFileName.EndsWith(fileExt, StringComparison.CurrentCultureIgnoreCase))
                 { 
-                    pakFileName += entry.Extension;
+                    pakFileName += fileExt;
                 }
 
                 string saveName = Path.Combine(NewFolderPath, pakFileName);
@@ -93,8 +98,9 @@ namespace GH_Toolkit_Core
                 File.WriteAllBytes(saveName, entry.EntryData);
             }
         }
-        private static uint CheckPabType(byte[] pakBytes, bool flipBytes)
+        private static uint CheckPabType(byte[] pakBytes, string endian = "big")
         {
+            bool flipBytes = ReadWrite.FlipCheck(endian);
             byte[] pabCheck = new byte[4];
             Array.Copy(pakBytes, 4, pabCheck, 0, 4);
             if (flipBytes)
@@ -110,15 +116,14 @@ namespace GH_Toolkit_Core
         }
         public static List<PakEntry> ExtractPAK(byte[] pakBytes, byte[]? pabBytes, string endian = "big", string songName = "")
         {
-            bool newPak = false;
-            bool flipBytes = ReadWrite.FlipCheck(endian);
-            if (Compression.isCompressed(pakBytes))
+            ReadWrite reader = new ReadWrite(endian);
+            if (Compression.isChnkCompressed(pakBytes))
             {
                 pakBytes = Compression.DecompressWTPak(pakBytes);
             }
             if (pabBytes != null)
             {
-                uint pabType = CheckPabType(pakBytes, flipBytes);
+                uint pabType = CheckPabType(pakBytes, endian);
                 switch (pabType)
                 {
                     case 0:
@@ -131,33 +136,29 @@ namespace GH_Toolkit_Core
                         break;
                 }
             }
-            List<PakEntry> pakList = ExtractOldPak(pakBytes, flipBytes, songName);
+            List<PakEntry> pakList = ExtractOldPak(pakBytes, endian, songName);
 
 
 
             return pakList;
         }
-        public static List<PakEntry> ExtractOldPak(byte[] pakBytes, bool flipBytes, string songName = "")
+        public static List<PakEntry> ExtractOldPak(byte[] pakBytes, string endian, string songName = "")
         {
-            
+            ReadWrite reader = new ReadWrite(endian);
             MemoryStream stream = new MemoryStream(pakBytes);
             List<PakEntry> PakList = new List<PakEntry>();
             Dictionary<uint, string> headers = DebugReader.MakeDictFromName(songName);
 
-            string DebugCheck(uint check)
-            {
-                return headers.TryGetValue(check, out string? result) ? result : DebugReader.DbgCheck(check);
-            }
             bool TryGH3 = false;
             while (true)
             {
                 PakEntry entry = new PAK.PakEntry();
                 uint header_start = (uint)stream.Position; // To keep track of which entry since the offset in the header needs to be added to the StartOffset below
 
-                uint extension = ReadWrite.ReadUInt32(stream, flipBytes);
+                uint extension = reader.ReadUInt32(stream);
                 if (extension != 0x2cb3ef3b && extension != 0xb524565f)
                 {
-                    entry.Extension = DebugCheck(extension);
+                    entry.Extension = DebugReader.DebugCheck(headers, extension);
                 }
                 else
                 {
@@ -167,23 +168,23 @@ namespace GH_Toolkit_Core
                 {
                     entry.Extension = "." + entry.Extension;
                 }
-                uint offset = ReadWrite.ReadUInt32(stream, flipBytes);
+                uint offset = reader.ReadUInt32(stream);
                 entry.StartOffset = offset + header_start;
-                uint filesize = ReadWrite.ReadUInt32(stream, flipBytes);
+                uint filesize = reader.ReadUInt32(stream);
                 entry.FileSize = filesize;
-                uint asset = ReadWrite.ReadUInt32(stream, flipBytes);
-                entry.AssetContext = DebugCheck(asset);
-                uint fullname = ReadWrite.ReadUInt32(stream, flipBytes);
-                entry.FullName = DebugCheck(fullname);
-                uint name = ReadWrite.ReadUInt32(stream, flipBytes);
-                entry.NameNoExt = DebugCheck(name);
+                uint asset = reader.ReadUInt32(stream);
+                entry.AssetContext = DebugReader.DebugCheck(headers, asset);
+                uint fullname = reader.ReadUInt32(stream);
+                entry.FullName = DebugReader.DebugCheck(headers, fullname);
+                uint name = reader.ReadUInt32(stream);
+                entry.NameNoExt = DebugReader.DebugCheck(headers, name);
                 if (entry.FullName.StartsWith("0x"))
                 {
                     entry.FullName = $"{entry.FullName}.{entry.NameNoExt}";
                 }
-                uint parent = ReadWrite.ReadUInt32(stream, flipBytes);
+                uint parent = reader.ReadUInt32(stream);
                 entry.Parent = parent;
-                uint flags = ReadWrite.ReadUInt32(stream, flipBytes);
+                uint flags = reader.ReadUInt32(stream);
                 entry.Flags = flags;
                 switch (flags)
                 {

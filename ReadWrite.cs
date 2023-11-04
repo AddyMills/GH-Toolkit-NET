@@ -8,6 +8,12 @@ namespace GH_Toolkit_Core
 {
     public class ReadWrite
     {
+        private readonly bool _flipBytes;
+        public ReadWrite(string endian)
+        {
+            // Determine if bytes need to be flipped based on endianness and system architecture.
+            _flipBytes = (endian == "little") != BitConverter.IsLittleEndian;
+        }
         public static bool FlipCheck(string endian)
         {
             return (endian == "little") != BitConverter.IsLittleEndian;
@@ -41,39 +47,53 @@ namespace GH_Toolkit_Core
             byte[] nullBytes = new byte[padding];
             stream.Write(nullBytes, 0, nullBytes.Length);
         }
-        public static byte[] ReadAndMaybeFlipBytes(MemoryStream s, int count, bool flipBytes)
+        public static byte[] ReadNoFlip(MemoryStream s, int count)
         {
             byte[] buffer = new byte[count];
             s.Read(buffer, 0, count);
-            if (flipBytes)
+            if (!BitConverter.IsLittleEndian)
             {
                 Array.Reverse(buffer);
             }
             return buffer;
         }
-        public static uint ReadUInt8(MemoryStream stream, bool flipBytes)
+        public byte[] ReadAndMaybeFlipBytes(MemoryStream s, int count)
         {
-            return ReadAndMaybeFlipBytes(stream, 1, flipBytes)[0];
+            byte[] buffer = new byte[count];
+            s.Read(buffer, 0, count);
+            if (_flipBytes)
+            {
+                Array.Reverse(buffer);
+            }
+            return buffer;
         }
-        public static uint ReadUInt16(MemoryStream stream, bool flipBytes)
+        public uint ReadUInt8(MemoryStream stream)
         {
-            return BitConverter.ToUInt16(ReadAndMaybeFlipBytes(stream, 2, flipBytes), 0);
+            return ReadAndMaybeFlipBytes(stream, 1)[0];
         }
-        public static uint ReadUInt32(MemoryStream stream, bool flipBytes)
+        public uint ReadUInt16(MemoryStream stream)
         {
-            return BitConverter.ToUInt32(ReadAndMaybeFlipBytes(stream, 4, flipBytes), 0);
+            return BitConverter.ToUInt16(ReadAndMaybeFlipBytes(stream, 2), 0);
         }
-        public static void WriteAndMaybeFlipBytes(MemoryStream s, byte[] data, bool flipBytes)
+        public uint ReadUInt32(MemoryStream stream)
         {
-            if (flipBytes)
+            return BitConverter.ToUInt32(ReadAndMaybeFlipBytes(stream, 4), 0);
+        }
+        public float ReadFloat(MemoryStream stream)
+        {
+            return BitConverter.ToSingle(ReadAndMaybeFlipBytes(stream, 4), 0);
+        }
+        public void WriteAndMaybeFlipBytes(MemoryStream s, byte[] data)
+        {
+            if (_flipBytes)
             {
                 Array.Reverse(data);
             }
             s.Write(data);
         }
-        public static void WriteUInt32(MemoryStream stream, uint data, bool flipBytes)
+        public void WriteUInt32(MemoryStream stream, uint data)
         {
-            WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes((uint)data), flipBytes);
+            WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes((uint)data));
         }
         public static void CopyStreamClose(MemoryStream source, MemoryStream dest)
         {

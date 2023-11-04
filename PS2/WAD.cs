@@ -22,6 +22,7 @@ namespace GH_Toolkit_Core.PS2
             // Your logic to determine the value of flipBytes
             return ReadWrite.FlipCheck("little");
         }
+        public static ReadWrite Reader = new ReadWrite("little");
         [DebuggerDisplay("{RelPath} at index {sectorIndex}")]
         public class WadEntry
         {
@@ -139,17 +140,17 @@ namespace GH_Toolkit_Core.PS2
             uint fileOffset = HEADERSIZE + ((foldersCount + 1) * 12);
 
             // Initialize datapd stream
-            ReadWrite.WriteUInt32(datapd, (uint)hedEntries.Count, flipBytes);
-            ReadWrite.WriteUInt32(datapd, fileOffset, flipBytes);
-            ReadWrite.WriteUInt32(datapd, (uint)16, flipBytes);
-            ReadWrite.WriteUInt32(datapd, (uint)0, flipBytes);
+            Reader.WriteUInt32(datapd, (uint)hedEntries.Count);
+            Reader.WriteUInt32(datapd, fileOffset);
+            Reader.WriteUInt32(datapd, (uint)16);
+            Reader.WriteUInt32(datapd, (uint)0);
 
             // Initialize datapf stream
             hedEntries.Sort((entry1, entry2) => entry1.fileQbKey.CompareTo(entry2.fileQbKey));
-            ReadWrite.WriteUInt32(datapf, (uint)hedEntries.Count, flipBytes);
-            ReadWrite.WriteUInt32(datapf, HEADERSIZE, flipBytes);
-            ReadWrite.WriteUInt32(datapf, (uint)0, flipBytes);
-            ReadWrite.WriteUInt32(datapf, (uint)0, flipBytes);
+            Reader.WriteUInt32(datapf, (uint)hedEntries.Count);
+            Reader.WriteUInt32(datapf, HEADERSIZE);
+            Reader.WriteUInt32(datapf, (uint)0);
+            Reader.WriteUInt32(datapf, (uint)0);
         }
         private static void PopulateFolderStreams(MemoryStream pd_folders, MemoryStream pd_files, Dictionary<uint, FolderEntry> folders, List<uint> folderChecks, bool flipBytes)
         {
@@ -158,32 +159,32 @@ namespace GH_Toolkit_Core.PS2
             foreach (uint check in folderChecks)
             {
                 var curr = folders[check].wadEntries;
-                ReadWrite.WriteUInt32(pd_folders, (uint)curr.Count, flipBytes);
-                ReadWrite.WriteUInt32(pd_folders, check, flipBytes);
-                ReadWrite.WriteUInt32(pd_folders, fileOffset, flipBytes);
+                Reader.WriteUInt32(pd_folders, (uint)curr.Count);
+                Reader.WriteUInt32(pd_folders, check);
+                Reader.WriteUInt32(pd_folders, fileOffset);
                 fileOffset += 12 * (uint)curr.Count;
 
-                PopulateFileStreams(pd_files, curr, flipBytes);
+                PopulateFileStreams(pd_files, curr);
                 /*foreach (var entry in curr)
                 {
-                    ReadWrite.WriteUInt32(pd_files, entry.sectorIndex, flipBytes);
-                    ReadWrite.WriteUInt32(pd_files, entry.fileSize, flipBytes);
-                    ReadWrite.WriteUInt32(pd_files, entry.fileQbKey, flipBytes);
+                    Reader.WriteUInt32(pd_files, entry.sectorIndex);
+                    Reader.WriteUInt32(pd_files, entry.fileSize);
+                    Reader.WriteUInt32(pd_files, entry.fileQbKey);
                 }*/
             }
 
             // Write footer
-            ReadWrite.WriteUInt32(pd_folders, 0xffffffff, flipBytes);
-            ReadWrite.WriteUInt32(pd_folders, 0xcdcdcdcd, flipBytes);
-            ReadWrite.WriteUInt32(pd_folders, 0xcdcdcdcd, flipBytes);
+            Reader.WriteUInt32(pd_folders, 0xffffffff);
+            Reader.WriteUInt32(pd_folders, 0xcdcdcdcd);
+            Reader.WriteUInt32(pd_folders, 0xcdcdcdcd);
         }
-        private static void PopulateFileStreams(MemoryStream stream, List<WadEntry> entries, bool flipBytes)
+        private static void PopulateFileStreams(MemoryStream stream, List<WadEntry> entries)
         {
             foreach (var entry in entries)
             {
-                ReadWrite.WriteUInt32(stream, entry.sectorIndex, flipBytes);
-                ReadWrite.WriteUInt32(stream, entry.fileSize, flipBytes);
-                ReadWrite.WriteUInt32(stream, entry.fileQbKey, flipBytes);
+                Reader.WriteUInt32(stream, entry.sectorIndex);
+                Reader.WriteUInt32(stream, entry.fileSize);
+                Reader.WriteUInt32(stream, entry.fileQbKey);
             }
         }
         private static void FinalizeStreams(MemoryStream pd_folders, MemoryStream pd_files, MemoryStream datapd, MemoryStream datapf, MemoryStream pf_files)
@@ -197,8 +198,8 @@ namespace GH_Toolkit_Core.PS2
             MemoryStream stream = new MemoryStream();
             foreach (HedEntry entry in hedFile.HedEntries)
             {
-                ReadWrite.WriteUInt32(stream, entry.SectorIndex, flipBytes);
-                ReadWrite.WriteUInt32(stream, entry.FileSize, flipBytes);
+                Reader.WriteUInt32(stream, entry.SectorIndex);
+                Reader.WriteUInt32(stream, entry.FileSize);
                 ReadWrite.WriteNullTermString(stream, entry.FilePath);
                 uint padding = 4 - (uint)stream.Length % 4;
                 if (padding != 4)
@@ -206,7 +207,7 @@ namespace GH_Toolkit_Core.PS2
                     ReadWrite.FillNullTermString(stream, padding);
                 }
             }
-            ReadWrite.WriteUInt32(stream, EOF, flipBytes);
+            Reader.WriteUInt32(stream, EOF);
             return stream;
         }
         private static void SaveStreamToFile(MemoryStream stream, string filePath)
@@ -260,7 +261,7 @@ namespace GH_Toolkit_Core.PS2
 
 
             hedEntries.Sort((entry1, entry2) => entry1.fileQbKey.CompareTo(entry2.fileQbKey));
-            PopulateFileStreams(pf_files, hedEntries, flipBytes);
+            PopulateFileStreams(pf_files, hedEntries);
 
             FinalizeStreams(pd_folders, pd_files, datapd, datapf, pf_files);
 

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using GH_Toolkit_Core.Debug;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,15 +11,90 @@ namespace GH_Toolkit_Core
 {
     public class QB
     {
-        public class QbEntry
+        public static bool FlipBytes = true;
+        public static Dictionary<uint, string> SongHeaders;
+        public static ReadWrite Reader;
+
+        private const string SECTION = "Section";
+
+        private const string FLAG = "Flag";
+        private const string INTEGER = "Integer";
+        private const string FLOAT = "Float";
+        private const string STRING = "String";
+        private const string WIDESTRING = "WideString";
+        private const string PAIR = "Pair";
+        private const string VECTOR = "Vector";
+        private const string SCRIPT = "Script";
+        private const string STRUCT = "Struct";
+        private const string ARRAY = "Array";
+        private const string QBKEY = "QBKEY";
+        private const string POINTER = "Pointer";
+        private const string QSKEY = "QsKey";
+
+        public class QbItem
         {
-            
+            public QbItemInfo Info { get; set; }
+            public QbItemData Data { get; set; }
+            public QbItem(MemoryStream stream) 
+            { 
+                Info = new QbItemInfo(BitConverter.ToUInt32(ReadWrite.ReadNoFlip(stream, 4)));
+                Data = new QbItemData(stream, Info.Type);
+            }
         }
-        private class QbHeader
+        public class QbItemInfo
+        {
+            public byte Flags { get; set; }
+            public byte Type { get; set; }
+            public QbItemInfo(uint info) {
+                Flags = (byte)(info >> 8);
+                Type = (byte)(info >> 16);
+            }
+        }
+        public class QbItemData
+        {
+            public string ID { get; set; }
+            public string QbName { get; set; }
+            public object DataValue { get; set; }
+            /*  DataValue can be a value itself (for integers, floats, and QB Keys)
+                or it can be the starting byte of the data */
+            public uint NextItem { get; set; }
+            public QbItemData(MemoryStream stream, byte itemType)
+            {
+                ID = ReadQbKey(stream);
+                QbName = ReadQbKey(stream);
+                string itemString = QbType[itemType];
+                switch (itemString)
+                {
+                    case FLOAT:
+                        DataValue = Reader.ReadFloat(stream);
+                        break;
+                    case QBKEY:
+                    case QSKEY:
+                    case POINTER:
+                        DataValue = ReadQbKey(stream);
+                        break;
+                    default:
+                        DataValue = Reader.ReadUInt32(stream); 
+                        break;
+                }
+                NextItem = Reader.ReadUInt32(stream);
+            }
+        }
+        public class QbHeader
         {
             public uint Flags { get; set; }
             public uint FileSize { get; set; }
+            public QbHeader(MemoryStream stream)
+            {
+                Flags = Reader.ReadUInt32(stream);
+                FileSize = Reader.ReadUInt32(stream);
+                stream.Seek(28, SeekOrigin.Begin);
+            }
 
+        }
+        private static string ReadQbKey(MemoryStream stream)
+        {
+            return DebugReader.DebugCheck(SongHeaders, Reader.ReadUInt32(stream));
         }
 
         private static readonly Dictionary<byte, string> QbFlags = new Dictionary<byte, string>()
@@ -42,7 +118,7 @@ namespace GH_Toolkit_Core
             {0x0A, "Struct"},
             {0x0C, "Array" },
             {0x0D, "QbKey" },
-            {0x1A, "QbKeyGlobal" },
+            {0x1A, "Pointer" },
             {0x1C, "QsKey" }, // AKA localized string
         };
 
@@ -58,7 +134,7 @@ namespace GH_Toolkit_Core
             {0x15, "Struct"},
             {0x19, "Array" },
             {0x1B, "QbKey" },
-            {0x35, "QbKeyGlobal" },
+            {0x35, "Pointer" },
         };
 
 
@@ -106,15 +182,20 @@ namespace GH_Toolkit_Core
             { "Floats", new uint[]                      { 0x00010000, 0x00000100 } },
             { "StructHeader", new uint[]                { 0x00000100, 0x00010000 } }
         };
-        public static Dictionary<uint, string> QbTypeNext { get; private set; }
-        public static Dictionary<uint, string> QbTypePS2 { get; private set; }
+        public static Dictionary<byte, string> StructTypes { get; private set; }
 
-        static QB()
+        public static void SetStructType(string endian)
         {
-            QbTypeNext = GetQBType("360");
-            QbTypePS2 = GetQBType("PS2");
-        }
+            if (endian == "big")
+            {
+                StructTypes = QbType;
+            }
+            else
+            {
+                StructTypes = QbTypePs2Struct;
+            }
 
+        }
         public static Dictionary<uint, string> GetQBType(string console) // Might turn this into a reverse-lookup dictionary
         {
             byte selector = 0;
@@ -129,11 +210,22 @@ namespace GH_Toolkit_Core
             }
             return keyValuePairs;
         }
-        private static void ReadQbHeader(MemoryStream stream)
+        public static List<QbItem> DecompileQb(byte[] qbBytes, string endian = "big", string songName = "")
         {
-
+            SetStructType(endian);
+            Reader = new ReadWrite(endian);
+            MemoryStream stream = new MemoryStream(qbBytes);
+            var qbList = new List<QbItem>();
+            SongHeaders = DebugReader.MakeDictFromName(songName);
+            QbHeader header = new QbHeader(stream);
+            while (true)
+            {
+                QbItem item = new QbItem(stream);
+                break;
+            }
+            return qbList;
         }
-        public static void DecompileQbFile(string file)
+        public static void ProcessQbFromFile(string file)
         {
             string fileName = Path.GetFileName(file);
             if (fileName.IndexOf(".qb", 0, fileName.Length, StringComparison.CurrentCultureIgnoreCase) == -1)
@@ -147,12 +239,11 @@ namespace GH_Toolkit_Core
             string NewFilePath = Path.Combine(folderPath, fileNoExt, $"{fileNoExt}.q");
             string songCheck = ".mid";
             string songName = "";
-            List<QbEntry> qbSections = new List<QbEntry>();
             if (fileName.Contains(songCheck))
             {
                 songName = fileName.Substring(0, fileName.IndexOf(songCheck));
             }
-            byte[] qb_bytes = File.ReadAllBytes(file);
+            byte[] qbBytes = File.ReadAllBytes(file);
             string endian;
             if (fileExt == ".ps2")
             {
@@ -163,6 +254,7 @@ namespace GH_Toolkit_Core
                 endian = "big";
                 fileExt = ".xen";
             }
+            List<QbItem> qbList = DecompileQb(qbBytes, endian, songName);
         }
     }
 }

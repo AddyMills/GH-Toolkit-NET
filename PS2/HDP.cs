@@ -98,7 +98,7 @@ namespace GH_Toolkit_Core.PS2
         public static HdpFile ReadHDPFile(byte[] HdpBytes, Dictionary<uint, string>? folderChecksums)
         {
             // PS2 files are always little-endian
-            bool flipBytes = ReadWrite.FlipCheck("little");
+            ReadWrite reader = new ReadWrite("little");
             HdpFile hdpFile = new HdpFile();
             MemoryStream stream = new MemoryStream(HdpBytes);
             if (folderChecksums == null)
@@ -108,10 +108,10 @@ namespace GH_Toolkit_Core.PS2
             }
             hdpFile.HdpFiles = new List<HdpFileEntry>();
 
-            uint numEntries = ReadWrite.ReadUInt32(stream, flipBytes);
-            uint fileOffset = ReadWrite.ReadUInt32(stream, flipBytes);
-            uint folderOffset = ReadWrite.ReadUInt32(stream, flipBytes);
-            uint unkOffset = ReadWrite.ReadUInt32(stream, flipBytes);
+            uint numEntries = reader.ReadUInt32(stream);
+            uint fileOffset = reader.ReadUInt32(stream);
+            uint folderOffset = reader.ReadUInt32(stream);
+            uint unkOffset = reader.ReadUInt32(stream);
 
             if (folderOffset > 0)
             {
@@ -119,12 +119,12 @@ namespace GH_Toolkit_Core.PS2
                 stream.Seek(folderOffset, SeekOrigin.Begin);
                 while (true)
                 {
-                    uint fileCount = ReadWrite.ReadUInt32(stream, flipBytes);
+                    uint fileCount = reader.ReadUInt32(stream);
                     if (fileCount == 0xffffffff || stream.Position >= fileOffset)
                     {
                         break;
                     }
-                    uint checksum = ReadWrite.ReadUInt32(stream, flipBytes);
+                    uint checksum = reader.ReadUInt32(stream);
                     string folderChecksum;
                     if (folderChecksums.ContainsKey(checksum))
                     {
@@ -135,7 +135,7 @@ namespace GH_Toolkit_Core.PS2
                         Console.WriteLine($"Could not find string for {checksum}.");
                         folderChecksum = "0x" + checksum.ToString("X");
                     }
-                    uint hdpOffset = ReadWrite.ReadUInt32(stream, flipBytes);
+                    uint hdpOffset = reader.ReadUInt32(stream);
                     HdpFolderEntry folderEntry = new HdpFolderEntry(fileCount, folderChecksum, hdpOffset);
                     hdpFile.HdpFolders.Add(folderEntry);
                 }
@@ -143,9 +143,9 @@ namespace GH_Toolkit_Core.PS2
             stream.Seek(fileOffset, SeekOrigin.Begin);
             while (true)
             {
-                uint sectorIndex = ReadWrite.ReadUInt32(stream, flipBytes);
-                uint dataLength = ReadWrite.ReadUInt32(stream, flipBytes);
-                uint checksum = ReadWrite.ReadUInt32(stream, flipBytes);
+                uint sectorIndex = reader.ReadUInt32(stream);
+                uint dataLength = reader.ReadUInt32(stream);
+                uint checksum = reader.ReadUInt32(stream);
                 string fileChecksum;
                 if (folderChecksums.ContainsKey(checksum))
                 {

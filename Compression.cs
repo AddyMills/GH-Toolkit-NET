@@ -7,17 +7,11 @@ namespace GH_Toolkit_Core
 {
     public class Compression
     {
-        public static bool isCompressed(byte[] data)
+        public static bool isChnkCompressed(byte[] data)
         {
-            if (data.Length >= 4 &&
-                data[0] == (byte)'C' &&
-                data[1] == (byte)'H' &&
-                data[2] == (byte)'N' &&
-                data[3] == (byte)'K')
-            {
-                return true;
-            }
-            return false;
+            ReadOnlySpan<byte> magicBytes = new byte[] { (byte)'C', (byte)'H', (byte)'N', (byte)'K' };
+            ReadOnlySpan<byte> dataSpan = new ReadOnlySpan<byte>(data, 0, 4);
+            return dataSpan.SequenceEqual(magicBytes);
         }
         [DebuggerDisplay("CHNK - Compressed: {CompSize} Decompressed: {DecompSize}")]
         public class ChnkEntry
@@ -33,22 +27,22 @@ namespace GH_Toolkit_Core
         public static byte[] DecompressWTPak(byte[] compData)
         {
             // Compressed PAK files are always 360/PS3 and thus always big-endian
-            bool flipBytes = ReadWrite.FlipCheck("big");
+            ReadWrite reader = new ReadWrite("big");
             MemoryStream stream = new MemoryStream(compData);
             List<ChnkEntry> ChnkList = new List<ChnkEntry>();
             List<byte[]> decompressedDataList = new List<byte[]>();
             while (true)
             {
                 uint baseOffset = (uint)stream.Position;
-                byte[] buffer = ReadWrite.ReadAndMaybeFlipBytes(stream, 4, false);
+                byte[] buffer = ReadWrite.ReadNoFlip(stream, 4);
                 string magic = Encoding.UTF8.GetString(buffer);
                 ChnkEntry entry = new ChnkEntry();
-                entry.Offset = ReadWrite.ReadUInt32(stream, flipBytes) + baseOffset;
-                entry.CompSize = ReadWrite.ReadUInt32(stream, flipBytes);;
-                entry.NextChnkOffset = ReadWrite.ReadUInt32(stream, flipBytes);;
-                entry.NextChnkLength = ReadWrite.ReadUInt32(stream, flipBytes);;
-                entry.DecompSize = ReadWrite.ReadUInt32(stream, flipBytes);;
-                entry.DecompOffset = ReadWrite.ReadUInt32(stream, flipBytes);;
+                entry.Offset = reader.ReadUInt32(stream) + baseOffset;
+                entry.CompSize = reader.ReadUInt32(stream);
+                entry.NextChnkOffset = reader.ReadUInt32(stream);
+                entry.NextChnkLength = reader.ReadUInt32(stream);
+                entry.DecompSize = reader.ReadUInt32(stream);
+                entry.DecompOffset = reader.ReadUInt32(stream);
                 ChnkList.Add(entry);
 
                 // Decompress the current chunk
