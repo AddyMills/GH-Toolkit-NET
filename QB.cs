@@ -80,6 +80,7 @@ namespace GH_Toolkit_Core
                 NextItem = Reader.ReadUInt32(stream);
             }
         }
+
         public class QbHeader
         {
             public uint Flags { get; set; }
