@@ -23,5 +23,8 @@ namespace GH_Toolkit_Core.QB
         public const string QBKEY = "QbKey";
         public const string POINTER = "Pointer";
         public const string QSKEY = "QsKey";
+        public const string EMPTY = "Flag"; // Used for arrays and structs
+
+        public const byte FLAG_STRUCT_GH3 = 0x80;
     }
 }

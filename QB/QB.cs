@@ -7,6 +7,11 @@ using System.Text;
 using System.Threading.Tasks;
 using static GH_Toolkit_Core.PAK;
 using static GH_Toolkit_Core.QB.QBConstants;
+using static GH_Toolkit_Core.QB.QBArray;
+using static GH_Toolkit_Core.QB.QBStruct;
+using System.IO;
+using System.Diagnostics;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace GH_Toolkit_Core.QB
 {
@@ -15,41 +20,59 @@ namespace GH_Toolkit_Core.QB
         public static bool FlipBytes = true;
         public static Dictionary<uint, string> SongHeaders;
         public static ReadWrite Reader;
-
-        public class QbItem
+        [DebuggerDisplay("{Data}")]
+        public class QBItem
         {
-            public QbItemInfo Info { get; set; }
-            public QbSharedProps Props { get; set; }
+            public QBItemInfo Info { get; set; }
+            public QBSharedProps Props { get; set; }
             public object Data { get; set; }
-            public QbItem(MemoryStream stream)
+            public QBItem(MemoryStream stream)
             {
-                Info = new QbItemInfo(BitConverter.ToUInt32(ReadWrite.ReadNoFlip(stream, 4)));
-                Props = new QbSharedProps(stream, Info.Type);
-                switch (Props.Name)
+                Info = new QBItemInfo(stream);
+                Props = new QBSharedProps(stream, Info.Type);
+                if (IsSimpleValue(Info.Type))
                 {
-                    case FLOAT:
-                    case INTEGER:
-                    case QBKEY:
-                    case QSKEY:
-                    case POINTER:
-                        Data = Props.DataValue;
-                        break;
-
-
+                    Data = Props.DataValue;
+                }
+                else
+                {
+                    Data = ReadQBData(stream, Info.Type);
                 }
             }
         }
-        public class QbItemInfo
+        public class QbBase
         {
             public byte Flags { get; set; }
+            public uint Info { get; set; }
             public string Type { get; set; }
-            public QbItemInfo(uint info)
+            public QbBase(MemoryStream stream)
             {
-                Flags = (byte)(info >> 8);
-                Type = QbType[(byte)(info >> 16)];
+                Info = ReadQBHeader(stream);
+                Flags = (byte)(Info >> 8);
             }
         }
-        public class QbSharedProps
+        [DebuggerDisplay("{Type}")]
+        public class QBItemInfo : QbBase
+        {
+            public QBItemInfo(MemoryStream stream) : base(stream)
+            {
+                Type = QbType[(byte)(Info >> 16)];
+            }
+        }
+        [DebuggerDisplay("{Type}")]
+        public class QBStructInfo : QbBase
+        {
+            public QBStructInfo(MemoryStream stream) : base(stream)
+            {
+                byte infoByte = (byte)(Info >> 8);
+                if ((infoByte & FLAG_STRUCT_GH3) != 0)
+                {
+                    infoByte &= 0x7F;
+                }
+                Type = StructType[infoByte];
+            }
+        }
+        public class QBSharedProps
         {
             public string ID { get; set; }
             public string QbName { get; set; }
@@ -58,33 +81,20 @@ namespace GH_Toolkit_Core.QB
                 or it can be the starting byte of the data */
             public uint NextItem { get; set; }
             public string Name { get; set; }
-            public QbSharedProps(MemoryStream stream, string itemType)
+            public QBSharedProps(MemoryStream stream, string itemType)
             {
-                ID = ReadQbKey(stream);
-                QbName = ReadQbKey(stream);
-                switch (itemType)
-                {
-                    case FLOAT:
-                        DataValue = Reader.ReadFloat(stream);
-                        break;
-                    case QBKEY:
-                    case QSKEY:
-                    case POINTER:
-                        DataValue = ReadQbKey(stream);
-                        break;
-                    default:
-                        DataValue = Reader.ReadUInt32(stream);
-                        break;
-                }
+                ID = ReadQBKey(stream);
+                QbName = ReadQBKey(stream);
+                DataValue = ReadQBValue(stream, itemType);
                 NextItem = Reader.ReadUInt32(stream);
             }
         }
 
-        public class QbHeader
+        public class QBHeader
         {
             public uint Flags { get; set; }
             public uint FileSize { get; set; }
-            public QbHeader(MemoryStream stream)
+            public QBHeader(MemoryStream stream)
             {
                 Flags = Reader.ReadUInt32(stream);
                 FileSize = Reader.ReadUInt32(stream);
@@ -92,9 +102,59 @@ namespace GH_Toolkit_Core.QB
             }
 
         }
-        private static string ReadQbKey(MemoryStream stream)
+        public static string ReadQBKey(MemoryStream stream)
         {
             return DebugReader.DebugCheck(SongHeaders, Reader.ReadUInt32(stream));
+        }
+
+        private static uint ReadQBHeader(MemoryStream stream)
+        {
+            return BitConverter.ToUInt32(ReadWrite.ReadNoFlip(stream, 4));
+        }
+        public static object ReadQBValue(MemoryStream stream, string itemType)
+        {
+            switch (itemType)
+            {
+                case FLOAT:
+                    return Reader.ReadFloat(stream);
+                case QBKEY:
+                case QSKEY:
+                case POINTER:
+                    return ReadQBKey(stream);
+                default:
+                    return Reader.ReadUInt32(stream);
+            }
+        }
+        public static object ReadQBData(MemoryStream stream, string itemType)
+        {
+            switch (itemType)
+            {
+                case ARRAY:
+                    return new QBArrayNode(stream);
+                case STRUCT:
+                    return new QBStructData(stream);
+                default:
+                    throw new Exception($"{itemType} is not supported!");
+            }
+        }
+        public static bool IsSimpleValue(string info)
+        {
+            switch (info)
+            {
+                case FLOAT:
+                case INTEGER:
+                case POINTER:
+                case QBKEY:
+                case QSKEY:
+                    return true;
+            }
+
+            return false;
+        }
+        public static string ReadStructValue(MemoryStream stream)
+        {
+            // This is only needed since PS2 is special and has separate values
+            return "";
         }
 
         private static readonly Dictionary<byte, string> QbFlags = new Dictionary<byte, string>()
@@ -137,33 +197,34 @@ namespace GH_Toolkit_Core.QB
             {0x35, "Pointer" },
         };
 
-        public static Dictionary<byte, string> StructTypes { get; private set; }
+        public static Dictionary<byte, string> StructType { get; private set; }
 
         public static void SetStructType(string endian)
         {
             if (endian == "big")
             {
-                StructTypes = QbType;
+                StructType = QbType;
             }
             else
             {
-                StructTypes = QbTypePs2Struct;
+                StructType = QbTypePs2Struct;
             }
 
         }
 
-        public static List<QbItem> DecompileQb(byte[] qbBytes, string endian = "big", string songName = "")
+        public static List<QBItem> DecompileQb(byte[] qbBytes, string endian = "big", string songName = "")
         {
             SetStructType(endian);
             Reader = new ReadWrite(endian);
             MemoryStream stream = new MemoryStream(qbBytes);
-            var qbList = new List<QbItem>();
+            var qbList = new List<QBItem>();
             SongHeaders = DebugReader.MakeDictFromName(songName);
-            QbHeader header = new QbHeader(stream);
+            QBHeader header = new QBHeader(stream);
             while (true)
             {
-                QbItem item = new QbItem(stream);
-                break;
+                QBItem item = new QBItem(stream);
+                qbList.Add(item);
+                //break;
             }
             return qbList;
         }
@@ -196,7 +257,8 @@ namespace GH_Toolkit_Core.QB
                 endian = "big";
                 fileExt = ".xen";
             }
-            List<QbItem> qbList = DecompileQb(qbBytes, endian, songName);
+            List<QBItem> qbList = DecompileQb(qbBytes, endian, songName);
         }
+
     }
 }
