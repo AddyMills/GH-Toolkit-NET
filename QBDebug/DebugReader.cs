@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Reflection.PortableExecutable;
 using System.Text;
@@ -19,7 +21,13 @@ namespace GH_Toolkit_Core.Debug
         {
             var funcDict = new Dictionary<uint, string>();
             var rootFolder = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-            var dbgPath = Path.Combine(rootFolder,"QBDebug", "debug.txt");
+            
+            var compressedPath = Path.Combine(rootFolder, "QBDebug", "keys.dbg");
+            var dbgPath = Path.Combine(rootFolder,"QBDebug", "keys.txt");
+            if (Path.Exists(compressedPath))
+            {
+                DecompressToFile(compressedPath, dbgPath);
+            }
 
             try
             {
@@ -46,9 +54,11 @@ namespace GH_Toolkit_Core.Debug
             catch (Exception ex)
             {
                 Console.WriteLine($"Error reading or processing the file: {ex.Message}");
-                // Handle or log the exception as needed.
             }
-
+            if (Path.Exists(dbgPath))
+            {
+                File.Delete(dbgPath);
+            }
             return funcDict;
         }
         public static string DebugCheck(Dictionary<uint, string> headers, uint check)
@@ -64,6 +74,16 @@ namespace GH_Toolkit_Core.Debug
             else
             {
                 return "0x" + toCheck.ToString("X");
+            }
+        }
+        public static void DecompressToFile(string compressedFilePath, string outputFilePath)
+        {
+            using (FileStream compressedStream = new FileStream(compressedFilePath, FileMode.Open, FileAccess.Read))
+            using (GZipStream decompressionStream = new GZipStream(compressedStream, CompressionMode.Decompress))
+            using (StreamReader reader = new StreamReader(decompressionStream, Encoding.UTF8))
+            using (StreamWriter writer = new StreamWriter(outputFilePath, false, Encoding.UTF8))
+            {
+                writer.Write(reader.ReadToEnd());
             }
         }
 

@@ -122,7 +122,7 @@ namespace GH_Toolkit_Core.Checksum
             return qbKeyBytes;
         }
 
-        private static string GenQBKey(byte[] textBytes)
+        public static string GenQBKey(byte[] textBytes)
         {
             uint crc = 0xffffffff;
 

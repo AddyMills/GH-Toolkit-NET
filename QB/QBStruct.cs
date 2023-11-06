@@ -29,7 +29,7 @@ namespace GH_Toolkit_Core.QB
                 NextItem = Reader.ReadUInt32(stream);
             }
         }
-        [DebuggerDisplay("{Props} - {Data}")]
+        [DebuggerDisplay("{Info,nq} {Props,nq} - {Data}")]
         public class QBStructItem
         {
             public QBStructInfo Info { get; set; }
@@ -49,7 +49,7 @@ namespace GH_Toolkit_Core.QB
                 }
             }
         }
-        [DebuggerDisplay("Struct - {ItemCount} item(s)")]
+        [DebuggerDisplay("{ItemCount} item(s)")]
         public class QBStructData // This expects the start to be a marker header, no prop data
         {
             public uint HeaderMarker { get; set; }

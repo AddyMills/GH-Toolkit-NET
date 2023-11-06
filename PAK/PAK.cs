@@ -9,8 +9,9 @@ using System.Security.Policy;
 using System.Text;
 using System.Threading.Tasks;
 using GH_Toolkit_Core.Debug;
+using GH_Toolkit_Core.Methods;
 
-namespace GH_Toolkit_Core
+namespace GH_Toolkit_Core.PAK
 {
     public class PAK
     {
@@ -78,8 +79,8 @@ namespace GH_Toolkit_Core
             catch
             {
                 test_pak = Compression.DecompressData(test_pak);
-                if (test_pab != null) 
-                { 
+                if (test_pab != null)
+                {
                     test_pab = Compression.DecompressData(test_pab);
                 }
                 pakEntries = ExtractPAK(test_pak, test_pab, endian: endian, songName: songName);
@@ -87,9 +88,9 @@ namespace GH_Toolkit_Core
 
             foreach (PakEntry entry in pakEntries)
             {
-                string pakFileName = (string)entry.FullName;
+                string pakFileName = entry.FullName;
                 if (!pakFileName.EndsWith(fileExt, StringComparison.CurrentCultureIgnoreCase))
-                { 
+                {
                     pakFileName += fileExt;
                 }
 
@@ -152,7 +153,7 @@ namespace GH_Toolkit_Core
             bool TryGH3 = false;
             while (true)
             {
-                PakEntry entry = new PAK.PakEntry();
+                PakEntry entry = new PakEntry();
                 uint header_start = (uint)stream.Position; // To keep track of which entry since the offset in the header needs to be added to the StartOffset below
 
                 uint extension = reader.ReadUInt32(stream);
@@ -218,7 +219,7 @@ namespace GH_Toolkit_Core
                         entry.FullName = tempString;
                         stream.Position = skipTo;
                         break;
-                    default: 
+                    default:
                         throw new InvalidOperationException("Unknown flag found");
                 }
                 try

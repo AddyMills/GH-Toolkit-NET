@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace GH_Toolkit_Core
+namespace GH_Toolkit_Core.Methods
 {
     public class ReadWrite
     {
@@ -12,11 +12,17 @@ namespace GH_Toolkit_Core
         public ReadWrite(string endian)
         {
             // Determine if bytes need to be flipped based on endianness and system architecture.
-            _flipBytes = (endian == "little") != BitConverter.IsLittleEndian;
+            _flipBytes = endian == "little" != BitConverter.IsLittleEndian;
         }
         public static bool FlipCheck(string endian)
         {
-            return (endian == "little") != BitConverter.IsLittleEndian;
+            return endian == "little" != BitConverter.IsLittleEndian;
+        }
+        private static void Swap(ref int first, ref int second)
+        {
+            int temp = first;
+            first = second;
+            second = temp;
         }
         public static string ReadUntilNullByte(MemoryStream memoryStream)
         {
@@ -35,6 +41,39 @@ namespace GH_Toolkit_Core
 
             // Convert byte list to string using UTF-8 encoding
             return Encoding.UTF8.GetString(byteList.ToArray());
+        }
+        public static string ReadWideString(MemoryStream memoryStream, string endian = "little")
+        {
+            List<byte> byteList = new List<byte>();
+            int firstByte, secondByte;
+
+            // Read two bytes at a time
+            while ((secondByte = memoryStream.ReadByte()) != -1)
+            {
+                firstByte = memoryStream.ReadByte();
+                if (firstByte == -1)
+                {
+                    throw new InvalidDataException("Stream ends with a single byte, which is not valid for UTF-16 encoding.");
+                }
+
+                // Check for null terminator (depends on endianness)
+                bool shouldFlip = FlipCheck(endian);
+                if (shouldFlip)
+                {
+                    Swap(ref firstByte, ref secondByte);
+                }
+
+                if (firstByte == 0 && secondByte == 0)
+                {
+                    break; // Null terminator found.
+                }
+
+                byteList.Add((byte)firstByte);
+                byteList.Add((byte)secondByte);
+            }
+
+            // Convert byte list to string using Unicode encoding (UTF-16)
+            return Encoding.Unicode.GetString(byteList.ToArray());
         }
         public static void WriteNullTermString(MemoryStream stream, string str)
         {
@@ -91,9 +130,30 @@ namespace GH_Toolkit_Core
             }
             s.Write(data);
         }
+        public static void MoveToModFour(MemoryStream stream)
+        {
+            long currentPosition = stream.Position;
+            long remainder = currentPosition % 4;
+
+            if (remainder == 0)
+            {
+                // The current position is already divisible by 4
+                return;
+            }
+
+            // Calculate the next nearest position divisible by 4
+            long newPosition = currentPosition + (4 - remainder);
+
+            // Ensure the new position does not exceed the length of the stream.
+            // Depending on your requirements, you might want to handle this situation differently.
+            newPosition = Math.Min(newPosition, stream.Length);
+
+            // Set the new position
+            stream.Position = newPosition;
+        }
         public void WriteUInt32(MemoryStream stream, uint data)
         {
-            WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes((uint)data));
+            WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes(data));
         }
         public static void CopyStreamClose(MemoryStream source, MemoryStream dest)
         {

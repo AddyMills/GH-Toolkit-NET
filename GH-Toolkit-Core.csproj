@@ -14,6 +14,9 @@
 
   <ItemGroup>
     <None Update="QBDebug\debug.txt">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </None>
+    <None Update="QBDebug\keys.dbg">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>

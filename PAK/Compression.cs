@@ -1,9 +1,10 @@
 ﻿using System.Diagnostics;
 using System.Text;
+using GH_Toolkit_Core.Methods;
 using Ionic.Zlib;
-using static GH_Toolkit_Core.PAK;
+using static GH_Toolkit_Core.PAK.PAK;
 
-namespace GH_Toolkit_Core
+namespace GH_Toolkit_Core.PAK
 {
     public class Compression
     {
@@ -60,7 +61,7 @@ namespace GH_Toolkit_Core
                 else
                 {
                     break;
-                }  
+                }
             }
             // Combine all decompressed chunks into one byte array
             int totalSize = decompressedDataList.Sum(arr => arr.Length);

@@ -5,13 +5,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using static GH_Toolkit_Core.PAK;
+using static GH_Toolkit_Core.PAK.PAK;
 using static GH_Toolkit_Core.QB.QBConstants;
 using static GH_Toolkit_Core.QB.QBArray;
 using static GH_Toolkit_Core.QB.QBStruct;
+using static GH_Toolkit_Core.QB.QBScript;
 using System.IO;
 using System.Diagnostics;
 using static System.Runtime.InteropServices.JavaScript.JSType;
+using GH_Toolkit_Core.Methods;
 
 namespace GH_Toolkit_Core.QB
 {
@@ -20,7 +22,7 @@ namespace GH_Toolkit_Core.QB
         public static bool FlipBytes = true;
         public static Dictionary<uint, string> SongHeaders;
         public static ReadWrite Reader;
-        [DebuggerDisplay("{Data}")]
+        [DebuggerDisplay("{Info, nq}: {Props, nq} - {Data}")]
         public class QBItem
         {
             public QBItemInfo Info { get; set; }
@@ -40,19 +42,19 @@ namespace GH_Toolkit_Core.QB
                 }
             }
         }
-        public class QbBase
+        public class QBBase
         {
             public byte Flags { get; set; }
             public uint Info { get; set; }
             public string Type { get; set; }
-            public QbBase(MemoryStream stream)
+            public QBBase(MemoryStream stream)
             {
                 Info = ReadQBHeader(stream);
                 Flags = (byte)(Info >> 8);
             }
         }
         [DebuggerDisplay("{Type}")]
-        public class QBItemInfo : QbBase
+        public class QBItemInfo : QBBase
         {
             public QBItemInfo(MemoryStream stream) : base(stream)
             {
@@ -60,7 +62,7 @@ namespace GH_Toolkit_Core.QB
             }
         }
         [DebuggerDisplay("{Type}")]
-        public class QBStructInfo : QbBase
+        public class QBStructInfo : QBBase
         {
             public QBStructInfo(MemoryStream stream) : base(stream)
             {
@@ -72,6 +74,7 @@ namespace GH_Toolkit_Core.QB
                 Type = StructType[infoByte];
             }
         }
+        [DebuggerDisplay("{ID}")]
         public class QBSharedProps
         {
             public string ID { get; set; }
@@ -127,15 +130,29 @@ namespace GH_Toolkit_Core.QB
         }
         public static object ReadQBData(MemoryStream stream, string itemType)
         {
+            object qbData;
             switch (itemType)
             {
                 case ARRAY:
-                    return new QBArrayNode(stream);
+                    qbData = new QBArrayNode(stream);
+                    break;
+                case SCRIPT:
+                    qbData = new QBScriptData(stream); 
+                    break;
                 case STRUCT:
-                    return new QBStructData(stream);
+                    qbData = new QBStructData(stream);
+                    break;
+                case STRING:
+                    qbData = ReadWrite.ReadUntilNullByte(stream);
+                    break;
+                case WIDESTRING:
+                    qbData = ReadWrite.ReadWideString(stream);
+                    break;
                 default:
                     throw new Exception($"{itemType} is not supported!");
             }
+            ReadWrite.MoveToModFour(stream);
+            return qbData;
         }
         public static bool IsSimpleValue(string info)
         {
@@ -216,16 +233,19 @@ namespace GH_Toolkit_Core.QB
         {
             SetStructType(endian);
             Reader = new ReadWrite(endian);
-            MemoryStream stream = new MemoryStream(qbBytes);
+
             var qbList = new List<QBItem>();
             SongHeaders = DebugReader.MakeDictFromName(songName);
-            QBHeader header = new QBHeader(stream);
-            while (true)
+            using (MemoryStream stream = new MemoryStream(qbBytes))
             {
-                QBItem item = new QBItem(stream);
-                qbList.Add(item);
-                //break;
+                QBHeader header = new QBHeader(stream);
+                while (stream.Position < stream.Length)
+                {
+                    QBItem item = new QBItem(stream);
+                    qbList.Add(item);
+                }
             }
+
             return qbList;
         }
         public static void ProcessQbFromFile(string file)
