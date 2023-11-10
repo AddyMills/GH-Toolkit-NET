@@ -14,6 +14,7 @@ using System.IO;
 using System.Diagnostics;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using GH_Toolkit_Core.Methods;
+using System.Xml.Linq;
 
 namespace GH_Toolkit_Core.QB
 {
@@ -128,31 +129,48 @@ namespace GH_Toolkit_Core.QB
                     return Reader.ReadUInt32(stream);
             }
         }
+        public static List<float> ReadQBTuple(MemoryStream stream, uint amount, bool readHeader = true)
+        {
+            if (readHeader)
+            {
+                stream.Position += 4; // Skip the floats header
+            }
+            var list = new List<float>();
+            for (int i = 0; i < amount; i++)
+            {
+                list.Add(Reader.ReadFloat(stream));
+            }
+            return list;
+        }
         public static object ReadQBData(MemoryStream stream, string itemType)
         {
-            object qbData;
+            Func<MemoryStream, object> createItem = GetItemFunction(itemType);
+            object qbData = createItem(stream);
+            ReadWrite.MoveToModFour(stream);
+            return qbData;
+        }
+        public static Func<MemoryStream, object> GetItemFunction(string itemType)
+        {
+
             switch (itemType)
             {
                 case ARRAY:
-                    qbData = new QBArrayNode(stream);
-                    break;
+                    return s => new QBArrayNode(s);
+                case PAIR:
+                    return s => ReadQBTuple(s, 2);
                 case SCRIPT:
-                    qbData = new QBScriptData(stream); 
-                    break;
+                    return s => new QBScriptData(s);
                 case STRUCT:
-                    qbData = new QBStructData(stream);
-                    break;
+                    return s => new QBStructData(s);
                 case STRING:
-                    qbData = ReadWrite.ReadUntilNullByte(stream);
-                    break;
+                    return ReadWrite.ReadUntilNullByte;
+                case VECTOR:
+                    return s => ReadQBTuple(s, 3);
                 case WIDESTRING:
-                    qbData = ReadWrite.ReadWideString(stream);
-                    break;
+                    return s => ReadWrite.ReadWideString(s);
                 default:
                     throw new Exception($"{itemType} is not supported!");
             }
-            ReadWrite.MoveToModFour(stream);
-            return qbData;
         }
         public static bool IsSimpleValue(string info)
         {

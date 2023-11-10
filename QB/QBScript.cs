@@ -10,6 +10,8 @@ using System.Data.SqlTypes;
 using GH_Toolkit_Core.Methods;
 using System.IO;
 using GH_Toolkit_Core.Debug;
+using static System.Net.Mime.MediaTypeNames;
+using System.Security.Cryptography;
 
 namespace GH_Toolkit_Core.QB
 {
@@ -93,7 +95,58 @@ namespace GH_Toolkit_Core.QB
                 Type = name;
                 byte[] buffer = new byte[length];
                 int bytesRead = stream.Read(buffer, 0, buffer.Length);
-                Text = Encoding.UTF8.GetString(buffer);
+                switch (Type)
+                {
+                    case STRING:
+                        Text = Encoding.UTF8.GetString(buffer);
+                        break;
+                    case WIDESTRING:
+                        Text = Encoding.BigEndianUnicode.GetString(buffer); 
+                        break;
+                }
+                
+            }
+        }
+        [DebuggerDisplay("{Type, nq} - {ListDisplay, nq}")]
+        public class ScriptTuple
+        {
+            public string Type { get; set; }
+            public List<float> Data { get; set; }
+            public ScriptTuple(string type, MemoryStream stream)
+            {
+                Type = type;
+                uint floats = (uint)(type == PAIR ? 2 : 3);
+                Data = new List<float>();
+                for (int i = 0; i < floats; i++)
+                {
+                    Data.Add(ScriptReader.ReadFloat(stream));
+                }
+            }
+            private string ListDisplay
+            {
+                get { return string.Join(", ", Data); }
+            }
+        }
+        [DebuggerDisplay("{Name} - {Entries} Entries")]
+        public class ScriptRandom
+        {
+            public string Name { get; set; }
+            public uint Entries { get; set; }
+            public ScriptRandom(string random, MemoryStream stream)
+            {
+                Name = random;
+                Entries = ScriptReader.ReadUInt32(stream);
+                stream.Position += (Entries * 2); // Skip weights
+                stream.Position += (Entries * 4); // Skip offsets
+            }
+        }
+        [DebuggerDisplay("Long Jump - {Jump} Bytes")]
+        public class ScriptLongJump
+        { 
+            public uint Jump { get; set; }
+            public ScriptLongJump(uint jump) 
+            {
+                Jump = jump;
             }
         }
         private static byte[] ReadCompScript(MemoryStream stream, int size)
@@ -101,6 +154,21 @@ namespace GH_Toolkit_Core.QB
             byte[] buffer = new byte[size];
             stream.Read(buffer, 0, size);
             return buffer;
+        }
+        public static string ReadScriptString(string name, uint length, MemoryStream stream)
+        {
+            byte[] buffer = new byte[length];
+            int bytesRead = stream.Read(buffer, 0, buffer.Length);
+            switch (name)
+            {
+                case STRING:
+                    return Encoding.UTF8.GetString(buffer);
+                case WIDESTRING:
+                    return Encoding.BigEndianUnicode.GetString(buffer);
+                default:
+                    throw new Exception("Unknown string type found.");
+            }
+
         }
         public static string ReadScriptQBKey(MemoryStream stream)
         {
@@ -116,6 +184,7 @@ namespace GH_Toolkit_Core.QB
                 while (stream.Position < stream.Length)
                 {
                     var scriptByte = Reader.ReadUInt8(stream);
+                    uint length;
                     switch (scriptByte)
                     {
                         case 0x01:
@@ -184,17 +253,37 @@ namespace GH_Toolkit_Core.QB
                             }
                             break;
                         case 0x17:
-                            list.Add(new ScriptNode(INTEGER, Reader.ReadUInt32(stream)));
+                            list.Add(new ScriptNode(INTEGER, ScriptReader.ReadUInt32(stream)));
                             break;
                         case 0x1A:
-                            list.Add(new ScriptNode(FLOAT, Reader.ReadFloat(stream)));
+                            list.Add(new ScriptNode(FLOAT, ScriptReader.ReadFloat(stream)));
                             break;
                         case 0x1B:
-                            uint length = ScriptReader.ReadUInt32(stream);
-                            list.Add(new ScriptString(STRING, length, stream));
+                            length = ScriptReader.ReadUInt32(stream);
+                            list.Add(new ScriptNode(STRING, ReadScriptString(STRING, length, stream)));
+                            break;
+                        case 0x1E:
+                            list.Add(new ScriptTuple(VECTOR, stream));
+                            break;
+                        case 0x1F:
+                            list.Add(new ScriptTuple(PAIR, stream));
+                            break;
+                        case 0x20:
+                            list.Add("Begin Loop");
+                            break;
+                        case 0x21:
+                            list.Add("End Loop");
+                            break;
+                        case 0x22:
+                            list.Add("Exit Loop");
                             break;
                         case 0x24:
                             list.Add("EndScript");
+                            break;
+                        case 0x27:
+                            uint nextComp = ScriptReader.ReadUInt16(stream); // This is either another else if or else. It can also be an endif if there are no more comparisons
+                            uint lastComp = ScriptReader.ReadUInt16(stream); // I think this is the last byte before the end of the else if statement
+                            list.Add("Else If");
                             break;
                         case 0x28:
                             list.Add("Endif");
@@ -208,11 +297,56 @@ namespace GH_Toolkit_Core.QB
                         case 0x2D:
                             list.Add("Argument");
                             break;
+                        case 0x2E:
+                            list.Add(new ScriptLongJump(ScriptReader.ReadUInt32(stream)));
+                            break;
+                        case 0x2F:
+                            list.Add(new ScriptRandom("Random", stream));
+                            break;
+                        case 0x30:
+                            list.Add("randomrange"); // Random Range?
+                            break;
+                        case 0x32:
+                            list.Add("||");
+                            break;
+                        case 0x33:
+                            list.Add("&&");
+                            break;
+                        case 0x39:
+                            list.Add("NOT");
+                            break;
+                        case 0x3A:
+                            list.Add("AND");
+                            break;
+                        case 0x3B:
+                            list.Add("OR");
+                            break;
+                        case 0x3C:
+                            list.Add("Switch");
+                            break;
+                        case 0x3D:
+                            list.Add("EndSwitch");
+                            break;
+                        case 0x3E:
+                            list.Add("case");
+                            break;
+                        case 0x3F:
+                            list.Add("default");
+                            break;
+                        case 0x40:
+                            list.Add(new ScriptRandom("RandomNoRepeat", stream));
+                            break;
+                        case 0x42:
+                            list.Add(":");
+                            break;
                         case 0x47:
                             list.Add(new Conditional(FASTIF, ScriptReader.ReadUInt16(stream)));
                             break;
                         case 0x48:
                             list.Add(new Conditional(FASTELSE, ScriptReader.ReadUInt16(stream)));
+                            break;
+                        case 0x49:
+                            stream.Position += 2;
                             break;
                         case 0x4A:
                             list.Add(new ScriptNode(STRUCT, new ScriptNodeStruct(stream)));
@@ -222,6 +356,13 @@ namespace GH_Toolkit_Core.QB
                             nextGlobal = true;
                             //list.Add("Argument Pack (Global)");
                             break;
+                        case 0x4C:
+                            length = ScriptReader.ReadUInt32(stream);
+                            list.Add(new ScriptNode(WIDESTRING, ReadScriptString(WIDESTRING, length, stream)));
+                            break;
+                        case 0x4D:
+                            list.Add("!=");
+                            break;
                         default:
                             throw new Exception("Not supported");
                     }
@@ -229,10 +370,6 @@ namespace GH_Toolkit_Core.QB
 
             }
             return list;
-        }
-        private static object GetScriptItem(uint scriptByte, MemoryStream stream)
-        {
-            return 0;
         }
     }
 }
