@@ -57,7 +57,7 @@ namespace GH_Toolkit_Core.QB
             public List<object> Items { get; set; }
             private int ItemCount { get; set; } // Debug only
 
-            public QBStructData(MemoryStream stream)
+            public QBStructData(MemoryStream stream) // From bytes
             {
                 HeaderMarker = Reader.ReadUInt32(stream);
                 ItemOffset = Reader.ReadUInt32(stream);
@@ -75,6 +75,10 @@ namespace GH_Toolkit_Core.QB
                     //throw new Exception("Not yet implemented!");
                 }
                 ItemCount = Items.Count;
+            }
+            public QBStructData() // From text
+            {
+
             }
         }
     }
