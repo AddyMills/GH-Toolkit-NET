@@ -204,7 +204,7 @@ namespace GH_Toolkit_Core.QB
                     switch (scriptByte)
                     {
                         case 0x01:
-                            list.Add("Newline");
+                            list.Add("Newline"); // New line
                             break;
                         case 0x03:
                             list.Add("{");
@@ -285,33 +285,33 @@ namespace GH_Toolkit_Core.QB
                             list.Add(new ScriptTuple(PAIR, stream));
                             break;
                         case 0x20:
-                            list.Add("Begin Loop");
+                            list.Add("begin"); // Loop
                             break;
                         case 0x21:
-                            list.Add("Repeat");
+                            list.Add("repeat");
                             break;
                         case 0x22:
-                            list.Add("Exit Loop");
+                            list.Add("break");
                             break;
                         case 0x24:
-                            list.Add("EndScript");
+                            list.Add("endscript");
                             break;
                         case 0x27:
                             uint nextComp = ScriptReader.ReadUInt16(stream); // This is either another else if or else. It can also be an endif if there are no more comparisons
                             uint lastComp = ScriptReader.ReadUInt16(stream); // I think this is the last byte before the end of the else if statement
-                            list.Add("Else If");
+                            list.Add("elsef");
                             break;
                         case 0x28:
-                            list.Add("Endif");
+                            list.Add("endif");
                             break;
                         case 0x29:
-                            list.Add("Return");
+                            list.Add("return");
                             break;
                         case 0x2C:
                             list.Add("<...>"); // All Args
                             break;
                         case 0x2D:
-                            list.Add("Argument");
+                            list.Add("Argument"); // surround next item in <> when parsing
                             break;
                         case 0x2E:
                             list.Add(new ScriptLongJump(ScriptReader.ReadUInt32(stream)));
@@ -338,10 +338,10 @@ namespace GH_Toolkit_Core.QB
                             list.Add("OR");
                             break;
                         case 0x3C:
-                            list.Add("Switch");
+                            list.Add("switch");
                             break;
                         case 0x3D:
-                            list.Add("EndSwitch");
+                            list.Add("endswitch");
                             break;
                         case 0x3E:
                             list.Add("case");
