@@ -68,7 +68,12 @@ namespace GH_Toolkit_Core.QB
             public QBStructInfo(MemoryStream stream) : base(stream)
             {
                 byte infoByte = (byte)(Info >> 8);
-                if ((infoByte & FLAG_STRUCT_GH3) != 0)
+                byte infoByte2 = (byte)(Info >> 16);
+                if (infoByte == 0x01 && infoByte2 != 0x00)
+                {
+                    infoByte = infoByte2;
+                }
+                else if ((infoByte & FLAG_STRUCT_GH3) != 0)
                 {
                     infoByte &= 0x7F;
                 }

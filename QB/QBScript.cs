@@ -12,6 +12,7 @@ using System.IO;
 using GH_Toolkit_Core.Debug;
 using static System.Net.Mime.MediaTypeNames;
 using System.Security.Cryptography;
+using GH_Toolkit_Core.Checksum;
 
 namespace GH_Toolkit_Core.QB
 {
@@ -42,6 +43,21 @@ namespace GH_Toolkit_Core.QB
                 {
                     ScriptData = CompressedData;
                 }
+                /*
+                 * Trying to RE the script CRC value
+                byte[] tryArray = new byte[ScriptSize];
+                for (int i = 0; i < ScriptSize; i++)
+                {
+                    tryArray[i] = ScriptData[i];
+                }
+                byte[] tryArray2 = new byte[CompressedSize];
+                for (int i = 0; i < CompressedSize; i++)
+                {
+                    tryArray2[i] = CompressedData[i];
+                }
+                string tryCrc = CRC.GenQBKey(tryArray);
+                string tryCrc2 = CRC.GenQBKey(tryArray2);
+                */
                 ScriptParsed = ParseScript(ScriptData);
             }
         }
@@ -272,7 +288,7 @@ namespace GH_Toolkit_Core.QB
                             list.Add("Begin Loop");
                             break;
                         case 0x21:
-                            list.Add("End Loop");
+                            list.Add("Repeat");
                             break;
                         case 0x22:
                             list.Add("Exit Loop");
@@ -352,9 +368,8 @@ namespace GH_Toolkit_Core.QB
                             list.Add(new ScriptNode(STRUCT, new ScriptNodeStruct(stream)));
                             ReadWrite.MoveToModFour(stream);
                             break;
-                        case 0x4B:
+                        case 0x4B: // This byte makes the next QbKey a Pointer instead
                             nextGlobal = true;
-                            //list.Add("Argument Pack (Global)");
                             break;
                         case 0x4C:
                             length = ScriptReader.ReadUInt32(stream);
@@ -363,11 +378,19 @@ namespace GH_Toolkit_Core.QB
                         case 0x4D:
                             list.Add("!=");
                             break;
+                        case 0x4E:
+                            list.Add(new ScriptNode(QSKEY, ReadScriptQBKey(stream)));
+                            break;
+                        case 0x4F:
+                            list.Add("RandomFloat");
+                            break;
+                        case 0x50:
+                            list.Add("RandomInteger");
+                            break;
                         default:
                             throw new Exception("Not supported");
                     }
                 }
-
             }
             return list;
         }

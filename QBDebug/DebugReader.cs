@@ -15,9 +15,9 @@ namespace GH_Toolkit_Core.Debug
 
         static DebugReader()
         {
-            ChecksumDbg = ReadDebug();
+            ChecksumDbg = ReadQBDebug();
         }
-        static Dictionary<uint, string> ReadDebug()
+        static Dictionary<uint, string> ReadQBDebug()
         {
             var funcDict = new Dictionary<uint, string>();
             var rootFolder = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
