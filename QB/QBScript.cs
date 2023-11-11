@@ -60,6 +60,52 @@ namespace GH_Toolkit_Core.QB
                 */
                 ScriptParsed = ParseScript(ScriptData);
             }
+            public void ScriptToText(StreamWriter writer, int level = 1)
+            {
+                string indent = new string('\t', level);
+                bool isArgument = false;
+                foreach (object item in ScriptParsed)
+                {
+                    if (item is string)
+                    {
+                        switch(item)
+                        {
+                            case NEWLINE:
+                                writer.WriteLine();
+                                writer.Write(indent);
+                                break;
+                            case EQUALS:
+                            case NOTEQUALS:
+                            case MINUS:
+                            case PLUS:
+                            case MULTIPLY:
+                            case DIVIDE:
+                            case GREATERTHAN:
+                            case LESSTHAN:
+                            case GREATERTHANEQUAL:
+                            case LESSTHANEQUAL:
+                            case ORCOMP:
+                            case ANDCOMP:
+                                writer.Write($" {item} ");
+                                break;
+                            case COMMA:
+                                writer.Write($"{item} ");
+                                break;
+                            case ARGUMENT:
+                                isArgument = true;
+                                break;
+                            default:
+                                writer.Write(item);
+                                break;
+                        }
+                    }
+                    else if (item is ScriptNode node)
+                    {
+                        string data = QbItemText(node.Type, node.Data.ToString());
+                        writer.Write()
+                    }
+                }
+            }
         }
         [DebuggerDisplay("{Type,nq} - {Data,nq}")]
         public class ScriptNode
@@ -204,58 +250,58 @@ namespace GH_Toolkit_Core.QB
                     switch (scriptByte)
                     {
                         case 0x01:
-                            list.Add("Newline"); // New line
+                            list.Add(NEWLINE); // New line
                             break;
                         case 0x03:
-                            list.Add("{");
+                            list.Add(LEFTBRACE);
                             break;
                         case 0x04:
-                            list.Add("}");
+                            list.Add(RIGHTBRACE);
                             break;
                         case 0x05:
-                            list.Add("[");
+                            list.Add(LEFTBKT);
                             break;
                         case 0x06:
-                            list.Add("]");
+                            list.Add(RIGHTBKT);
                             break;
                         case 0x07:
-                            list.Add("=");
+                            list.Add(EQUALS);
                             break;
                         case 0x08:
-                            list.Add(".");
+                            list.Add(DOT);
                             break;
                         case 0x09:
-                            list.Add(",");
+                            list.Add(COMMA);
                             break;
                         case 0x0A:
-                            list.Add("-");
+                            list.Add(MINUS);
                             break;
                         case 0x0B:
-                            list.Add("+");
+                            list.Add(PLUS);
                             break;
                         case 0x0C:
-                            list.Add("/");
+                            list.Add(DIVIDE);
                             break;
                         case 0x0D:
-                            list.Add("*");
+                            list.Add(MULTIPLY);
                             break;
                         case 0x0E:
-                            list.Add("(");
+                            list.Add(LEFTPAR);
                             break;
                         case 0x0F:
-                            list.Add(")");
+                            list.Add(RIGHTPAR);
                             break;
                         case 0x12:
-                            list.Add("<");
+                            list.Add(LESSTHAN);
                             break;
                         case 0x13:
-                            list.Add("<=");
+                            list.Add(LESSTHANEQUAL);
                             break;
                         case 0x14:
-                            list.Add(">");
+                            list.Add(GREATERTHAN);
                             break;
                         case 0x15:
-                            list.Add(">=");
+                            list.Add(GREATERTHANEQUAL);
                             break;
                         case 0x16:
                             if (nextGlobal)
@@ -285,75 +331,75 @@ namespace GH_Toolkit_Core.QB
                             list.Add(new ScriptTuple(PAIR, stream));
                             break;
                         case 0x20:
-                            list.Add("begin"); // Loop
+                            list.Add(BEGIN); // Loop
                             break;
                         case 0x21:
-                            list.Add("repeat");
+                            list.Add(REPEAT);
                             break;
                         case 0x22:
-                            list.Add("break");
+                            list.Add(BREAK);
                             break;
                         case 0x24:
-                            list.Add("endscript");
+                            list.Add(ENDSCRIPT);
                             break;
                         case 0x27:
                             uint nextComp = ScriptReader.ReadUInt16(stream); // This is either another else if or else. It can also be an endif if there are no more comparisons
                             uint lastComp = ScriptReader.ReadUInt16(stream); // I think this is the last byte before the end of the else if statement
-                            list.Add("elsef");
+                            list.Add(ELSEIF);
                             break;
                         case 0x28:
-                            list.Add("endif");
+                            list.Add(ENDIF);
                             break;
                         case 0x29:
-                            list.Add("return");
+                            list.Add(RETURN);
                             break;
                         case 0x2C:
-                            list.Add("<...>"); // All Args
+                            list.Add(ALLARGS); // All Args
                             break;
                         case 0x2D:
-                            list.Add("Argument"); // surround next item in <> when parsing
+                            list.Add(ARGUMENT); // surround next item in <> when parsing
                             break;
                         case 0x2E:
                             list.Add(new ScriptLongJump(ScriptReader.ReadUInt32(stream)));
                             break;
                         case 0x2F:
-                            list.Add(new ScriptRandom("Random", stream));
+                            list.Add(new ScriptRandom(RANDOM, stream));
                             break;
                         case 0x30:
-                            list.Add("randomrange"); // Random Range?
+                            list.Add(RANDOMRANGE); // Random Range?
                             break;
                         case 0x32:
-                            list.Add("||");
+                            list.Add(ORCOMP);
                             break;
                         case 0x33:
-                            list.Add("&&");
+                            list.Add(ANDCOMP);
                             break;
                         case 0x39:
-                            list.Add("NOT");
+                            list.Add(NOT);
                             break;
                         case 0x3A:
-                            list.Add("AND");
+                            list.Add(AND);
                             break;
                         case 0x3B:
-                            list.Add("OR");
+                            list.Add(OR);
                             break;
                         case 0x3C:
-                            list.Add("switch");
+                            list.Add(SWITCH);
                             break;
                         case 0x3D:
-                            list.Add("endswitch");
+                            list.Add(ENDSWITCH);
                             break;
                         case 0x3E:
-                            list.Add("case");
+                            list.Add(CASE);
                             break;
                         case 0x3F:
-                            list.Add("default");
+                            list.Add(DEFAULT);
                             break;
                         case 0x40:
-                            list.Add(new ScriptRandom("RandomNoRepeat", stream));
+                            list.Add(new ScriptRandom(RANDOMNOREPEAT, stream));
                             break;
                         case 0x42:
-                            list.Add(":");
+                            list.Add(COLON);
                             break;
                         case 0x47:
                             list.Add(new Conditional(FASTIF, ScriptReader.ReadUInt16(stream)));
@@ -376,16 +422,16 @@ namespace GH_Toolkit_Core.QB
                             list.Add(new ScriptNode(WIDESTRING, ReadScriptString(WIDESTRING, length, stream)));
                             break;
                         case 0x4D:
-                            list.Add("!=");
+                            list.Add(NOTEQUALS);
                             break;
                         case 0x4E:
                             list.Add(new ScriptNode(QSKEY, ReadScriptQBKey(stream)));
                             break;
                         case 0x4F:
-                            list.Add("RandomFloat");
+                            list.Add(RANDOMFLOAT);
                             break;
                         case 0x50:
-                            list.Add("RandomInteger");
+                            list.Add(RANDOMINTEGER);
                             break;
                         default:
                             throw new Exception("Not supported");

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using static GH_Toolkit_Core.QB.QB;
+using static GH_Toolkit_Core.QB.QBArray;
 using static GH_Toolkit_Core.QB.QBConstants;
 using static GH_Toolkit_Core.QB.QBStruct;
 
@@ -84,6 +85,42 @@ namespace GH_Toolkit_Core.QB
                         Items.Add(createItem(stream));
                     }
 
+                }
+            }
+            public void ArrayToText(StreamWriter writer, int level = 1)
+            {
+                string indent = new string('\t', level);
+                switch (FirstItem.Type)
+                {
+                    case ARRAY:
+                        foreach (QBArrayNode item in Items)
+                        {
+                            writer.WriteLine(indent + "[");
+                            item.ArrayToText(writer, level + 1);
+                            writer.WriteLine(indent + "]");
+                        }
+                        break;
+                    case STRUCT:
+                        foreach (QBStructData item in Items)
+                        {
+                            writer.WriteLine(indent + "{");
+                            item.StructToText(writer, level + 1);
+                            writer.WriteLine(indent + "}");
+                        }
+                        break;
+                    case VECTOR:
+                    case PAIR:
+                        foreach(List<float> list in Items)
+                        {
+                            writer.WriteLine(indent + FloatsToText(list));
+                        }
+                        break;
+                    default:
+                        foreach (object item in Items)
+                        {
+                            writer.WriteLine(indent + QbItemText(FirstItem.Type, item.ToString()));
+                        }
+                        break;
                 }
             }
 

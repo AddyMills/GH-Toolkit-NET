@@ -3,10 +3,13 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using static GH_Toolkit_Core.QB.QB;
+using static GH_Toolkit_Core.QB.QBArray;
+using static GH_Toolkit_Core.QB.QBConstants;
 
 namespace GH_Toolkit_Core.QB
 {
@@ -75,6 +78,33 @@ namespace GH_Toolkit_Core.QB
                     //throw new Exception("Not yet implemented!");
                 }
                 ItemCount = Items.Count;
+            }
+            public void StructToText(StreamWriter writer, int level = 1)
+            {
+                string indent = new string('\t', level);
+                foreach (QBStructItem item in Items)
+                {
+                    if (item.Data is QBArrayNode arrayNode)
+                    {
+                        writer.WriteLine(indent + $"{item.Props.ID} = [");
+                        arrayNode.ArrayToText(writer, level + 1);
+                        writer.WriteLine(indent + "]");
+                    }
+                    else if (item.Data is QBStructData structNode)
+                    {
+                        writer.WriteLine(indent + $"{item.Props.ID} = {{");
+                        structNode.StructToText(writer, level + 1);
+                        writer.WriteLine(indent + "}");
+                    }
+                    else if (item.Data is List<float> floats)
+                    {
+                        writer.WriteLine(indent + $"{item.Props.ID} = {FloatsToText(floats)}");
+                    }
+                    else
+                    {
+                        writer.WriteLine(indent + $"{item.Props.ID} = {QbItemText(item.Info.Type, item.Data.ToString())}");
+                    }
+                }
             }
             public QBStructData() // From text
             {

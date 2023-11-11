@@ -15,6 +15,7 @@ using System.Diagnostics;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using GH_Toolkit_Core.Methods;
 using System.Xml.Linq;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace GH_Toolkit_Core.QB
 {
@@ -29,6 +30,7 @@ namespace GH_Toolkit_Core.QB
             public QBItemInfo Info { get; set; }
             public QBSharedProps Props { get; set; }
             public object Data { get; set; }
+            public string Name { get; set; }
             public QBItem(MemoryStream stream)
             {
                 Info = new QBItemInfo(stream);
@@ -41,6 +43,7 @@ namespace GH_Toolkit_Core.QB
                 {
                     Data = ReadQBData(stream, Info.Type);
                 }
+                Name = Props.ID;
             }
         }
         public class QBBase
@@ -89,7 +92,6 @@ namespace GH_Toolkit_Core.QB
             /*  DataValue can be a value itself (for integers, floats, and QB Keys)
                 or it can be the starting byte of the data */
             public uint NextItem { get; set; }
-            public string Name { get; set; }
             public QBSharedProps(MemoryStream stream, string itemType)
             {
                 ID = ReadQBKey(stream);
@@ -126,6 +128,8 @@ namespace GH_Toolkit_Core.QB
             {
                 case FLOAT:
                     return Reader.ReadFloat(stream);
+                case INTEGER:
+                    return Reader.ReadInt32(stream);
                 case QBKEY:
                 case QSKEY:
                 case POINTER:
@@ -271,18 +275,100 @@ namespace GH_Toolkit_Core.QB
 
             return qbList;
         }
+        public static string QbItemText(string itemType, string itemData)
+        {
+            string test;
+            switch (itemType)
+            {
+                case FLOAT:
+                case INTEGER:
+                    test = $"{itemData}";
+                    break;
+                case STRING:
+                    test = $"'{itemData}'";
+                    break;
+                case WIDESTRING:
+                    test = $"\"{itemData}\"";
+                    break;
+                case QBKEY:
+                case QSKEY:
+                case POINTER:
+                    if (itemData.IndexOf(" ", 0) == -1)
+                    {
+                        test = $"{itemData}";
+                    }
+                    else
+                    {
+                        test = $"`{itemData}`";
+                    }
+                    if (itemType == QSKEY)
+                    {
+                        test = $"qs({test})";
+                    }
+                    else if (itemType == POINTER)
+                    {
+                        test = $"${test}";
+                    }
+                    break;
+                default:
+                    throw new ArgumentException("Invalid string found.");
+            }
+            
+            return test;
+        }
+        public static string FloatsToText(List<float> floats)
+        {
+            var formattedFloats = floats.Select(f => f.ToString("0.0"));
+            string floatString = string.Join(", ", formattedFloats);
+            return $"({floatString})";
+        }
+        public static void QbToText(List<QBItem> qbList, string filePath)
+        {
+            
+            using (StreamWriter writer = new StreamWriter(filePath))
+            {
+                foreach (QBItem item in qbList)
+                {
+                    if (item.Data is QBArrayNode arrayNode)
+                    {
+                        writer.WriteLine($"{item.Name} = [");
+                        arrayNode.ArrayToText(writer, 1);
+                        writer.WriteLine("]");
+                    }
+                    else if (item.Data is QBStructData structNode)
+                    {
+                        writer.WriteLine($"{item.Name} = {{");
+                        structNode.StructToText(writer, 1);
+                        writer.WriteLine("}");
+                    }
+                    else if (item.Data is List<float> floats)
+                    {
+                        writer.WriteLine($"{item.Name} = {FloatsToText(floats)}");
+                    }
+                    else if (item.Data is QBScriptData scriptData)
+                    {
+
+                    }
+                    else
+                    {
+                        writer.WriteLine($"{item.Name} = {QbItemText(item.Info.Type, item.Data.ToString())}");
+                    }
+                }
+            }
+        }
         public static void ProcessQbFromFile(string file)
         {
             string fileName = Path.GetFileName(file);
             if (fileName.IndexOf(".qb", 0, fileName.Length, StringComparison.CurrentCultureIgnoreCase) == -1)
             {
-                throw new Exception("Invalid File");
+                Console.WriteLine($"Skipping {fileName}");
+                return;
             }
             string fileNoExt = fileName.Substring(0, fileName.IndexOf(".qb"));
             string fileExt = Path.GetExtension(file);
             Console.WriteLine($"Decompiling {fileName}");
             string folderPath = Path.GetDirectoryName(file);
-            string NewFilePath = Path.Combine(folderPath, fileNoExt, $"{fileNoExt}.q");
+            string NewFilePath = Path.Combine(folderPath,"Test", $"{fileNoExt}.q");
             string songCheck = ".mid";
             string songName = "";
             if (fileName.Contains(songCheck))
@@ -301,6 +387,7 @@ namespace GH_Toolkit_Core.QB
                 fileExt = ".xen";
             }
             List<QBItem> qbList = DecompileQb(qbBytes, endian, songName);
+            QbToText(qbList, NewFilePath);
         }
 
     }

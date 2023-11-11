@@ -122,6 +122,10 @@ namespace GH_Toolkit_Core.Methods
         {
             return BitConverter.ToSingle(ReadAndMaybeFlipBytes(stream, 4), 0);
         }
+        public int ReadInt32(MemoryStream stream)
+        {
+            return unchecked((int)ReadUInt32(stream));
+        }
         public void WriteAndMaybeFlipBytes(MemoryStream s, byte[] data)
         {
             if (_flipBytes)
