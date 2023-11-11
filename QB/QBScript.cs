@@ -13,6 +13,7 @@ using GH_Toolkit_Core.Debug;
 using static System.Net.Mime.MediaTypeNames;
 using System.Security.Cryptography;
 using GH_Toolkit_Core.Checksum;
+using System.Xml.Linq;
 
 namespace GH_Toolkit_Core.QB
 {
@@ -101,8 +102,31 @@ namespace GH_Toolkit_Core.QB
                     }
                     else if (item is ScriptNode node)
                     {
-                        string data = QbItemText(node.Type, node.Data.ToString());
-                        writer.Write();
+                        string data = node.NodeToText();
+                        if (isArgument)
+                        {
+                            data = $"<{data}>";
+                            isArgument = false;
+                        }
+                        data += " ";
+                        writer.Write(data);
+                    }
+                    else if (item is Conditional conditional)
+                    {
+                        switch (conditional.Name)
+                        {
+                            case IF:
+                            case FASTIF:
+                                level++;
+                                writer.Write(conditional.Name);
+                                break;
+                            default:
+                                throw new NotImplementedException();
+                        }
+                    }
+                    else
+                    {
+                        throw new NotImplementedException("Not implemented");
                     }
                 }
             }
@@ -116,6 +140,19 @@ namespace GH_Toolkit_Core.QB
             {
                 Type = nodeType;
                 Data = data;
+            }
+            public string NodeToText() 
+            {
+                string dataString;
+                if (Data is ScriptNodeStruct structData)
+                {
+                    dataString = $"\\{{{structData.Data.StructToScript()}}}";
+                }
+                else
+                {
+                    dataString = QbItemText(Type, Data.ToString());
+                }
+                return dataString;
             }
         }
         [DebuggerDisplay("{Data}")]

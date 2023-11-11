@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection.Emit;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -105,6 +106,30 @@ namespace GH_Toolkit_Core.QB
                         writer.WriteLine(indent + $"{item.Props.ID} = {QbItemText(item.Info.Type, item.Data.ToString())}");
                     }
                 }
+            }
+            public string StructToScript()
+            {
+                string data = "";
+                foreach (QBStructItem item in Items)
+                {
+                    if (item.Data is QBArrayNode arrayNode)
+                    {
+                        return data;
+                    }
+                    else if (item.Data is QBStructData structNode)
+                    {
+                        return data;
+                    }
+                    else if (item.Data is List<float> floats)
+                    {
+                        data += $"{item.Props.ID} = {FloatsToText(floats)} ";
+                    }
+                    else
+                    {
+                        data += $"{item.Props.ID} = {QbItemText(item.Info.Type, item.Data.ToString())} ";
+                    }
+                }
+                return data.Trim();
             }
             public QBStructData() // From text
             {
