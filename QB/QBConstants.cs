@@ -29,8 +29,8 @@ namespace GH_Toolkit_Core.QB
         public const string NEWLINE = "newline";
 
         public const string IF = "if";
-        public const string ELSE = "else";
         public const string FASTIF = "Fast If";
+        public const string ELSE = "else";
         public const string FASTELSE = "Fast Else";
         public const string ELSEIF = "elseif";
         public const string ENDIF = "endif";
@@ -46,11 +46,25 @@ namespace GH_Toolkit_Core.QB
         public const string LESSTHAN = "<";
         public const string GREATERTHANEQUAL = ">=";
         public const string LESSTHANEQUAL = "<=";
+        public const string ORCOMP = "||";
+        public const string ANDCOMP = "&&";
 
         public const string LEFTBRACE = "{";
         public const string RIGHTBRACE = "}";
         public const string LEFTBKT = "[";
         public const string RIGHTBKT = "]";
+        public const string LEFTPAR = "(";
+        public const string RIGHTPAR = ")";
+
+        public const string COLON = ":";
+        public const string COMMA = ",";
+        public const string DOT = ".";
+
+        public const string RANDOM = "Random";
+        public const string RANDOMNOREPEAT = "RandomNoRepeat";
+        public const string RANDOMRANGE = "RandomRange";
+        public const string RANDOMFLOAT = "RandomFloat";
+        public const string RANDOMINTEGER = "RandomInteger";
 
         public const string NOT = "NOT"; // NOT string, not a comparison
         public const string AND = "AND";
@@ -61,6 +75,11 @@ namespace GH_Toolkit_Core.QB
         public const string BEGIN = "begin";
         public const string REPEAT = "repeat";
         public const string BREAK = "break";
+
+        public const string SWITCH = "switch";
+        public const string ENDSWITCH = "endswitch";
+        public const string CASE = "case";
+        public const string DEFAULT = "default";
 
         public const string ENDSCRIPT = "endscript";
 

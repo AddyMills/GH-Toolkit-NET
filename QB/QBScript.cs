@@ -102,7 +102,7 @@ namespace GH_Toolkit_Core.QB
                     else if (item is ScriptNode node)
                     {
                         string data = QbItemText(node.Type, node.Data.ToString());
-                        writer.Write()
+                        writer.Write();
                     }
                 }
             }

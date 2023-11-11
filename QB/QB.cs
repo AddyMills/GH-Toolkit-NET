@@ -347,7 +347,9 @@ namespace GH_Toolkit_Core.QB
                     }
                     else if (item.Data is QBScriptData scriptData)
                     {
-
+                        writer.WriteLine();
+                        writer.Write($"script {item.Name} = ");
+                        scriptData.ScriptToText(writer, 1);
                     }
                     else
                     {
