@@ -19,6 +19,11 @@ namespace GH_Toolkit_Core.QB
 {
     public class QBScript
     {
+        enum State
+        {
+            inDefault,
+            inConditional
+        }
         public static ReadWrite ScriptReader = new ReadWrite("little"); // Scripts are always little endian, but qbkeys within structs are not...
         [DebuggerDisplay("{ScriptSize} bytes ({CompressedSize} compressed)")]
         public class QBScriptData
@@ -61,19 +66,29 @@ namespace GH_Toolkit_Core.QB
                 */
                 ScriptParsed = ParseScript(ScriptData);
             }
-            public void ScriptToText(StreamWriter writer, int level = 1)
+            public string GetIndent(int level)
             {
-                string indent = new string('\t', level);
+                return new string('\t', level);
+            }
+            public void ScriptToText(int level = 1)
+            {
+                StringBuilder builder = new StringBuilder();
+                StringBuilder currentLine = new StringBuilder();
+                
                 bool isArgument = false;
                 foreach (object item in ScriptParsed)
                 {
+                    string indent = GetIndent(level);
                     if (item is string)
                     {
                         switch(item)
                         {
                             case NEWLINE:
-                                writer.WriteLine();
-                                writer.Write(indent);
+                                // Trim trailing whitespace and append the NEWLINE
+                                builder.Append(currentLine.ToString().TrimEnd());
+                                builder.AppendLine();
+                                currentLine.Clear();
+                                currentLine.Append(indent);
                                 break;
                             case EQUALS:
                             case NOTEQUALS:
@@ -87,16 +102,22 @@ namespace GH_Toolkit_Core.QB
                             case LESSTHANEQUAL:
                             case ORCOMP:
                             case ANDCOMP:
-                                writer.Write($" {item} ");
+                                currentLine.Append($" {item} ");
                                 break;
                             case COMMA:
-                                writer.Write($"{item} ");
+                                currentLine.Append($"{item} ");
                                 break;
                             case ARGUMENT:
                                 isArgument = true;
                                 break;
+                            case ENDIF:
+                                currentLine.Clear(); // Clear the current line buffer
+                                currentLine.Append(GetIndent(level - 1)); // Update the indent
+                                currentLine.Append("endif");
+                                level--;
+                                break;
                             default:
-                                writer.Write(item);
+                                currentLine.Append(item);
                                 break;
                         }
                     }
@@ -109,7 +130,7 @@ namespace GH_Toolkit_Core.QB
                             isArgument = false;
                         }
                         data += " ";
-                        writer.Write(data);
+                        currentLine.Append(data);
                     }
                     else if (item is Conditional conditional)
                     {
@@ -118,7 +139,18 @@ namespace GH_Toolkit_Core.QB
                             case IF:
                             case FASTIF:
                                 level++;
-                                writer.Write(conditional.Name);
+                                currentLine.Append("if ");
+                                break;
+                            case ELSEIF:
+                                currentLine.Clear(); // Clear the current line buffer
+                                currentLine.Append(GetIndent(level - 1)); // Update the indent
+                                currentLine.Append("elseif ");
+                                break;
+                            case ELSE:
+                            case FASTELSE:
+                                currentLine.Clear(); // Clear the current line buffer
+                                currentLine.Append(GetIndent(level-1)); // Update the indent
+                                currentLine.Append("else ");
                                 break;
                             default:
                                 throw new NotImplementedException();

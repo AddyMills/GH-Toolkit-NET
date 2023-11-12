@@ -349,7 +349,7 @@ namespace GH_Toolkit_Core.QB
                     {
                         writer.WriteLine();
                         writer.Write($"script {item.Name} = ");
-                        scriptData.ScriptToText(writer, 1);
+                        scriptData.ScriptToText(1);
                     }
                     else
                     {
