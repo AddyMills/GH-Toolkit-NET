@@ -25,7 +25,7 @@ namespace GH_Toolkit_Core.QB
             public QBStructProps(MemoryStream stream, string itemType) 
             {
                 ID = ReadQBKey(stream);
-                if (ID == "0x0")
+                if (ID == "0x00000000")
                 {
                     ID = "Flag";
                 }
@@ -109,27 +109,38 @@ namespace GH_Toolkit_Core.QB
             }
             public string StructToScript()
             {
-                string data = "";
+
+                string returnString = "";
                 foreach (QBStructItem item in Items)
                 {
+                    string data = "";
+                    string name = item.Props.ID;
                     if (item.Data is QBArrayNode arrayNode)
                     {
-                        return data;
+                        data += arrayNode.ArrayToScript();
                     }
                     else if (item.Data is QBStructData structNode)
                     {
-                        return data;
+                        data += $"{{{structNode.StructToScript()}}}";
                     }
                     else if (item.Data is List<float> floats)
                     {
-                        data += $"{item.Props.ID} = {FloatsToText(floats)} ";
+                        data = FloatsToText(floats);
                     }
                     else
                     {
-                        data += $"{item.Props.ID} = {QbItemText(item.Info.Type, item.Data.ToString())} ";
+                        data = QbItemText(item.Info.Type, item.Data.ToString());
+                    }
+                    if (name != FLAG)
+                    {
+                        returnString += $"{name} = {data} ";
+                    }
+                    else
+                    {
+                        returnString += $"{data} ";
                     }
                 }
-                return data.Trim();
+                return returnString.Trim();
             }
             public QBStructData() // From text
             {

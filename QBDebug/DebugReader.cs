@@ -73,7 +73,7 @@ namespace GH_Toolkit_Core.Debug
             }
             else
             {
-                return "0x" + toCheck.ToString("X");
+                return "0x" + toCheck.ToString("x8");
             }
         }
         public static void DecompressToFile(string compressedFilePath, string outputFilePath)

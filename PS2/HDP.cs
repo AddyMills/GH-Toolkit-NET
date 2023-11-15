@@ -134,7 +134,7 @@ namespace GH_Toolkit_Core.PS2
                     else
                     {
                         Console.WriteLine($"Could not find string for {checksum}.");
-                        folderChecksum = "0x" + checksum.ToString("X");
+                        folderChecksum = "0x" + checksum.ToString("x8");
                     }
                     uint hdpOffset = reader.ReadUInt32(stream);
                     HdpFolderEntry folderEntry = new HdpFolderEntry(fileCount, folderChecksum, hdpOffset);
@@ -154,7 +154,7 @@ namespace GH_Toolkit_Core.PS2
                 }
                 else
                 {
-                    fileChecksum = "0x" + checksum.ToString("X");
+                    fileChecksum = "0x" + checksum.ToString("x8");
                     Console.WriteLine($"Could not find string for {fileChecksum}.");
                 }
                 HdpFileEntry fileEntry = new HdpFileEntry(sectorIndex, dataLength, fileChecksum);

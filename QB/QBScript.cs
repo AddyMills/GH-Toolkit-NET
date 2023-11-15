@@ -14,6 +14,8 @@ using static System.Net.Mime.MediaTypeNames;
 using System.Security.Cryptography;
 using GH_Toolkit_Core.Checksum;
 using System.Xml.Linq;
+using static System.Runtime.InteropServices.JavaScript.JSType;
+using System.Reflection.Emit;
 
 namespace GH_Toolkit_Core.QB
 {
@@ -22,7 +24,7 @@ namespace GH_Toolkit_Core.QB
         enum State
         {
             inDefault,
-            inConditional
+            inRandom
         }
         public static ReadWrite ScriptReader = new ReadWrite("little"); // Scripts are always little endian, but qbkeys within structs are not...
         [DebuggerDisplay("{ScriptSize} bytes ({CompressedSize} compressed)")]
@@ -70,97 +72,291 @@ namespace GH_Toolkit_Core.QB
             {
                 return new string('\t', level);
             }
-            public void ScriptToText(int level = 1)
+            private class RandomState
+            {
+                private uint RandomEntries;
+                private uint MaxEntries;
+                private bool AppendEntry;
+                private bool NoClose;
+                private bool MultiLine;
+                public RandomState()
+                {
+                    RandomEntries = 0;
+                    MaxEntries = 0;
+                    AppendEntry = false; // To keep track of multiline random entries and adding @ if true
+                    NoClose = false; // To keep track of closing parentheses in random events
+                    MultiLine = false;
+                }
+                public void setEntries(uint entries)
+                {
+                    RandomEntries = entries;
+                    MaxEntries = entries;
+                }
+                public void useEntry()
+                {
+                    RandomEntries--;
+                }
+                public void setAppend(bool status)
+                {
+                    AppendEntry = status;
+                }
+                public void setNoClose(bool status)
+                {
+                    NoClose = status;
+                }
+                public void setMulti(bool status)
+                {
+                    MultiLine = status;
+                }
+                public uint getEntries()
+                {
+                    return RandomEntries;
+                }
+                public uint getMax()
+                {
+                    return MaxEntries;
+                }
+                public bool getAppend()
+                {
+                    return AppendEntry;
+                }
+                public bool getNoClose()
+                {
+                    return NoClose;
+                }
+                public bool getMulti()
+                {
+                    return MultiLine;
+                }
+            }
+            public void DeleteTabs(StringBuilder sb)
+            {
+                int i = sb.Length - 1;
+                while (i >= 0 && sb[i] == '\t')
+                {
+                    i--;
+                }
+
+                // Remove all characters from i + 1 to the end
+                if (i < sb.Length - 1)
+                {
+                    sb.Remove(i + 1, sb.Length - i - 1);
+                }
+
+                // Now sb contains the string without the trailing tab characters
+            }
+            public static bool isArgument = false;
+            public static string stringIndent = "\t";
+            public void StringParser(object item, ref int level, StringBuilder builder, StringBuilder currentLine)
+            {
+                switch (item)
+                {
+                    case NEWLINE:
+                        // Trim trailing whitespace and append the NEWLINE
+                        builder.Append(currentLine.ToString().TrimEnd());
+                        builder.AppendLine();
+                        currentLine.Clear();
+                        currentLine.Append(stringIndent);
+                        break;
+                    case DOT:
+                        builder.Append(currentLine.ToString().TrimEnd());
+                        currentLine.Clear();
+                        currentLine.Append(item);
+                        break;
+                    case COLON:
+                        currentLine.Append(item);
+                        break;
+                    case ARGUMENT:
+                        isArgument = true;
+                        break;
+                    case ENDIF:
+                        currentLine.Clear(); // Clear the current line buffer
+                        level--;
+                        currentLine.Append(GetIndent(level)); // Update the indent
+                        currentLine.Append("endif");
+                        break;
+                    case SWITCH:
+                        currentLine.Append($"{item} ");
+                        level++;
+                        break;
+                    case LEFTBKT:
+                    case LEFTBRACE:
+                    case LEFTPAR:
+                        currentLine.Append(item);
+                        level++;
+                        break;
+                    case RIGHTBKT:
+                    case RIGHTBRACE:
+                    case RIGHTPAR:
+                    case ENDSWITCH:
+                        level--;
+                        if (currentLine.ToString() == stringIndent)
+                        {
+                            currentLine.Clear();
+                            currentLine.Append(GetIndent(level));
+                        }
+                        else
+                        {
+                            builder.Append(currentLine.ToString().TrimEnd());
+                            currentLine.Clear();
+                        }
+                        currentLine.Append(item);
+                        break;
+                    default:
+                        currentLine.Append($"{item} ");
+                        break;
+                }
+            }
+            
+            public string ScriptToText(int level = 1)
             {
                 StringBuilder builder = new StringBuilder();
                 StringBuilder currentLine = new StringBuilder();
-                
-                bool isArgument = false;
+                State state = new State();
+                state = State.inDefault;
+                isArgument = false;
+                RandomState rState = new RandomState();
                 foreach (object item in ScriptParsed)
                 {
-                    string indent = GetIndent(level);
-                    if (item is string)
-                    {
-                        switch(item)
-                        {
-                            case NEWLINE:
-                                // Trim trailing whitespace and append the NEWLINE
-                                builder.Append(currentLine.ToString().TrimEnd());
-                                builder.AppendLine();
-                                currentLine.Clear();
-                                currentLine.Append(indent);
-                                break;
-                            case EQUALS:
-                            case NOTEQUALS:
-                            case MINUS:
-                            case PLUS:
-                            case MULTIPLY:
-                            case DIVIDE:
-                            case GREATERTHAN:
-                            case LESSTHAN:
-                            case GREATERTHANEQUAL:
-                            case LESSTHANEQUAL:
-                            case ORCOMP:
-                            case ANDCOMP:
-                                currentLine.Append($" {item} ");
-                                break;
-                            case COMMA:
-                                currentLine.Append($"{item} ");
-                                break;
-                            case ARGUMENT:
-                                isArgument = true;
-                                break;
-                            case ENDIF:
-                                currentLine.Clear(); // Clear the current line buffer
-                                currentLine.Append(GetIndent(level - 1)); // Update the indent
-                                currentLine.Append("endif");
-                                level--;
-                                break;
-                            default:
-                                currentLine.Append(item);
-                                break;
-                        }
-                    }
-                    else if (item is ScriptNode node)
-                    {
-                        string data = node.NodeToText();
-                        if (isArgument)
-                        {
-                            data = $"<{data}>";
-                            isArgument = false;
-                        }
-                        data += " ";
-                        currentLine.Append(data);
-                    }
-                    else if (item is Conditional conditional)
-                    {
-                        switch (conditional.Name)
-                        {
-                            case IF:
-                            case FASTIF:
-                                level++;
-                                currentLine.Append("if ");
-                                break;
-                            case ELSEIF:
-                                currentLine.Clear(); // Clear the current line buffer
-                                currentLine.Append(GetIndent(level - 1)); // Update the indent
-                                currentLine.Append("elseif ");
-                                break;
-                            case ELSE:
-                            case FASTELSE:
-                                currentLine.Clear(); // Clear the current line buffer
-                                currentLine.Append(GetIndent(level-1)); // Update the indent
-                                currentLine.Append("else ");
-                                break;
-                            default:
-                                throw new NotImplementedException();
-                        }
-                    }
-                    else
-                    {
-                        throw new NotImplementedException("Not implemented");
-                    }
+                    stringIndent = GetIndent(level);
+                    switch (state) { 
+                        case State.inDefault:
+                            if (item is string)
+                            {
+                                StringParser(item, ref level, builder, currentLine);
+                            }
+                            else if (item is ScriptNode node)
+                            {
+                                string currString = currentLine.ToString();
+                                if (currString.EndsWith("\t") && currString != stringIndent)
+                                {
+                                    DeleteTabs(currentLine);
+                                }
+                                string data = node.NodeToText(ref isArgument);
+                                currentLine.Append(data);
+                            }
+                            else if (item is Conditional conditional)
+                            {
+                                switch (conditional.Name)
+                                {
+                                    case IF:
+                                    case FASTIF:
+                                        level++;
+                                        currentLine.Append("if ");
+                                        break;
+                                    case ELSEIF:
+                                        currentLine.Clear(); // Clear the current line buffer
+                                        currentLine.Append(GetIndent(level - 1)); // Update the indent
+                                        currentLine.Append("elseif ");
+                                        break;
+                                    case ELSE:
+                                    case FASTELSE:
+                                        currentLine.Clear(); // Clear the current line buffer
+                                        currentLine.Append(GetIndent(level - 1)); // Update the indent
+                                        currentLine.Append("else ");
+                                        break;
+                                    default:
+                                        throw new NotImplementedException();
+                                }
+                            }
+                            else if (item is ScriptTuple tuple)
+                            {
+                                currentLine.Append($"{FloatsToText(tuple.Data)} ");
+                            }
+                            else if (item is ScriptRandom random)
+                            {
+                                //level++;
+                                state = State.inRandom;
+                                rState.setEntries(random.Entries);
+                                currentLine.Append($"{random.Name} (");
+                                rState.setAppend(true);
+                            }
+                            else
+                            {
+                                throw new NotImplementedException("Not implemented");
+                            }
+                            break;
+                        case State.inRandom:
+                            if (rState.getAppend() && !(rState.getMax() == rState.getEntries()))
+                            {
+                                currentLine.Append("@ ");
+                                rState.setAppend(false);
+                            }
+                            if (item is ScriptNode randnode)
+                            {
+                                
+                                string data = randnode.NodeToText(ref isArgument);
+                                currentLine.Append($"{data}");
+                                if (rState.getEntries() == 1 && !rState.getMulti())
+                                {
+                                    builder.Append(currentLine.ToString().TrimEnd());
+                                    currentLine.Clear();
+                                    currentLine.Append(") ");
+                                    rState.useEntry();
+                                }
+                            }
+                            else if (item is ScriptLongJump jump)
+                            {
+                                rState.useEntry();
+                                if (jump.Jump == 0)
+                                {
+                                    currentLine.Append("@ ");
+                                    rState.useEntry();
+                                }
+                                rState.setAppend(true);
+                            }
+                            else if (item == NEWLINE)
+                            {
+                                if (rState.getEntries() > 1 && !rState.getMulti())
+                                {
+                                    rState.setMulti(true);
+                                    level++;
+                                }
+                                builder.Append(currentLine.ToString().TrimEnd()); // This line here needs to be changed to add the space for multi-line randoms. Might not be needed
+                                if (currentLine.ToString() == GetIndent(level))
+                                {
+                                    currentLine.Clear();
+                                    rState.useEntry();
+                                    level--;
+                                    builder.Append(GetIndent(level));
+                                    builder.Append(")");
+                                    builder.AppendLine();
+                                    rState.setNoClose(true);
+                                }
+                                else
+                                {
+                                    builder.AppendLine();
+                                    currentLine.Clear();
+                                    currentLine.Append(GetIndent(level));
+                                    if (rState.getAppend() && (rState.getMax() == rState.getEntries()))
+                                    {
+                                        currentLine.Append("@ ");
+                                        rState.setAppend(false);
+                                    }
+                                }
+
+                            }
+                            else if (item is string)
+                            {
+                                StringParser(item, ref level, builder, currentLine);
+                            }
+                            else
+                            {
+                                throw new NotImplementedException("Not implemented");
+                            }
+                            if (rState.getEntries() <= 0)
+                            {
+                                // builder.Append(currentLine.ToString().TrimEnd());
+
+                                currentLine.Append(GetIndent(level));
+                                state = State.inDefault;
+                                rState = new RandomState();
+                            }
+                            break;
+                    }  
                 }
+                builder.AppendLine("endscript");
+                return builder.ToString();
             }
         }
         [DebuggerDisplay("{Type,nq} - {Data,nq}")]
@@ -173,7 +369,7 @@ namespace GH_Toolkit_Core.QB
                 Type = nodeType;
                 Data = data;
             }
-            public string NodeToText() 
+            public string NodeToText(ref bool isArgument) 
             {
                 string dataString;
                 if (Data is ScriptNodeStruct structData)
@@ -184,6 +380,19 @@ namespace GH_Toolkit_Core.QB
                 {
                     dataString = QbItemText(Type, Data.ToString());
                 }
+                if (isArgument)
+                {
+                    if (dataString.StartsWith("$"))
+                    {
+                        dataString = $"$<{dataString.Substring(1)}>";
+                    }
+                    else
+                    {
+                        dataString = $"<{dataString}>";
+                    }
+                    isArgument = false;
+                }
+                dataString += " ";
                 return dataString;
             }
         }
@@ -235,7 +444,6 @@ namespace GH_Toolkit_Core.QB
                         Text = Encoding.BigEndianUnicode.GetString(buffer); 
                         break;
                 }
-                
             }
         }
         [DebuggerDisplay("{Type, nq} - {ListDisplay, nq}")]
@@ -288,17 +496,27 @@ namespace GH_Toolkit_Core.QB
         }
         public static string ReadScriptString(string name, uint length, MemoryStream stream)
         {
-            byte[] buffer = new byte[length];
-            int bytesRead = stream.Read(buffer, 0, buffer.Length);
+            string textString;
             switch (name)
             {
                 case STRING:
-                    return Encoding.UTF8.GetString(buffer);
+                    textString = ReadWrite.ReadUntilNullByte(stream);
+                    if (textString.Length + 1 != length)
+                    {
+                        throw new Exception("String length is not what script says it is.");
+                    }
+                    break;
                 case WIDESTRING:
-                    return Encoding.BigEndianUnicode.GetString(buffer);
+                    textString = ReadWrite.ReadWideString(stream);
+                    if (textString.Length*2 + 2 != length)
+                    {
+                        throw new Exception("String length is not what script says it is.");
+                    }
+                    break;
                 default:
                     throw new Exception("Unknown string type found.");
             }
+            return textString;
 
         }
         public static string ReadScriptQBKey(MemoryStream stream)
@@ -384,7 +602,7 @@ namespace GH_Toolkit_Core.QB
                             }
                             break;
                         case 0x17:
-                            list.Add(new ScriptNode(INTEGER, ScriptReader.ReadUInt32(stream)));
+                            list.Add(new ScriptNode(INTEGER, ScriptReader.ReadInt32(stream)));
                             break;
                         case 0x1A:
                             list.Add(new ScriptNode(FLOAT, ScriptReader.ReadFloat(stream)));

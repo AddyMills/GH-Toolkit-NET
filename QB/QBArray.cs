@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection.Emit;
 using System.Text;
 using System.Threading.Tasks;
 using static GH_Toolkit_Core.QB.QB;
@@ -123,7 +124,39 @@ namespace GH_Toolkit_Core.QB
                         break;
                 }
             }
-
+            public string ArrayToScript()
+            {
+                string data = "";
+                switch (FirstItem.Type)
+                {
+                    case ARRAY:
+                        foreach (QBArrayNode item in Items)
+                        {
+                            data += item.ArrayToScript();
+                        }
+                        break;
+                    case STRUCT:
+                        foreach (QBStructData item in Items)
+                        {
+                            data += item.StructToScript();
+                        }
+                        break;
+                    case VECTOR:
+                    case PAIR:
+                        foreach (List<float> list in Items)
+                        {
+                            data += $"{FloatsToText(list)} ";
+                        }
+                        break;
+                    default:
+                        foreach (object item in Items)
+                        {
+                            data += $"{QbItemText(FirstItem.Type, item.ToString())} ";;
+                        }
+                        break;
+                }
+                return $"[{data.TrimEnd()}]";
+            }
         }
     }
 }

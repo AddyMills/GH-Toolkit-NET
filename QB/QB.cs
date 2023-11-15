@@ -275,31 +275,40 @@ namespace GH_Toolkit_Core.QB
 
             return qbList;
         }
-        public static string QbItemText(string itemType, string itemData)
+        public static string QbItemText(string itemType, object itemData)
         {
+            string itemString;
+            if (itemType == FLOAT)
+            {
+                itemString = Convert.ToSingle(itemData).ToString("0.0");
+            }
+            else
+            {
+                itemString = itemData.ToString();
+            }
             string test;
             switch (itemType)
             {
                 case FLOAT:
                 case INTEGER:
-                    test = $"{itemData}";
+                    test = $"{itemString}";
                     break;
                 case STRING:
-                    test = $"'{itemData}'";
+                    test = $"'{itemString.Replace("'", "\\'")}'";
                     break;
                 case WIDESTRING:
-                    test = $"\"{itemData}\"";
+                    test = $"\"{itemString}\"";
                     break;
                 case QBKEY:
                 case QSKEY:
                 case POINTER:
-                    if (itemData.IndexOf(" ", 0) == -1)
+                    if (itemString.IndexOf(" ", 0) == -1)
                     {
-                        test = $"{itemData}";
+                        test = $"{itemString}";
                     }
                     else
                     {
-                        test = $"`{itemData}`";
+                        test = $"`{itemString}`";
                     }
                     if (itemType == QSKEY)
                     {
@@ -348,8 +357,8 @@ namespace GH_Toolkit_Core.QB
                     else if (item.Data is QBScriptData scriptData)
                     {
                         writer.WriteLine();
-                        writer.Write($"script {item.Name} = ");
-                        scriptData.ScriptToText(1);
+                        writer.Write($"script {item.Name} ");
+                        writer.Write(scriptData.ScriptToText(1));
                     }
                     else
                     {
