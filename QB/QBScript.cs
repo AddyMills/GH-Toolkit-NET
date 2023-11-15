@@ -705,11 +705,26 @@ namespace GH_Toolkit_Core.QB
                             nextGlobal = true;
                             break;
                         case 0x4C:
-                            length = ScriptReader.ReadUInt32(stream);
-                            list.Add(new ScriptNode(WIDESTRING, ReadScriptString(WIDESTRING, length, stream)));
+                            if (Reader.Endian() == "little")
+                            {
+                                list.Add(NOTEQUALS);
+                            }
+                            else
+                            {
+                                length = ScriptReader.ReadUInt32(stream);
+                                list.Add(new ScriptNode(WIDESTRING, ReadScriptString(WIDESTRING, length, stream)));
+                            }
+                            
                             break;
                         case 0x4D:
-                            list.Add(NOTEQUALS);
+                            if (Reader.Endian() == "little")
+                            {
+                                list.Add(NOTEQUALS);
+                            }
+                            else
+                            {
+                                list.Add(NOTEQUALS);
+                            }
                             break;
                         case 0x4E:
                             list.Add(new ScriptNode(QSKEY, ReadScriptQBKey(stream)));

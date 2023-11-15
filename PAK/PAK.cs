@@ -47,6 +47,8 @@ namespace GH_Toolkit_Core.PAK
             string songCheck = "_song";
             string songName = "";
             List<PakEntry> pakEntries;
+            bool debugFile = fileName.Contains("dbg.pak");
+            string masterFilePath = Path.Combine(NewFolderPath, "master.txt");
             if (fileName.Contains(songCheck))
             {
                 songName = fileName.Substring(0, fileName.IndexOf(songCheck));
@@ -76,7 +78,7 @@ namespace GH_Toolkit_Core.PAK
             {
                 pakEntries = ExtractPAK(test_pak, test_pab, endian: endian, songName: songName);
             }
-            catch
+            catch (Exception ex)
             {
                 test_pak = Compression.DecompressData(test_pak);
                 if (test_pab != null)
@@ -97,6 +99,22 @@ namespace GH_Toolkit_Core.PAK
                 string saveName = Path.Combine(NewFolderPath, pakFileName);
                 Directory.CreateDirectory(Path.GetDirectoryName(saveName));
                 File.WriteAllBytes(saveName, entry.EntryData);
+
+                if (debugFile)
+                {
+                    string[] lines = File.ReadAllLines(saveName);
+
+                    using (StreamWriter masterFileWriter = File.AppendText(masterFilePath))
+                    {
+                        foreach (string line in lines)
+                        {
+                            if (line.StartsWith("0x"))
+                            {
+                                masterFileWriter.WriteLine(line);
+                            }
+                        }
+                    }
+                }
             }
         }
         private static uint CheckPabType(byte[] pakBytes, string endian = "big")
@@ -192,6 +210,7 @@ namespace GH_Toolkit_Core.PAK
                     case 0:
                         break;
                     case 0x20:
+                    case 0x21:
                     case 0x22:
                         var skipTo = stream.Position + 160;
                         string tempString = ReadWrite.ReadUntilNullByte(stream);

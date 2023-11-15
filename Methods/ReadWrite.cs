@@ -9,10 +9,12 @@ namespace GH_Toolkit_Core.Methods
     public class ReadWrite
     {
         private readonly bool _flipBytes;
+        private readonly string _endian;
         public ReadWrite(string endian)
         {
             // Determine if bytes need to be flipped based on endianness and system architecture.
             _flipBytes = endian == "little" != BitConverter.IsLittleEndian;
+            _endian = endian;
         }
         public static bool FlipCheck(string endian)
         {
@@ -164,6 +166,10 @@ namespace GH_Toolkit_Core.Methods
             source.Seek(0, SeekOrigin.Begin);
             source.CopyTo(dest);
             source.Close();
+        }
+        public string Endian()
+        {
+            return _endian;
         }
     }
 }

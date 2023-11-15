@@ -35,14 +35,14 @@ namespace GH_Toolkit_Core.Debug
 
                 foreach (var line in textLines)
                 {
-                    var newLine = line.TrimEnd('\n').Split(new[] { ' ' }, 2);
+                    var newLine = line.TrimEnd('\n').Split(new[] { '\t' }, 2);
 
                     if (newLine.Length != 2) continue;
 
                     try
                     {
                         var key = Convert.ToUInt32(newLine[0], 16);
-                        var value = newLine[1].Replace("\"", "");
+                        var value = newLine[1];//.Replace("\"", "");
                         funcDict[key] = value;
                     }
                     catch
