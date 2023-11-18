@@ -7,6 +7,7 @@ using System.Reflection.Metadata.Ecma335;
 using System.Security.Cryptography;
 using System.Security.Policy;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using GH_Toolkit_Core.Debug;
 using GH_Toolkit_Core.Methods;
@@ -25,7 +26,7 @@ namespace GH_Toolkit_Core.PAK
             public string? FullName { get; set; }
             public string? NameNoExt { get; set; }
             public uint Parent { get; set; }
-            public uint Flags { get; set; }
+            public int Flags { get; set; }
             public byte[]? EntryData { get; set; }
         }
         public static void ProcessPAKFromFile(string file)
@@ -102,6 +103,7 @@ namespace GH_Toolkit_Core.PAK
 
                 if (debugFile)
                 {
+                    Console.WriteLine($"Writing {pakFileName}");
                     string[] lines = File.ReadAllLines(saveName);
 
                     using (StreamWriter masterFileWriter = File.AppendText(masterFilePath))
@@ -115,6 +117,7 @@ namespace GH_Toolkit_Core.PAK
                         }
                     }
                 }
+
             }
         }
         private static uint CheckPabType(byte[] pakBytes, string endian = "big")
@@ -203,48 +206,49 @@ namespace GH_Toolkit_Core.PAK
                 }
                 uint parent = reader.ReadUInt32(stream);
                 entry.Parent = parent;
-                uint flags = reader.ReadUInt32(stream);
+                int flags = reader.ReadInt32(stream);
                 entry.Flags = flags;
-                switch (flags)
+                if ((flags & 0x20) != 0)
                 {
-                    case 0:
-                        break;
-                    case 0x20:
-                    case 0x21:
-                    case 0x22:
-                        var skipTo = stream.Position + 160;
-                        string tempString = ReadWrite.ReadUntilNullByte(stream);
-                        switch (tempString)
-                        {
-                            case string s when s.StartsWith("ones\\"):
-                                tempString = "z" + tempString;
-                                break;
-                            case string s when s.StartsWith("cripts\\"):
-                                tempString = "s" + tempString;
-                                break;
-                            case string s when s.StartsWith("kies\\"):
-                                tempString = "s" + tempString;
-                                break;
-                            case string s when s.StartsWith("ongs\\"):
-                                tempString = "s" + tempString;
-                                break;
-                            case string s when s.StartsWith("odels\\"):
-                                tempString = "m" + tempString;
-                                break;
-                            case string s when s.StartsWith("ak\\"):
-                                tempString = "p" + tempString;
-                                break;
-                        }
-                        entry.FullName = tempString;
-                        stream.Position = skipTo;
-                        break;
-                    default:
-                        throw new InvalidOperationException("Unknown flag found");
+                    var skipTo = stream.Position + 160;
+                    string tempString = ReadWrite.ReadUntilNullByte(stream);
+                    switch (tempString)
+                    {
+                        case string s when s.StartsWith("ones\\"):
+                            tempString = "z" + tempString;
+                            break;
+                        case string s when s.StartsWith("cripts\\"):
+                            tempString = "s" + tempString;
+                            break;
+                        case string s when s.StartsWith("kies\\"):
+                            tempString = "s" + tempString;
+                            break;
+                        case string s when s.StartsWith("ongs\\"):
+                            tempString = "s" + tempString;
+                            break;
+                        case string s when s.StartsWith("odels\\"):
+                            tempString = "m" + tempString;
+                            break;
+                        case string s when s.StartsWith("ak\\"):
+                            tempString = "p" + tempString;
+                            break;
+                    }
+                    entry.FullName = tempString;
+                    stream.Position = skipTo;
                 }
                 try
                 {
                     entry.EntryData = new byte[entry.FileSize];
                     Array.Copy(pakBytes, entry.StartOffset, entry.EntryData, 0, entry.FileSize);
+                    if (entry.FullName == "0x00000000.0x00000000")
+                    {
+                        entry.FullName = entry.AssetContext;
+                    }
+                    entry.FullName = entry.FullName.Replace(".qb", entry.Extension);
+                    if (entry.FullName.IndexOf(entry.Extension, StringComparison.CurrentCultureIgnoreCase) == -1) 
+                    {
+                        entry.FullName += entry.Extension;
+                    }
                     PakList.Add(entry);
                 }
                 catch (Exception ex)

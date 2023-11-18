@@ -51,6 +51,8 @@ namespace GH_Toolkit_Core.QB
                 {
                     ScriptData = CompressedData;
                 }
+                //byte[] tryArray = CompressedData.Where(b => b != 0x01 && b != 0x24).ToArray();
+                //string tryCrc = CRC.GenQBKey(tryArray);
                 /*
                  * Trying to RE the script CRC value
                 byte[] tryArray = new byte[ScriptSize];

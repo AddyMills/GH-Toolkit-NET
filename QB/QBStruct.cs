@@ -39,6 +39,8 @@ namespace GH_Toolkit_Core.QB
             public QBStructInfo Info { get; set; }
             public QBStructProps Props { get; set; }
             public object Data { get; set; }
+            public object? Children { get; set; }
+            public object? Parent { get; set; }
             public QBStructItem(MemoryStream stream)
             {
                 Info = new QBStructInfo(stream);

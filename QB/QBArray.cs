@@ -29,6 +29,8 @@ namespace GH_Toolkit_Core.QB
             public QBItemInfo FirstItem { get; set; }
             public uint ItemCount { get; set; }
             public List<object> Items { get; set; }
+            public object? Children { get; set; }
+            public object? Parent { get; set; }
             public QBArrayNode(MemoryStream stream)
             {
                 FirstItem = new QBItemInfo(stream);

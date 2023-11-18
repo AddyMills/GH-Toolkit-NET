@@ -24,7 +24,12 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WAD Compiler", "..\WAD Comp
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{4E6CC058-F9E9-4687-A909-981ED4733C2A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QBDecompiler", "..\QBDecompiler\QBDecompiler.csproj", "{F76CCD46-328F-4036-8013-A74AC2BF5793}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "QBDecompiler", "..\QBDecompiler\QBDecompiler.csproj", "{F76CCD46-328F-4036-8013-A74AC2BF5793}"
+	ProjectSection(ProjectDependencies) = postProject
+		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QBRecompiler", "..\QBRecompiler\QBRecompiler.csproj", "{CD391093-D68B-4F38-AAA3-E647CA6AF82B}"
 	ProjectSection(ProjectDependencies) = postProject
 		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
 	EndProjectSection
@@ -59,6 +64,10 @@ Global
 		{F76CCD46-328F-4036-8013-A74AC2BF5793}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F76CCD46-328F-4036-8013-A74AC2BF5793}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F76CCD46-328F-4036-8013-A74AC2BF5793}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CD391093-D68B-4F38-AAA3-E647CA6AF82B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CD391093-D68B-4F38-AAA3-E647CA6AF82B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CD391093-D68B-4F38-AAA3-E647CA6AF82B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CD391093-D68B-4F38-AAA3-E647CA6AF82B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

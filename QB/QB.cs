@@ -16,6 +16,8 @@ using static System.Runtime.InteropServices.JavaScript.JSType;
 using GH_Toolkit_Core.Methods;
 using System.Xml.Linq;
 using static System.Net.Mime.MediaTypeNames;
+using System.Text.RegularExpressions;
+using System.Diagnostics.SymbolStore;
 
 namespace GH_Toolkit_Core.QB
 {
@@ -24,6 +26,11 @@ namespace GH_Toolkit_Core.QB
         public static bool FlipBytes = true;
         public static Dictionary<uint, string> SongHeaders;
         public static ReadWrite Reader;
+        public static List<QBItem> Children { get; set; }
+        public QB()
+        {
+            Children = new List<QBItem>();
+        }
         [DebuggerDisplay("{Info, nq}: {Props, nq} - {Data}")]
         public class QBItem
         {
@@ -31,6 +38,7 @@ namespace GH_Toolkit_Core.QB
             public QBSharedProps Props { get; set; }
             public object Data { get; set; }
             public string Name { get; set; }
+            public object? Children { get; set; }
             public QBItem(MemoryStream stream)
             {
                 Info = new QBItemInfo(stream);
@@ -44,6 +52,10 @@ namespace GH_Toolkit_Core.QB
                     Data = ReadQBData(stream, Info.Type);
                 }
                 Name = Props.ID;
+            }
+            public QBItem()
+            {
+
             }
         }
         public class QBBase
@@ -75,12 +87,17 @@ namespace GH_Toolkit_Core.QB
                 if (infoByte == 0x01 && infoByte2 != 0x00)
                 {
                     infoByte = infoByte2;
+                    Type = QbType[infoByte];
                 }
-                else if ((infoByte & FLAG_STRUCT_GH3) != 0)
+                else
                 {
-                    infoByte &= 0x7F;
+                    if ((infoByte & FLAG_STRUCT_GH3) != 0)
+                    {
+                        infoByte &= 0x7F;
+                    }
+                    Type = StructType[infoByte];
                 }
-                Type = StructType[infoByte];
+                
             }
         }
         [DebuggerDisplay("{ID}")]
@@ -226,7 +243,7 @@ namespace GH_Toolkit_Core.QB
             {0x1C, "QsKey" }, // AKA localized string
         };
 
-        private static readonly Dictionary<byte, string> QbTypePs2Struct = new Dictionary<byte, string>()
+        private static readonly Dictionary<byte, string> QbTypeGh3Ps2Struct = new Dictionary<byte, string>()
         {
             {0x00, "Flag" },
             {0x03, "Integer" },
@@ -243,7 +260,7 @@ namespace GH_Toolkit_Core.QB
 
         public static Dictionary<byte, string> StructType { get; private set; }
 
-        public static void SetStructType(string endian)
+        public static void SetStructType(string endian, string game = "GH3")
         {
             if (endian == "big")
             {
@@ -251,7 +268,7 @@ namespace GH_Toolkit_Core.QB
             }
             else
             {
-                StructType = QbTypePs2Struct;
+                StructType = QbTypeGh3Ps2Struct;
             }
 
         }
@@ -333,7 +350,7 @@ namespace GH_Toolkit_Core.QB
         }
         public static void QbToText(List<QBItem> qbList, string filePath)
         {
-            
+            Directory.CreateDirectory(Path.GetDirectoryName(filePath));
             using (StreamWriter writer = new StreamWriter(filePath))
             {
                 foreach (QBItem item in qbList)
@@ -367,19 +384,135 @@ namespace GH_Toolkit_Core.QB
                 }
             }
         }
-        public static void ProcessQbFromFile(string file)
+        enum ParseState
+        {
+            whitespace,
+            inKey,
+            inString,
+            inQbKey,
+            inQsKey,
+            inComment,
+            inScript,
+            inValue
+        }
+        public static void ParseQFile(string data)
+        {
+            ParseState state = ParseState.whitespace;
+            QB qbFile = new QB();
+            QBItem current = new QBItem();
+            data += " "; // Safety character to make sure everything gets parsed
+            string tmpKey = "";
+            string tmpValue = "";
+            foreach (char c in data)
+            {
+                switch (state)
+                {
+                    case ParseState.whitespace:
+                        switch (c)
+                        {
+                            case ' ':
+                            case '\r':
+                            case '\n':
+                            case '\t':
+                                continue;
+                            case ';':
+                            case '/':
+                                tmpValue = "";
+                                state = ParseState.inComment;
+                                break;
+                            default:
+                                state = ParseState.inKey;
+                                tmpKey = new string(c, 1);
+                                break;
+                        }
+                        break;
+                    case ParseState.inKey:
+                        switch (c)
+                        {
+                            case '\r':
+                            case '\n':
+                                throw new Exception($"QB Item Key {tmpKey} found without any data!");
+                            case ' ':
+                            case '\t':
+                                if (tmpKey == "script")
+                                {
+                                    tmpKey = "";
+                                    state = ParseState.inScript;
+                                }
+                                else
+                                {
+                                    tmpKey += c;
+                                }
+                                break;
+                            case '=':
+                                tmpKey = tmpKey.Trim();
+                                state = ParseState.inValue;
+                                break;
+                            default:
+                                tmpKey += c;
+                                break;
+
+                        }
+                        break;
+                    case ParseState.inValue:
+                        if ((c == ' ' || c == '\t') && tmpValue == "")
+                        {
+                            continue;
+                        }
+                        switch (c)
+                        {
+                            case '\r':
+                            case '\n':
+                            case ' ':
+                            case '\t':
+                                if (tmpValue == "")
+                                {
+                                    throw new Exception($"QB Item Key {tmpKey} found without any data!");
+                                }
+                                state = ParseState.whitespace;
+                                break;
+                            default: 
+                                tmpValue += c;
+                                break;
+                        }
+                        break;
+                    case ParseState.inComment:
+                        switch (c)
+                        {
+                            case '\r':
+                            case '\n':
+                                state = ParseState.whitespace;
+                                break;
+                            default:
+                                continue;
+                        }
+                        break;
+                }
+            }
+        }
+        public static void DecompileQbFromFile(string file)
         {
             string fileName = Path.GetFileName(file);
-            if (fileName.IndexOf(".qb", 0, fileName.Length, StringComparison.CurrentCultureIgnoreCase) == -1)
+            Match match = Regex.Match(fileName, @"\.([a-zA-Z])?qb", RegexOptions.IgnoreCase);
+            if (!match.Success) // Files can be .qb, .sqb, .sqb.ps2, etc.
             {
                 Console.WriteLine($"Skipping {fileName}");
                 return;
             }
-            string fileNoExt = fileName.Substring(0, fileName.IndexOf(".qb"));
+            string fileNoExt = fileName.Substring(0, match.Index);
             string fileExt = Path.GetExtension(file);
             Console.WriteLine($"Decompiling {fileName}");
             string folderPath = Path.GetDirectoryName(file);
-            string NewFilePath = Path.Combine(folderPath,"Test", $"{fileNoExt}.q");
+            string NewFilePath;
+            if (match.Value == ".qb")
+            {
+                NewFilePath = Path.Combine(folderPath, "Test", $"{fileNoExt}.q");
+            }
+            else
+            {
+                char scriptType = match.Value[1];
+                NewFilePath = Path.Combine(folderPath, $"{fileNoExt}.{scriptType}.q");
+            }
             string songCheck = ".mid";
             string songName = "";
             if (fileName.Contains(songCheck))
