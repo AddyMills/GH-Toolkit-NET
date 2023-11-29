@@ -1,23 +1,15 @@
-﻿using GH_Toolkit_Core.Debug;
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static GH_Toolkit_Core.PAK.PAK;
-using static GH_Toolkit_Core.QB.QBConstants;
-using static GH_Toolkit_Core.QB.QBArray;
-using static GH_Toolkit_Core.QB.QBStruct;
-using static GH_Toolkit_Core.QB.QBScript;
-using System.IO;
-using System.Diagnostics;
-using static System.Runtime.InteropServices.JavaScript.JSType;
+﻿using GH_Toolkit_Core.Checksum;
+using GH_Toolkit_Core.Debug;
 using GH_Toolkit_Core.Methods;
-using System.Xml.Linq;
-using static System.Net.Mime.MediaTypeNames;
+using System;
+using System.Diagnostics;
+using System.Globalization;
 using System.Text.RegularExpressions;
-using System.Diagnostics.SymbolStore;
+using static GH_Toolkit_Core.QB.QBArray;
+using static GH_Toolkit_Core.QB.QBConstants;
+using static GH_Toolkit_Core.QB.QBScript;
+using static GH_Toolkit_Core.QB.QBStruct;
+using static GH_Toolkit_Core.Methods.Exceptions;
 
 namespace GH_Toolkit_Core.QB
 {
@@ -26,12 +18,16 @@ namespace GH_Toolkit_Core.QB
         public static bool FlipBytes = true;
         public static Dictionary<uint, string> SongHeaders;
         public static ReadWrite Reader;
-        public static List<QBItem> Children { get; set; }
+        public List<QBItem> Children { get; set; }
         public QB()
         {
             Children = new List<QBItem>();
         }
-        [DebuggerDisplay("{Info, nq}: {Props, nq} - {Data}")]
+        private void AddQbChild(QBItem item)
+        {
+            Children.Add(item);
+        }
+        [DebuggerDisplay("{Info, nq}: {Name, nq} - {Data}")]
         public class QBItem
         {
             public QBItemInfo Info { get; set; }
@@ -39,6 +35,7 @@ namespace GH_Toolkit_Core.QB
             public object Data { get; set; }
             public string Name { get; set; }
             public object? Children { get; set; }
+            public QBItem() { }
             public QBItem(MemoryStream stream)
             {
                 Info = new QBItemInfo(stream);
@@ -53,9 +50,42 @@ namespace GH_Toolkit_Core.QB
                 }
                 Name = Props.ID;
             }
-            public QBItem()
+            public void AddName(string name)
             {
-
+                Name = name;
+            }
+            public void AddData(object data)
+            {
+                Data = data;
+            }
+            public void AddInfo(string type)
+            {
+                if (type == MULTIFLOAT)
+                {
+                    Info = new QBItemInfo(MultiFloatType());
+                }
+                else
+                {
+                    Info = new QBItemInfo(type);
+                }
+            }
+            public void CreateQBItem(string name, string value, string type)
+            {
+                AddName(name);
+                Data = ParseData(value, type);
+                AddInfo(type);
+            }
+            private string MultiFloatType()
+            {
+                if (Data is List<float> floatList)
+                {
+                    if (floatList.Count < 2 || floatList.Count > 3) 
+                    {
+                        throw new ArgumentException("List of float values does not contain only 2 or 3 items.");
+                    }
+                    return floatList.Count == 2 ? PAIR : VECTOR;
+                }
+                throw new ArgumentException("No list of floats provided");
             }
         }
         public class QBBase
@@ -68,6 +98,11 @@ namespace GH_Toolkit_Core.QB
                 Info = ReadQBHeader(stream);
                 Flags = (byte)(Info >> 8);
             }
+            public QBBase() { }
+            private void SetFlags(byte flag)
+            {
+                Flags = flag;
+            }
         }
         [DebuggerDisplay("{Type}")]
         public class QBItemInfo : QBBase
@@ -75,6 +110,10 @@ namespace GH_Toolkit_Core.QB
             public QBItemInfo(MemoryStream stream) : base(stream)
             {
                 Type = QbType[(byte)(Info >> 16)];
+            }
+            public QBItemInfo(string type)
+            {
+                Type = type;
             }
         }
         [DebuggerDisplay("{Type}")]
@@ -97,8 +136,12 @@ namespace GH_Toolkit_Core.QB
                     }
                     Type = StructType[infoByte];
                 }
-                
             }
+            public QBStructInfo(string type)
+            {
+                Type = type;
+            }
+
         }
         [DebuggerDisplay("{ID}")]
         public class QBSharedProps
@@ -165,6 +208,22 @@ namespace GH_Toolkit_Core.QB
             for (int i = 0; i < amount; i++)
             {
                 list.Add(Reader.ReadFloat(stream));
+            }
+            return list;
+        }
+        public static List<float> ParseQBTuple(string[] floats)
+        {
+            var list = new List<float>();
+            foreach (string floatVal in floats)
+            {
+                if (float.TryParse(floatVal, out float val))
+                {
+                    list.Add(val);
+                }
+                else
+                {
+                    throw new FloatParseException("Bad float data found");
+                }
             }
             return list;
         }
@@ -257,7 +316,15 @@ namespace GH_Toolkit_Core.QB
             {0x1B, "QbKey" },
             {0x35, "Pointer" },
         };
-
+        private static Dictionary<string, byte> flipDict(Dictionary<byte, string> originalDict)
+        {
+            Dictionary<string, byte> flippedDict = new Dictionary<string, byte>();
+            foreach (KeyValuePair<byte, string> item in originalDict)
+            {
+                flippedDict.Add(item.Value, item.Key);
+            }
+            return flippedDict;
+        }
         public static Dictionary<byte, string> StructType { get; private set; }
 
         public static void SetStructType(string endian, string game = "GH3")
@@ -339,7 +406,7 @@ namespace GH_Toolkit_Core.QB
                 default:
                     throw new ArgumentException("Invalid string found.");
             }
-            
+
             return test;
         }
         public static string FloatsToText(List<float> floats)
@@ -388,24 +455,128 @@ namespace GH_Toolkit_Core.QB
         {
             whitespace,
             inKey,
+            inKeyQb, //This is if a key has a space in it
             inString,
             inQbKey,
             inQsKey,
             inComment,
             inScript,
-            inValue
+            inArray,
+            inStruct,
+            inValue,
+            inMultiFloat
         }
-        public static void ParseQFile(string data)
+
+        enum StringType
         {
-            ParseState state = ParseState.whitespace;
+            isString,
+            isWideString
+        }
+        private class ParseLevel
+        {
+            public ParseLevel? Parent { get; set; }
+            public ParseState State { get; set; }
+            public StringType StringType { get; set; }
+            public string LevelType { get; set; }
+            public string? Name { get; set; }
+            public QBArrayNode? Array { get; set; }
+            public QBStructData? Struct { get; set; }
+            public ParseLevel(ParseLevel? parent, ParseState state, string type)
+            {
+                Parent = parent;
+                State = state;
+                LevelType = type;
+                StringType = StringType.isString;
+                if (type == ARRAY) { Array = new QBArrayNode(); }
+                else if (type == STRUCT) { Struct = new QBStructData(); }
+            }
+            public void SetStringType(StringType str)
+            {
+                StringType = str;
+            }
+        }
+        public static string GetParseType(string data)
+        {
+            if (data.StartsWith("$"))
+            {
+                return POINTER;
+            }
+            else if (data.StartsWith("0x"))
+            {
+                return QBKEY;
+            }
+            else if (data.Contains('.') && float.TryParse(data, NumberStyles.Any, CultureInfo.InvariantCulture, out float floatValue))
+            {
+                return FLOAT;
+            }
+            else if (int.TryParse(data, out int intValue))
+            {
+                return INTEGER;
+            }
+            else
+            {
+                return QBKEY;
+            }
+        }
+        public static object ParseData(string data, string type)
+        {
+            switch (type)
+            {
+                case INTEGER:
+                    return int.Parse(data);
+                case FLOAT:
+                    return float.Parse(data);
+                case MULTIFLOAT:
+                    return ParseMultiFloat(data);
+                case STRING:
+                case WIDESTRING:
+                    return data;
+                case QBKEY:
+                case QSKEY:
+                case POINTER:
+                    if (type == POINTER)
+                    {
+                        data = data.Substring(1);
+                    }
+                    return CRC.QBKey(data);
+                default:
+                    throw new NotImplementedException("Not yet implemented");
+            }
+        }
+        public static List<float> ParseMultiFloat(string data)
+        {
+            string[] floatStrings = data.Split(',');
+            List<float> floatArray;
+            try
+            {
+                floatArray = ParseQBTuple(floatStrings);
+            }
+            catch (FloatParseException ex)
+            {
+                Console.WriteLine($"Error parsing pair or vectors {data}");
+                throw;
+            }
+            return floatArray;
+        }
+        public static void ClearTmpValues(ref string tmpKey, ref string tmpValue)
+        {
+            tmpKey = "";
+            tmpValue = "";
+        }
+        public static List<QBItem> ParseQFile(string data)
+        {
+            ParseLevel root = new ParseLevel(null, ParseState.whitespace, ROOT);
+            ParseLevel currLevel = root;
+            bool escaped = false;
             QB qbFile = new QB();
-            QBItem current = new QBItem();
+            QBItem currItem = new QBItem();
             data += " "; // Safety character to make sure everything gets parsed
             string tmpKey = "";
             string tmpValue = "";
+            string tmpType;
             foreach (char c in data)
             {
-                switch (state)
+                switch (currLevel.State)
                 {
                     case ParseState.whitespace:
                         switch (c)
@@ -418,10 +589,12 @@ namespace GH_Toolkit_Core.QB
                             case ';':
                             case '/':
                                 tmpValue = "";
-                                state = ParseState.inComment;
+                                currLevel.State = ParseState.inComment;
+                                break;
+                            case '(':
                                 break;
                             default:
-                                state = ParseState.inKey;
+                                currLevel.State = ParseState.inKey;
                                 tmpKey = new string(c, 1);
                                 break;
                         }
@@ -437,7 +610,15 @@ namespace GH_Toolkit_Core.QB
                                 if (tmpKey == "script")
                                 {
                                     tmpKey = "";
-                                    state = ParseState.inScript;
+                                    currLevel.State = ParseState.inScript;
+                                }
+                                else if (tmpKey.StartsWith("#\"") && tmpKey.EndsWith("\""))
+                                {
+                                    tmpKey = tmpKey.Substring(2, tmpKey.Length - 3); // Removing #"" from the start and end
+                                }
+                                else if (tmpKey.StartsWith("`") && tmpKey.EndsWith("`"))
+                                {
+                                    tmpKey = tmpKey.Substring(1, tmpKey.Length - 2); // Removing ` from the start and end
                                 }
                                 else
                                 {
@@ -446,17 +627,46 @@ namespace GH_Toolkit_Core.QB
                                 break;
                             case '=':
                                 tmpKey = tmpKey.Trim();
-                                state = ParseState.inValue;
+                                currLevel.State = ParseState.inValue;
                                 break;
                             default:
-                                tmpKey += c;
+                                if (tmpKey.EndsWith(" ") || tmpKey.EndsWith("\t"))
+                                {
+                                    tmpKey = tmpKey.TrimStart();
+                                    if (tmpKey.StartsWith("#\"") || tmpKey.StartsWith("`"))
+                                    {
+                                        tmpKey += c;
+                                    }
+                                    else if (currLevel.LevelType == STRUCT)
+                                    {
+                                        throw new NotImplementedException();
+                                    }
+                                    else
+                                    {
+                                        throw new NotSupportedException($"No equals sign found between two values at {tmpKey}");
+                                    }
+                                }
+                                else
+                                {
+                                    tmpKey += c;
+                                }
                                 break;
 
                         }
                         break;
                     case ParseState.inValue:
-                        if ((c == ' ' || c == '\t') && tmpValue == "")
+                        if (ParseSpecialCheck(c, tmpValue, currLevel))
                         {
+                            continue;
+                        }
+                        if (c == '[' && tmpValue == "")
+                        {
+                            AddLevel(ref currLevel, ref currItem, ParseState.inArray, ARRAY, ref tmpKey);
+                            continue;
+                        }
+                        if (c == '{' && tmpValue == "")
+                        {
+                            AddLevel(ref currLevel, ref currItem, ParseState.inStruct, STRUCT, ref tmpKey);
                             continue;
                         }
                         switch (c)
@@ -469,9 +679,175 @@ namespace GH_Toolkit_Core.QB
                                 {
                                     throw new Exception($"QB Item Key {tmpKey} found without any data!");
                                 }
-                                state = ParseState.whitespace;
+                                StateSwitch(currLevel);
+                                AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
                                 break;
-                            default: 
+                            case '(':
+                                if (tmpValue.ToLower() == "qs")
+                                {
+                                    currLevel.State = ParseState.inQsKey;
+                                    tmpValue = "";
+                                }
+                                else
+                                {
+                                    throw new NotSupportedException($"Unsupported character '(' in value of {tmpKey}");
+                                }
+                                break;
+                            default:
+                                tmpValue += c;
+                                break;
+                        }
+                        break;
+                    case ParseState.inMultiFloat:
+                        switch (c)
+                        {
+                            case '\r':
+                            case '\n':
+                            case ' ':
+                            case '\t':
+                                break;
+                            case ')':
+                                StateSwitch(currLevel);
+                                AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, MULTIFLOAT);
+                                break;
+                            default:
+                                tmpValue += c;
+                                break;
+                        }
+                        break;
+                    case ParseState.inArray:
+                        if (ParseSpecialCheck(c, tmpValue, currLevel))
+                        {
+                            continue;
+                        }
+                        if (!(tmpValue == ""))
+                        {
+                            throw new NotImplementedException();
+                        }
+                        switch (c)
+                        {
+                            case '\r':
+                            case '\n':
+                            case ' ':
+                            case '\t':
+                                break;
+                            case '{':
+                                AddLevel(ref currLevel, ref currItem, ParseState.inStruct, STRUCT, ref tmpKey);
+                                break;
+                            case '[':
+                                AddLevel(ref currLevel, ref currItem, ParseState.inArray, ARRAY, ref tmpKey);
+                                break;
+                            case ']':
+                                CloseArray(ref currLevel, ref currItem, ref qbFile);
+                                break;
+                            default:
+                                tmpValue = new string(c, 1);
+                                currLevel.State = ParseState.inValue;
+                                break;
+                        }
+                        break;
+                    case ParseState.inStruct:
+                        switch (c)
+                        {
+                            case '\r':
+                            case '\n':
+                            case ' ':
+                            case '\t':
+                                break;
+                            case '[':
+                                throw new NotImplementedException();
+                            case '{':
+                                throw new NotImplementedException();
+                            case '}':
+                                CloseStruct(ref currLevel, ref currItem, ref qbFile);
+                                break;
+                            default:
+                                tmpKey = new string(c, 1);
+                                currLevel.State = ParseState.inKey;
+                                break;
+                        }
+                        break;
+                    case ParseState.inString:
+                        switch (c)
+                        {
+                            case '"':
+                                if (escaped || currLevel.StringType == StringType.isString)
+                                {
+                                    throw new NotSupportedException("Double quotes cannot appear in strings");
+                                }
+                                else
+                                {
+                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, WIDESTRING);
+                                    StateSwitch(currLevel);
+                                }
+                                break;
+                            case '\'':
+                                if (escaped)
+                                {
+                                    tmpValue += c;
+                                    escaped = false;
+                                }
+                                else if (currLevel.StringType == StringType.isWideString)
+                                {
+                                    tmpValue += c;
+                                }
+                                else
+                                {
+                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, STRING);
+                                    StateSwitch(currLevel);
+                                }
+                                break;
+                            case '\\':
+                                if (escaped)
+                                {
+                                    tmpValue += c;
+                                    escaped = false;
+                                }
+                                else
+                                {
+                                    escaped = true;
+                                }
+                                break;
+                            default:
+                                if (escaped)
+                                {
+                                    throw new InvalidOperationException("Invalid character found after escape character");
+                                }
+                                tmpValue += c;
+                                break;
+                        }
+                        break;
+                    case ParseState.inQbKey:
+                        switch (c)
+                        {
+                            case '`':
+                                AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                                StateSwitch(currLevel);
+                                break;
+                            default:
+                                tmpValue += c;
+                                break;
+                        }
+                        break;
+                    case ParseState.inQsKey:
+                        switch (c)
+                        {
+                            case '"':
+                            case '`':
+                                if (tmpValue == "#")
+                                {
+                                    tmpValue = "";
+                                }
+                                else
+                                {
+                                    continue;
+                                }
+                                break;
+                            case ')':
+                                AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QSKEY);
+                                StateSwitch(currLevel);
+                                break;
+                            default:
                                 tmpValue += c;
                                 break;
                         }
@@ -481,13 +857,236 @@ namespace GH_Toolkit_Core.QB
                         {
                             case '\r':
                             case '\n':
-                                state = ParseState.whitespace;
+                                currLevel.State = ParseState.whitespace;
                                 break;
                             default:
                                 continue;
                         }
                         break;
                 }
+            }
+            return qbFile.Children;
+        }
+        private static void HandleWhitespace(char c, ref ParseLevel currLevel, ref string tmpValue)
+        {
+            // Logic for handling whitespace
+        }
+        private static void StateSwitch(ParseLevel currLevel)
+        {
+            if (currLevel.LevelType == ROOT)
+            {
+                currLevel.State = ParseState.whitespace;
+            }
+            else if (currLevel.LevelType == ARRAY)
+            {
+                currLevel.State = ParseState.inArray;
+            }
+            else if (currLevel.LevelType == STRUCT)
+            {
+                currLevel.State = ParseState.inStruct;
+            }
+        }
+        private static void AddParseItem(ref ParseLevel currLevel,
+            ref QBItem currItem,
+            QB qbFile,
+            ref string tmpKey,
+            ref string tmpValue,
+            string itemType)
+        {
+            if (currLevel.LevelType == ROOT)
+            {
+                ProcessQbItem(ref currItem, qbFile, tmpKey, tmpValue, itemType);
+            }
+            else if (currLevel.LevelType == ARRAY)
+            {
+                currLevel.Array.AddParseToArray(tmpValue, itemType);
+            }
+            else if (currLevel.LevelType == STRUCT)
+            {
+                currLevel.Struct.AddVarToStruct(tmpKey, tmpValue, itemType);
+            }
+            else
+            {
+                throw new Exception();
+            }
+            ClearTmpValues(ref tmpKey, ref tmpValue);
+        }
+        private static bool ParseSpecialCheck(char c, string tmpValue, ParseLevel currLevel)
+        {
+            if ((c == ' ' || c == '\t') && tmpValue == "")
+            {
+                return true;
+            }
+            else if (c == '\'' && tmpValue == "")
+            {
+                currLevel.State = ParseState.inString;
+                currLevel.SetStringType(StringType.isString);
+                return true;
+            }
+            else if (c == '"' && tmpValue == "")
+            {
+                currLevel.State = ParseState.inString;
+                currLevel.SetStringType(StringType.isWideString);
+                return true;
+            }
+            else if (c == '`' && tmpValue == "")
+            {
+                currLevel.State = ParseState.inQbKey;
+                return true;
+            }
+            else if (c == '(' && tmpValue == "")
+            {
+                currLevel.State = ParseState.inMultiFloat;
+                return true;
+            }
+            return false;
+        }
+        private static void AddLevel(ref ParseLevel currLevel, ref QBItem currItem, ParseState state, string levelType, ref string tmpKey)
+        {
+            string tmpString = tmpKey;
+            if (currLevel.LevelType == ROOT)
+            {
+                currItem.AddName(tmpKey);
+            }
+            tmpKey = "";
+            ParseLevel newLevel = new ParseLevel(currLevel, state, levelType);
+            currLevel = newLevel;
+            if (currLevel.LevelType != ROOT)
+            {
+                currLevel.Name = tmpString;
+            }
+        }
+        private static void CloseArray(ref ParseLevel currLevel, ref QBItem currItem, ref QB qbFile)
+        {
+            if (currLevel.Parent.LevelType == ROOT)
+            {
+                currItem.AddData(currLevel.Array);
+                currItem.AddInfo(ARRAY);
+                qbFile.AddQbChild(currItem);
+                currItem = new QBItem();
+            }
+            else if (currLevel.Parent.LevelType == ARRAY)
+            {
+                currLevel.Parent.Array.AddArrayToArray(currLevel.Array);
+            }
+            else if (currLevel.Parent.LevelType == STRUCT)
+            {
+                currLevel.Parent.Struct.AddArrayToStruct(currLevel.Name, currLevel.Array);
+            }
+            else 
+            {
+                throw new NotImplementedException();
+            }
+            currLevel = currLevel.Parent;
+            StateSwitch(currLevel);
+        }
+        private static void CloseStruct(ref ParseLevel currLevel, ref QBItem currItem, ref QB qbFile)
+        {
+            if (currLevel.Parent.LevelType == ROOT)
+            {
+                currItem.AddData(currLevel.Struct);
+                currItem.AddInfo(STRUCT);
+                qbFile.AddQbChild(currItem);
+                currItem = new QBItem();
+            }
+            else if (currLevel.Parent.LevelType == ARRAY)
+            {
+                currLevel.Parent.Array.AddStructToArray(currLevel.Struct);
+            }
+            else if (currLevel.Parent.LevelType == STRUCT)
+            {
+                currLevel.Parent.Struct.AddStructToStruct(currLevel.Name, currLevel.Struct);
+            }
+            else
+            {
+                throw new NotImplementedException();
+            }
+            currLevel = currLevel.Parent;
+            StateSwitch(currLevel);
+        }
+        private static void ProcessQbItem(
+            ref QBItem currItem,
+            QB qbFile,
+            string tmpKey,
+            string tmpValue,
+            string itemType)
+        {
+            currItem.CreateQBItem(tmpKey, tmpValue, itemType);
+            qbFile.AddQbChild(currItem);
+            currItem = new QBItem();
+        }
+        public static void CompileQbFile(List<QBItem> file, string qbName, string game = "GHWT", string console = "360")
+        {
+            string qbHeader = "1C 08 02 04 10 04 08 0C 0C 08 02 04 14 02 04 0C 10 10 0C 00";
+
+            byte consoleByte;
+            Dictionary<string, byte> QbTypeLookup = flipDict(QbType);
+            Dictionary<string, byte> QbStructLookup;
+
+            if (console == "PS2")
+            {
+                Reader = new ReadWrite("little");
+                consoleByte = 0x04;
+                if (game == "GH3")
+                {
+                    QbStructLookup = flipDict(QbTypeGh3Ps2Struct);
+                }
+                else
+                {
+                    QbStructLookup = QbTypeLookup;
+                }
+            }
+            else
+            {
+                Reader = new ReadWrite("big");
+                consoleByte = 0x20;
+                QbStructLookup = QbTypeLookup;
+            }
+
+            byte[] qbHeadHex = ReadWrite.HexStringToByteArray(qbHeader);
+            byte[] qbNameHex = Reader.ValueHex(qbName);
+
+            MemoryStream fullFile = new MemoryStream();
+
+            int qbPos = 28;
+
+            using (MemoryStream stream = new MemoryStream())
+            {
+                foreach (QBItem item in file)
+                {
+                    byte[] otherData = null;
+                    byte[] parentNode = new byte[] { 0x00, consoleByte, QbTypeLookup[item.Info.Type], 0x00 };
+                    stream.Write(parentNode, 0, parentNode.Length);
+                    byte[] qbID = Reader.ValueHex(item.Name);
+                    stream.Write(qbID, 0, qbID.Length);
+                    stream.Write(qbNameHex, 0, qbNameHex.Length);
+                    byte[] itemData; // Is either the data itself (for simple data), or a pointer to the data
+                    if (IsSimpleValue(item.Info.Type))
+                    {
+                        itemData = Reader.ValueHex(item.Data);
+                    }
+                    else
+                    {
+                        itemData = Reader.ValueHex((int)stream.Position + qbPos + 8); // This now points to after the "next item" field
+                        otherData = Reader.ComplexHex(item.Data, item.Info.Type);
+                        //throw new NotImplementedException();
+                    }
+                    stream.Write(itemData, 0, itemData.Length);
+                    byte[] nextItem = Reader.ValueHex(0);
+                    stream.Write(nextItem, 0, nextItem.Length);
+                    if (otherData != null)
+                    {
+                        stream.Write(otherData, 0, otherData.Length);
+                    }
+                    Reader.PadStreamToFour(stream);
+                }
+                byte[] firstFour = Reader.ValueHex(0);
+                fullFile.Write(firstFour, 0, 4);
+                fullFile.Write(Reader.ValueHex((int)stream.Length + qbPos), 0, 4);
+                fullFile.Write(qbHeadHex, 0, qbHeadHex.Length);
+                stream.Position = 0; // Reset the position of 'stream' to the beginning
+                stream.CopyTo(fullFile); // Copy the contents of 'stream' to 'fullFile'
+                byte[] currentContents = fullFile.ToArray();
             }
         }
         public static void DecompileQbFromFile(string file)

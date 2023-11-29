@@ -23,7 +23,7 @@ namespace GH_Toolkit_Core.QB
         {
             return (info.Type != EMPTY);
         }
-        [DebuggerDisplay("{FirstItem,nq} Array - {ItemCount} item(s)")]
+        [DebuggerDisplay("{FirstItem,nq} Array - {Items.Count} item(s)")]
         public class QBArrayNode
         {
             public QBItemInfo FirstItem { get; set; }
@@ -31,6 +31,50 @@ namespace GH_Toolkit_Core.QB
             public List<object> Items { get; set; }
             public object? Children { get; set; }
             public object? Parent { get; set; }
+            public QBArrayNode()
+            {
+                Items = new List<object>();
+            }
+            private void SetFirstItem(string type)
+            {
+                FirstItem = new QBItemInfo(type);
+            }
+            public void AddParseToArray(string value, string type)
+            {
+                if (FirstItem == null)
+                {
+                    SetFirstItem(type);
+                }
+                else if (type != FirstItem.Type)
+                {
+                    throw new ArrayTypeMismatchException($"{value} of type {type} does not match elements in array of type {FirstItem.Type}");
+                }
+                Items.Add(ParseData(value, type));
+            }
+            public void AddArrayToArray(QBArrayNode value) // When parsing from text
+            {
+                if (FirstItem == null)
+                {
+                    SetFirstItem(ARRAY);
+                }
+                else if (ARRAY != FirstItem.Type)
+                {
+                    throw new ArrayTypeMismatchException($"{ARRAY} does not match elements in array of type {FirstItem.Type}");
+                }
+                Items.Add(value);
+            }
+            public void AddStructToArray(QBStructData value) // When parsing from text
+            {
+                if (FirstItem == null)
+                {
+                    SetFirstItem(STRUCT);
+                }
+                else if (STRUCT != FirstItem.Type)
+                {
+                    throw new ArrayTypeMismatchException($"{STRUCT} does not match elements in array of type {FirstItem.Type}");
+                }
+                Items.Add(value);
+            }
             public QBArrayNode(MemoryStream stream)
             {
                 FirstItem = new QBItemInfo(stream);

@@ -22,6 +22,11 @@ namespace GH_Toolkit_Core.QB
             public string ID { get; set; }
             public object DataValue { get; set; }
             public uint NextItem { get; set; }
+            public QBStructProps(string key, object value) 
+            { 
+                ID = key;
+                DataValue = value;
+            }
             public QBStructProps(MemoryStream stream, string itemType) 
             {
                 ID = ReadQBKey(stream);
@@ -41,6 +46,24 @@ namespace GH_Toolkit_Core.QB
             public object Data { get; set; }
             public object? Children { get; set; }
             public object? Parent { get; set; }
+            public QBStructItem(string key, string value, string type)
+            {
+                Info = new QBStructInfo(type);
+                Props = new QBStructProps(key, ParseData(value, type));
+                Data = Props.DataValue;
+            }
+            public QBStructItem(string key, QBArrayNode value) // Array
+            {
+                Info = new QBStructInfo(ARRAY);
+                Props = new QBStructProps(key, value);
+                Data = Props.DataValue;
+            }
+            public QBStructItem(string key, QBStructData value) // Array
+            {
+                Info = new QBStructInfo(STRUCT);
+                Props = new QBStructProps(key, value);
+                Data = Props.DataValue;
+            }
             public QBStructItem(MemoryStream stream)
             {
                 Info = new QBStructInfo(stream);
@@ -55,14 +78,17 @@ namespace GH_Toolkit_Core.QB
                 }
             }
         }
-        [DebuggerDisplay("{ItemCount} item(s)")]
+        [DebuggerDisplay("{Items.Count} item(s)")]
         public class QBStructData // This expects the start to be a marker header, no prop data
         {
             public uint HeaderMarker { get; set; }
             public uint ItemOffset { get; set; } // Can be first or next
             public List<object> Items { get; set; }
             private int ItemCount { get; set; } // Debug only
-
+            public QBStructData()
+            {
+                Items = new List<object>();
+            }
             public QBStructData(MemoryStream stream) // From bytes
             {
                 HeaderMarker = Reader.ReadUInt32(stream);
@@ -81,6 +107,21 @@ namespace GH_Toolkit_Core.QB
                     //throw new Exception("Not yet implemented!");
                 }
                 ItemCount = Items.Count;
+            }
+            public void AddVarToStruct(string key, string value, string type)
+            {
+                var item = new QBStructItem(key, value, type);
+                Items.Add(item);
+            }
+            public void AddArrayToStruct(string key, QBArrayNode value)
+            {
+                var item = new QBStructItem(key, value);
+                Items.Add(item);
+            }
+            public void AddStructToStruct(string key, QBStructData value)
+            {
+                var item = new QBStructItem(key, value);
+                Items.Add(item);
             }
             public void StructToText(StreamWriter writer, int level = 1)
             {
@@ -143,10 +184,6 @@ namespace GH_Toolkit_Core.QB
                     }
                 }
                 return returnString.Trim();
-            }
-            public QBStructData() // From text
-            {
-
             }
         }
     }

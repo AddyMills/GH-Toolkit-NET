@@ -1,8 +1,11 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using GH_Toolkit_Core.Checksum;
+using static GH_Toolkit_Core.QB.QBConstants;
 
 namespace GH_Toolkit_Core.Methods
 {
@@ -19,6 +22,14 @@ namespace GH_Toolkit_Core.Methods
         public static bool FlipCheck(string endian)
         {
             return endian == "little" != BitConverter.IsLittleEndian;
+        }
+        public byte[] ProcessBytes(byte[] bytes)
+        {
+            if (_flipBytes)
+            {
+                Array.Reverse(bytes);
+            }
+            return bytes;
         }
         private static void Swap(ref int first, ref int second)
         {
@@ -156,6 +167,96 @@ namespace GH_Toolkit_Core.Methods
 
             // Set the new position
             stream.Position = newPosition;
+        }
+        public void PadStreamToFour(Stream stream)
+        {
+            // Ensure the stream is writable
+            if (!stream.CanWrite)
+            {
+                throw new InvalidOperationException("Stream is not writable.");
+            }
+
+            // Calculate the padding needed to make the length divisible by 4
+            long paddingNeeded = 4 - (stream.Length % 4);
+            if (paddingNeeded != 4) // If the length is already a multiple of 4, paddingNeeded will be 4
+            {
+                byte[] padding = new byte[paddingNeeded];
+                stream.Seek(0, SeekOrigin.End); // Go to the end of the stream
+                stream.Write(padding, 0, (int)paddingNeeded); // Write the padding bytes
+            }
+        }
+
+        public byte[] ValueHex(string text) // For Qb Keys, Qs Keys, and Pointers
+        {
+            var qbKey = CRC.QBKey(text);
+            var qbKeyInt = Convert.ToInt32(qbKey, 16);
+            var bytes = BitConverter.GetBytes(qbKeyInt);
+            return ProcessBytes(bytes);
+        }
+        public byte[] ValueHex(float value)
+        {
+            byte[] bytes = BitConverter.GetBytes(value);
+            return ProcessBytes(bytes);
+        }
+        public byte[] ValueHex(int value)
+        {
+            byte[] bytes = BitConverter.GetBytes(value);
+            return ProcessBytes(bytes);
+        }
+        public byte[] ValueHex(object value)
+        {
+            if (value is int intVal)
+            {
+                return ValueHex(intVal);
+            }
+            else if (value is float floatVal)
+            {
+                return ValueHex(floatVal);
+            }
+            else if (value is string stringVal) 
+            {
+                return ValueHex(stringVal);
+            }
+            else
+            {
+                throw new NotImplementedException();
+            }
+        }
+        public byte[] ComplexHex(object value, string valueType)
+        {
+            if (value is string strVal)
+            {
+                if (!strVal.EndsWith('\0'))
+                {
+                    strVal += '\0';
+                }
+                switch (valueType)
+                {
+                    case STRING:
+                        return Encoding.UTF8.GetBytes(strVal);
+                    case WIDESTRING:
+                        return Encoding.BigEndianUnicode.GetBytes(strVal);
+                    default:
+                        throw new NotSupportedException();
+                }
+            }
+            switch (valueType)
+            {
+                default:
+                    throw new NotSupportedException();
+            }
+        }
+        public static byte[] HexStringToByteArray(string hex)
+        {
+            string[] hexValues = hex.Split(' ');
+            byte[] bytes = new byte[hexValues.Length];
+
+            for (int i = 0; i < hexValues.Length; i++)
+            {
+                bytes[i] = Convert.ToByte(hexValues[i], 16);
+            }
+
+            return bytes;
         }
         public void WriteUInt32(MemoryStream stream, uint data)
         {

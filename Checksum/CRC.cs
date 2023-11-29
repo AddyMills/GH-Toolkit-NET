@@ -108,20 +108,6 @@ namespace GH_Toolkit_Core.Checksum
             return GenQBKey(textBytes);
         }
 
-        public static byte[] QBKeyHex(string text, bool bigEndian = true)
-        {
-            var qbKey = QBKey(text);
-            var qbKeyInt = Convert.ToInt32(qbKey, 16);
-            var qbKeyBytes = BitConverter.GetBytes(qbKeyInt);
-
-            if (BitConverter.IsLittleEndian == bigEndian)
-            {
-                Array.Reverse(qbKeyBytes);
-            }
-
-            return qbKeyBytes;
-        }
-
         public static string GenQBKey(byte[] textBytes)
         {
             uint crc = 0xffffffff;
@@ -138,7 +124,7 @@ namespace GH_Toolkit_Core.Checksum
 
             // Pad to 8 characters
             result = result.PadLeft(8, '0');
-
+            result = "0x" + result;
             return result;
         }
 
