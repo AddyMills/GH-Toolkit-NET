@@ -80,7 +80,7 @@ namespace GH_Toolkit_Core.QB
                 FirstItem = new QBItemInfo(stream);
                 ItemCount = 0;
                 Items = new List<object>();
-                bool simpleArray = IsSimpleValue(FirstItem.Type);
+                bool simpleArray = ReadWrite.IsSimpleValue(FirstItem.Type);
                 uint listStart = 0;
                 if (isNotEmpty(FirstItem))
                 {

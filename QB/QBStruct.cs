@@ -11,6 +11,7 @@ using System.Xml.Linq;
 using static GH_Toolkit_Core.QB.QB;
 using static GH_Toolkit_Core.QB.QBArray;
 using static GH_Toolkit_Core.QB.QBConstants;
+using GH_Toolkit_Core.Methods;
 
 namespace GH_Toolkit_Core.QB
 {
@@ -58,7 +59,7 @@ namespace GH_Toolkit_Core.QB
                 Props = new QBStructProps(key, value);
                 Data = Props.DataValue;
             }
-            public QBStructItem(string key, QBStructData value) // Array
+            public QBStructItem(string key, QBStructData value) // Struct
             {
                 Info = new QBStructInfo(STRUCT);
                 Props = new QBStructProps(key, value);
@@ -68,7 +69,7 @@ namespace GH_Toolkit_Core.QB
             {
                 Info = new QBStructInfo(stream);
                 Props = new QBStructProps(stream, Info.Type);
-                if (IsSimpleValue(Info.Type))
+                if (ReadWrite.IsSimpleValue(Info.Type))
                 {
                     Data = Props.DataValue;
                 }

@@ -1,10 +1,13 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Threading.Tasks;
 using GH_Toolkit_Core.Checksum;
+using GH_Toolkit_Core.QB;
 using static GH_Toolkit_Core.QB.QBConstants;
 
 namespace GH_Toolkit_Core.Methods
@@ -13,11 +16,23 @@ namespace GH_Toolkit_Core.Methods
     {
         private readonly bool _flipBytes;
         private readonly string _endian;
+        private readonly string _game;
+        private readonly Dictionary<string, byte> _qbtype;
+        private readonly Dictionary<string, byte> _qbstruct;
         public ReadWrite(string endian)
         {
             // Determine if bytes need to be flipped based on endianness and system architecture.
             _flipBytes = endian == "little" != BitConverter.IsLittleEndian;
             _endian = endian;
+        }
+        public ReadWrite(string endian, string game, Dictionary<string, byte> QbTypeLookup, Dictionary<string, byte> QbStructLookup)
+        {
+            // Determine if bytes need to be flipped based on endianness and system architecture.
+            _flipBytes = endian == "little" != BitConverter.IsLittleEndian;
+            _endian = endian;
+            _game = game;
+            _qbtype = QbTypeLookup;
+            _qbstruct = QbStructLookup;
         }
         public static bool FlipCheck(string endian)
         {
@@ -147,6 +162,10 @@ namespace GH_Toolkit_Core.Methods
             }
             s.Write(data);
         }
+        public byte[] GetFloatBytes(float f)
+        {
+            return BitConverter.GetBytes(f);
+        }
         public static void MoveToModFour(MemoryStream stream)
         {
             long currentPosition = stream.Position;
@@ -222,7 +241,7 @@ namespace GH_Toolkit_Core.Methods
                 throw new NotImplementedException();
             }
         }
-        public byte[] ComplexHex(object value, string valueType)
+        public byte[] ComplexHex(object value, string valueType, int streamPos = 0)
         {
             if (value is string strVal)
             {
@@ -240,10 +259,48 @@ namespace GH_Toolkit_Core.Methods
                         throw new NotSupportedException();
                 }
             }
-            switch (valueType)
+            else if (value is List<float> floatsVal)
             {
-                default:
-                    throw new NotSupportedException();
+                int initialCapacity = 4 + (4 * floatsVal.Count); // 4 bytes for header + 4 bytes for each float
+                using (MemoryStream stream = new MemoryStream(initialCapacity))
+                {
+                    // Write the header
+                    byte[] floatsHeader = new byte[] { 0x00, 0x01, 0x00, 0x00 };
+                    stream.Write(floatsHeader, 0, floatsHeader.Length);
+
+                    // Write each float value
+                    foreach (float f in floatsVal)
+                    {
+                        WriteAndMaybeFlipBytes(stream, GetFloatBytes(f));
+                    }
+
+                    return stream.ToArray();
+                }
+            }
+            else if (value is QBStruct.QBStructData structVal)
+            {
+                using (MemoryStream stream = new MemoryStream())
+                {
+                    // Write the header
+                    byte[] structHeader = new byte[] { 0x00, 0x00, 0x01, 0x00 };
+                    stream.Write(structHeader, 0, structHeader.Length);
+
+
+                }
+            }
+            throw new NotSupportedException();
+        }
+        public (byte[] itemData, byte[]? otherData) GetItemData(string type, object data, int streamPos)
+        {
+            if (IsSimpleValue(type))
+            {
+                return (ValueHex(data), null);
+            }
+            else
+            {
+                byte[] itemData = ValueHex(streamPos);
+                byte[] otherData = ComplexHex(data, type, streamPos);
+                return (itemData, otherData);
             }
         }
         public static byte[] HexStringToByteArray(string hex)
@@ -257,6 +314,20 @@ namespace GH_Toolkit_Core.Methods
             }
 
             return bytes;
+        }
+        public static bool IsSimpleValue(string info)
+        {
+            switch (info)
+            {
+                case FLOAT:
+                case INTEGER:
+                case POINTER:
+                case QBKEY:
+                case QSKEY:
+                    return true;
+            }
+
+            return false;
         }
         public void WriteUInt32(MemoryStream stream, uint data)
         {

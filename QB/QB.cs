@@ -10,6 +10,7 @@ using static GH_Toolkit_Core.QB.QBConstants;
 using static GH_Toolkit_Core.QB.QBScript;
 using static GH_Toolkit_Core.QB.QBStruct;
 using static GH_Toolkit_Core.Methods.Exceptions;
+using System.IO;
 
 namespace GH_Toolkit_Core.QB
 {
@@ -40,7 +41,7 @@ namespace GH_Toolkit_Core.QB
             {
                 Info = new QBItemInfo(stream);
                 Props = new QBSharedProps(stream, Info.Type);
-                if (IsSimpleValue(Info.Type))
+                if (ReadWrite.IsSimpleValue(Info.Type))
                 {
                     Data = Props.DataValue;
                 }
@@ -271,20 +272,6 @@ namespace GH_Toolkit_Core.QB
 
             return false;
         }
-        public static string ReadStructValue(MemoryStream stream)
-        {
-            // This is only needed since PS2 is special and has separate values
-            return "";
-        }
-
-        private static readonly Dictionary<byte, string> QbFlags = new Dictionary<byte, string>()
-        {
-            {0x20, "Section"},
-            {0x4, "Section"},
-            {0x1, "Array"},
-
-        };
-
         private static readonly Dictionary<byte, string> QbType = new Dictionary<byte, string>()
         {
             {0x00, "Flag" }, // Should only be used in structs
@@ -1022,10 +1009,10 @@ namespace GH_Toolkit_Core.QB
             byte consoleByte;
             Dictionary<string, byte> QbTypeLookup = flipDict(QbType);
             Dictionary<string, byte> QbStructLookup;
+            string endian;
 
             if (console == "PS2")
             {
-                Reader = new ReadWrite("little");
                 consoleByte = 0x04;
                 if (game == "GH3")
                 {
@@ -1035,42 +1022,35 @@ namespace GH_Toolkit_Core.QB
                 {
                     QbStructLookup = QbTypeLookup;
                 }
+                endian = "little";
             }
             else
             {
-                Reader = new ReadWrite("big");
                 consoleByte = 0x20;
                 QbStructLookup = QbTypeLookup;
+                endian = "big";
             }
-
+            Reader = new ReadWrite(endian, game, QbTypeLookup, QbStructLookup);
             byte[] qbHeadHex = ReadWrite.HexStringToByteArray(qbHeader);
             byte[] qbNameHex = Reader.ValueHex(qbName);
 
-            MemoryStream fullFile = new MemoryStream();
-
             int qbPos = 28;
 
+            using (MemoryStream fullFile = new MemoryStream())
             using (MemoryStream stream = new MemoryStream())
             {
                 foreach (QBItem item in file)
                 {
-                    byte[] otherData = null;
                     byte[] parentNode = new byte[] { 0x00, consoleByte, QbTypeLookup[item.Info.Type], 0x00 };
                     stream.Write(parentNode, 0, parentNode.Length);
                     byte[] qbID = Reader.ValueHex(item.Name);
                     stream.Write(qbID, 0, qbID.Length);
                     stream.Write(qbNameHex, 0, qbNameHex.Length);
-                    byte[] itemData; // Is either the data itself (for simple data), or a pointer to the data
-                    if (IsSimpleValue(item.Info.Type))
-                    {
-                        itemData = Reader.ValueHex(item.Data);
-                    }
-                    else
-                    {
-                        itemData = Reader.ValueHex((int)stream.Position + qbPos + 8); // This now points to after the "next item" field
-                        otherData = Reader.ComplexHex(item.Data, item.Info.Type);
-                        //throw new NotImplementedException();
-                    }
+
+                    var (itemData, otherData) = Reader.GetItemData(item.Info.Type, item.Data, (int)stream.Position + qbPos + 8);
+                    // itemData is either the data itself (for simple data), or a pointer to the data
+                    // otherData is the data if itemData is not simple
+
                     stream.Write(itemData, 0, itemData.Length);
                     byte[] nextItem = Reader.ValueHex(0);
                     stream.Write(nextItem, 0, nextItem.Length);
@@ -1089,6 +1069,7 @@ namespace GH_Toolkit_Core.QB
                 byte[] currentContents = fullFile.ToArray();
             }
         }
+
         public static void DecompileQbFromFile(string file)
         {
             string fileName = Path.GetFileName(file);
