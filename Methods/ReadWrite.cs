@@ -284,8 +284,20 @@ namespace GH_Toolkit_Core.Methods
                     // Write the header
                     byte[] structHeader = new byte[] { 0x00, 0x00, 0x01, 0x00 };
                     stream.Write(structHeader, 0, structHeader.Length);
+                    streamPos += 8; // Position of first item in struct
+                    byte[] firstItem = ValueHex(streamPos);
+                    stream.Write(firstItem, 0, firstItem.Length);
+                    for (int i = 0; i < structVal.Items.Count; i++)
+                    {
+                        if (structVal.Items[i] is QBStruct.QBStructItem currItem)
+                        {
+                            byte[] entryHeader;
+                            byte[] id = ValueHex(currItem.Props.ID);
+                            //var (itemData, otherData) = GetItemData(currItem.Info.Type, currItem.Data);
+                        }
+                        
 
-
+                    }
                 }
             }
             throw new NotSupportedException();
