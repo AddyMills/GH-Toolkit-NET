@@ -10,6 +10,7 @@ using static GH_Toolkit_Core.QB.QB;
 using static GH_Toolkit_Core.QB.QBArray;
 using static GH_Toolkit_Core.QB.QBConstants;
 using static GH_Toolkit_Core.QB.QBStruct;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 /*
  Do not call these classes/methods outside of the main QB.cs file
@@ -41,6 +42,11 @@ namespace GH_Toolkit_Core.QB
             }
             public void AddParseToArray(string value, string type)
             {
+                Items.Add(ParseData(value, type));
+                if (type == MULTIFLOAT)
+                {
+                    type = ParseMultiFloatType(value);
+                }
                 if (FirstItem == null)
                 {
                     SetFirstItem(type);
@@ -49,7 +55,6 @@ namespace GH_Toolkit_Core.QB
                 {
                     throw new ArrayTypeMismatchException($"{value} of type {type} does not match elements in array of type {FirstItem.Type}");
                 }
-                Items.Add(ParseData(value, type));
             }
             public void AddArrayToArray(QBArrayNode value) // When parsing from text
             {
@@ -74,6 +79,10 @@ namespace GH_Toolkit_Core.QB
                     throw new ArrayTypeMismatchException($"{STRUCT} does not match elements in array of type {FirstItem.Type}");
                 }
                 Items.Add(value);
+            }
+            public void MakeEmpty()
+            {
+                SetFirstItem(EMPTY);
             }
             public QBArrayNode(MemoryStream stream)
             {

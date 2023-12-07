@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using GH_Toolkit_Core.Checksum;
 using GH_Toolkit_Core.QB;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 using static GH_Toolkit_Core.QB.QBConstants;
 
 namespace GH_Toolkit_Core.Methods
@@ -19,6 +20,7 @@ namespace GH_Toolkit_Core.Methods
         private readonly string _game;
         private readonly Dictionary<string, byte> _qbtype;
         private readonly Dictionary<string, byte> _qbstruct;
+        private readonly Dictionary<string, byte> _scriptbytes;
         public ReadWrite(string endian)
         {
             // Determine if bytes need to be flipped based on endianness and system architecture.
@@ -33,6 +35,17 @@ namespace GH_Toolkit_Core.Methods
             _game = game;
             _qbtype = QbTypeLookup;
             _qbstruct = QbStructLookup;
+
+            // Create a copy of the scriptDict from QBConstants
+            _scriptbytes = new Dictionary<string, byte>(QBConstants.scriptDict);
+
+            if (_endian == "little" && _game == "GH3")
+            {
+                if (_scriptbytes.ContainsKey(NOTEQUALS))
+                {
+                    _scriptbytes[NOTEQUALS] = 0x4C;
+                }
+            }
         }
         public static bool FlipCheck(string endian)
         {
@@ -153,6 +166,12 @@ namespace GH_Toolkit_Core.Methods
         public int ReadInt32(MemoryStream stream)
         {
             return unchecked((int)ReadUInt32(stream));
+        }
+        public void WriteStringBytes(MemoryStream s, byte[] data)
+        {
+            byte[] stringLen = ValueHex((int)data.Length);
+            s.Write(stringLen);
+            s.Write(data);
         }
         public void WriteAndMaybeFlipBytes(MemoryStream s, byte[] data)
         {
@@ -284,23 +303,204 @@ namespace GH_Toolkit_Core.Methods
                     // Write the header
                     byte[] structHeader = new byte[] { 0x00, 0x00, 0x01, 0x00 };
                     stream.Write(structHeader, 0, structHeader.Length);
-                    streamPos += 8; // Position of first item in struct
-                    byte[] firstItem = ValueHex(streamPos);
+                    if (structVal.Items.Count == 0)
+                    {
+                        byte[] zeroes = ValueHex(0);
+                        stream.Write(zeroes, 0, zeroes.Length);
+                        return stream.ToArray(); // Empty struct
+                    }
+                    byte[] firstItem = ValueHex(streamPos + 8);
                     stream.Write(firstItem, 0, firstItem.Length);
+
                     for (int i = 0; i < structVal.Items.Count; i++)
                     {
                         if (structVal.Items[i] is QBStruct.QBStructItem currItem)
                         {
-                            byte[] entryHeader;
+                            byte[] entryHeader = StructHeader(currItem.Info.Type);
+                            stream.Write(entryHeader, 0, 4);
                             byte[] id = ValueHex(currItem.Props.ID);
-                            //var (itemData, otherData) = GetItemData(currItem.Info.Type, currItem.Data);
-                        }
-                        
+                            stream.Write(id, 0, 4);
+                            //streamPos += 8;
+                            var (itemData, otherData) = GetItemData(currItem.Info.Type, currItem.Data, streamPos + (int)stream.Length + 8);
 
+                            stream.Write(itemData, 0, 4);
+
+                            byte[]? nextItem = i == structVal.Items.Count - 1 ? ValueHex(0) : null;
+                            int nextPos = streamPos + (int)stream.Length + 4;
+                            if (otherData != null)
+                            {
+                                nextPos += RoundUp(otherData.Length);
+                                nextItem = nextItem == null ? ValueHex(nextPos) : nextItem;
+                                stream.Write(nextItem, 0, 4);
+                                stream.Write(otherData, 0, otherData.Length);
+                                //stream.Write(otherData, 0, otherData.Length);
+                            }
+                            else
+                            {
+                                nextItem = nextItem == null ? ValueHex(nextPos) : nextItem;
+                                stream.Write(nextItem, 0, 4);
+                            }
+                            PadStreamToFour(stream);
+                        }
+                        else
+                        {
+                            throw new NotSupportedException();
+                        }
                     }
+                    return stream.ToArray();
                 }
             }
-            throw new NotSupportedException();
+            else if (value is QBArray.QBArrayNode arrayVal)
+            {
+                using (MemoryStream stream = new MemoryStream())
+                {
+                    // Write the header
+                    byte[] arrayHeader = new byte[] { 0x00, 0x01, _qbtype[arrayVal.FirstItem.Type], 0x00 };
+                    stream.Write(arrayHeader, 0, arrayHeader.Length);
+                    int itemCount = arrayVal.Items.Count;
+                    byte[] countBytes = ValueHex(itemCount);
+                    stream.Write(countBytes, 0, countBytes.Length);
+                    streamPos += 8;
+                    if (itemCount > 1)
+                    {
+                        streamPos += 4;
+                        byte[] firstItem = ValueHex(streamPos);
+                        stream.Write(firstItem, 0, firstItem.Length);
+                    }
+                    string firstItemType = arrayVal.FirstItem.Type;
+                    if (itemCount == 0)
+                    {
+                        stream.Write(countBytes, 0, countBytes.Length);
+                    }
+                    else if (IsSimpleValue(firstItemType))
+                    {
+                        foreach (object o in arrayVal.Items)
+                        {
+                            byte[] entryBytes = ValueHex(o);
+                            stream.Write(entryBytes, 0, entryBytes.Length);
+                        }
+                    }
+                    else
+                    {
+                        int currPointer = streamPos + (arrayVal.Items.Count * 4);
+
+                        using (MemoryStream arrayStream = new MemoryStream())
+                        using (MemoryStream pointerStream = new MemoryStream())
+                        {
+                            for (int i = 0; i < arrayVal.Items.Count; i++)
+                            {
+                                byte[] pointerBytes = ValueHex(currPointer);
+                                pointerStream.Write(pointerBytes, 0, pointerBytes.Length);
+
+                                byte[] entryBytes = ComplexHex(arrayVal.Items[i], firstItemType, currPointer);
+                                arrayStream.Write(entryBytes, 0, entryBytes.Length);
+
+                                currPointer += entryBytes.Length;
+                            }
+                            AppendStream(stream, pointerStream);
+                            AppendStream(stream, arrayStream);
+                        }
+                    }
+                    PadStreamToFour(stream);
+                    return stream.ToArray();
+                }
+                throw new NotSupportedException();
+            }
+            else if (value is QBScript.QBScriptData scriptVal)
+            {
+                ReadWrite ScriptWriter = new ReadWrite("little");
+                Lzss lzss = new Lzss();
+                using (MemoryStream mainStream = new MemoryStream())
+                using (MemoryStream noCrcStream = new MemoryStream())
+                using (MemoryStream scriptStream = new MemoryStream())
+                {
+                    foreach(object o in scriptVal.ScriptParsed)
+                    {
+                        if (o is string scriptString)
+                        {
+                            AddScriptToStream(_scriptbytes[scriptString], noCrcStream, scriptStream);
+                        }
+                        else if (o is QBScript.ScriptNode scriptNode)
+                        {
+                            byte scriptType = _scriptbytes[scriptNode.Type];
+                            AddScriptToStream(scriptType, noCrcStream, scriptStream);
+                            byte[] scriptBytes = ScriptWriter.GetScriptBytes(scriptNode.Type, scriptNode.DataQb);
+                            ScriptWriter.AddArrayToStream(scriptBytes, scriptType, noCrcStream, scriptStream);
+                        }
+                        else if (o is QBScript.ScriptTuple scriptTuple)
+                        {
+                            byte scriptType = _scriptbytes[scriptTuple.Type];
+                            AddScriptToStream(scriptType, noCrcStream, scriptStream);
+                            byte[] scriptBytes = ScriptWriter.GetScriptBytes(scriptTuple.Type, scriptTuple.Data);
+                            ScriptWriter.AddArrayToStream(scriptBytes, scriptType, noCrcStream, scriptStream);
+                        }
+                        else
+                        {
+                            throw new NotImplementedException();
+                        }
+                    }
+                    string scriptCrc = CRC.GenQBKey(noCrcStream.ToArray());
+                    mainStream.Write(ValueHex(scriptCrc), 0, 4);
+                    byte[] uncompressedScript = scriptStream.ToArray();
+                    int decompLen = (int)scriptStream.Length;
+                    mainStream.Write(ValueHex(decompLen), 0, 4);
+                    byte[] compressedScript = lzss.Compress(scriptStream.ToArray());
+                    if (compressedScript.Length > decompLen)
+                    {
+                        compressedScript = uncompressedScript;
+                    }
+                    int compLen = (int)compressedScript.Length;
+                    mainStream.Write(ValueHex(compLen), 0, 4);
+                    mainStream.Write(compressedScript, 0, compLen);
+                    PadStreamToFour(mainStream);
+                    byte[] currentContents = mainStream.ToArray();
+                    return currentContents;
+                }
+                throw new NotImplementedException();
+            }
+            else 
+            {
+                throw new NotSupportedException(); 
+            }
+        }
+        public void AddScriptToStream(byte scriptByte, MemoryStream noCrcStream, MemoryStream scriptStream)
+        {
+            if (scriptByte != NEWLINE_BYTE && scriptByte != ENDSCRIPT_BYTE)
+            {
+                noCrcStream.WriteByte(scriptByte);
+            }
+            scriptStream.WriteByte(scriptByte);
+            if (scriptByte == NEXTGLOBAL_BYTE)
+            {
+                noCrcStream.WriteByte(QBKEY_BYTE);
+                scriptStream.WriteByte(QBKEY_BYTE);
+            }
+        }
+        public void AddArrayToStream(byte[] scriptBytes, byte type, MemoryStream noCrcStream, MemoryStream scriptStream)
+        {
+            switch (type)
+            {
+                case STRING_BYTE:
+                case WIDESTRING_BYTE:
+                    WriteStringBytes(noCrcStream, scriptBytes);
+                    WriteStringBytes(scriptStream, scriptBytes);
+                    break;
+                default:
+                    WriteAndMaybeFlipBytes(noCrcStream, scriptBytes);
+                    WriteAndMaybeFlipBytes(scriptStream, scriptBytes);
+                    break;
+            }
+        }
+        public byte[] GetScriptBytes(string type, object data)
+        {
+            var(itemData, otherData) = GetItemData(type, data, 0);
+            if (type == PAIR || type == VECTOR)
+            {
+                byte[] newArray = new byte[otherData.Length - 4];
+                Array.Copy(otherData, 4, newArray, 0, otherData.Length - 4);
+                return newArray;
+            }
+            return otherData == null ? itemData : otherData;
         }
         public (byte[] itemData, byte[]? otherData) GetItemData(string type, object data, int streamPos)
         {
@@ -314,6 +514,39 @@ namespace GH_Toolkit_Core.Methods
                 byte[] otherData = ComplexHex(data, type, streamPos);
                 return (itemData, otherData);
             }
+        }
+        public byte[] StructHeader(string type)
+        {
+            byte flags;
+            byte qbType;
+            if (_game == "GH3")
+            {
+                flags =  _endian == "big" ? (byte)(_qbstruct[type] + FLAG_STRUCT_GH3) : _qbstruct[type];
+                qbType = 0x00;
+            }
+            else
+            {
+                flags = 0x01;
+                qbType = _qbstruct[type];
+            }
+            byte[] bytes = new byte[] { 0x00, flags, qbType, 0x00 };
+            return bytes;
+        }
+        public static int RoundUp(int num)
+        {
+            return (int)Math.Ceiling(num / 4.0) * 4;
+        }
+        static void AppendStream(MemoryStream target, MemoryStream source)
+        {
+            // Check for null streams
+            if (target == null || source == null)
+                throw new ArgumentNullException("Streams cannot be null");
+
+            // Reset the position of the source stream to ensure all of its content is copied
+            source.Position = 0;
+
+            // Copy the source stream into the target stream
+            source.CopyTo(target);
         }
         public static byte[] HexStringToByteArray(string hex)
         {

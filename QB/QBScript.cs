@@ -1,21 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using GH_Toolkit_Core.Debug;
+using GH_Toolkit_Core.Methods;
+using System.Diagnostics;
 using System.Text;
-using System.Threading.Tasks;
 using static GH_Toolkit_Core.QB.QB;
 using static GH_Toolkit_Core.QB.QBConstants;
-using System.Diagnostics;
-using System.Data.SqlTypes;
-using GH_Toolkit_Core.Methods;
-using System.IO;
-using GH_Toolkit_Core.Debug;
-using static System.Net.Mime.MediaTypeNames;
-using System.Security.Cryptography;
-using GH_Toolkit_Core.Checksum;
-using System.Xml.Linq;
 using static System.Runtime.InteropServices.JavaScript.JSType;
-using System.Reflection.Emit;
 
 namespace GH_Toolkit_Core.QB
 {
@@ -35,9 +24,14 @@ namespace GH_Toolkit_Core.QB
             public uint CompressedSize { get; set; }
             public byte[] CompressedData { get; set; }
             public byte[] ScriptData { get; set; }
+            public byte[] CRCData { get; set; }
             public List<object> ScriptParsed { get; set; }
+            public QBScriptData()
+            {
+                ScriptParsed = new List<object>();
+            }
             public QBScriptData(MemoryStream stream)
-            { 
+            {
                 ScriptCRC = ReadQBKey(stream);
                 ScriptSize = Reader.ReadUInt32(stream);
                 CompressedSize = Reader.ReadUInt32(stream);
@@ -69,6 +63,87 @@ namespace GH_Toolkit_Core.QB
                 string tryCrc2 = CRC.GenQBKey(tryArray2);
                 */
                 ScriptParsed = ParseScript(ScriptData);
+            }
+            public void AddScriptElem(string byteType)
+            {
+                ScriptParsed.Add(byteType);
+            }
+            public void StripArgData(ref string arg)
+            {
+                if (arg.StartsWith("<") && arg.EndsWith(">"))
+                {
+                    arg = arg.Substring(1, arg.Length - 2);
+                    AddScriptElem(ARGUMENT);
+                }
+            }
+            public void AddToScript(string type, object data)
+            {
+                if (data is string strData)
+                {
+                    switch (strData)
+                    {
+                        case EQUALS:
+                        case NOTEQUALS:
+                        case MINUS:
+                        case PLUS:
+                        case MULTIPLY:
+                        case DIVIDE:
+                        case GREATERTHAN:
+                        case LESSTHAN:
+                        case GREATERTHANEQUAL:
+                        case LESSTHANEQUAL:
+                        case ORCOMP:
+                        case ANDCOMP:
+                        case LEFTBRACE:
+                        case RIGHTBRACE:
+                        case LEFTBKT:
+                        case RIGHTBKT:
+                        case LEFTPAR:
+                        case RIGHTPAR:
+                        case COLON:
+                        case COMMA:
+                        case DOT:
+                        case NOT:
+                        case AND:
+                        case OR:
+                        case ALLARGS:
+                        case ARGUMENT:
+                        case BEGIN:
+                        case REPEAT:
+                        case BREAK:
+                        case SWITCH:
+                        case ENDSWITCH:
+                        case CASE:
+                        case DEFAULT:
+                        case ENDSCRIPT:
+                        case RANDOM:
+                        case RANDOMNOREPEAT:
+                        case RANDOMRANGE:
+                        case RANDOMFLOAT:
+                        case RANDOMINTEGER:
+                        case IF:
+                        case ELSE:
+                        case FASTELSE:
+                        case ELSEIF:
+                        case ENDIF:
+                        case RETURN:
+                            AddScriptElem(strData);
+                            return;
+                        default:
+                            break;
+                    }
+                    StripArgData(ref strData);
+                    switch (type)
+                    {
+                        case MULTIFLOAT:
+                            ScriptParsed.Add(new ScriptTuple(strData));
+                            break;
+                        default:
+                            ScriptParsed.Add(new ScriptNode(type, strData));
+                            break;
+                    }
+                }
+                
             }
             public string GetIndent(int level)
             {
@@ -202,14 +277,14 @@ namespace GH_Toolkit_Core.QB
                             builder.Append(currentLine.ToString().TrimEnd());
                             currentLine.Clear();
                         }
-                        currentLine.Append(item);
+                        currentLine.Append($"{item} ");
                         break;
                     default:
                         currentLine.Append($"{item} ");
                         break;
                 }
             }
-            
+
             public string ScriptToText(int level = 1)
             {
                 StringBuilder builder = new StringBuilder();
@@ -221,7 +296,8 @@ namespace GH_Toolkit_Core.QB
                 foreach (object item in ScriptParsed)
                 {
                     stringIndent = GetIndent(level);
-                    switch (state) { 
+                    switch (state)
+                    {
                         case State.inDefault:
                             if (item is string)
                             {
@@ -286,7 +362,7 @@ namespace GH_Toolkit_Core.QB
                             }
                             if (item is ScriptNode randnode)
                             {
-                                
+
                                 string data = randnode.NodeToText(ref isArgument);
                                 currentLine.Append($"{data}");
                                 if (rState.getEntries() == 1 && !rState.getMulti())
@@ -304,6 +380,10 @@ namespace GH_Toolkit_Core.QB
                                 {
                                     currentLine.Append("@ ");
                                     rState.useEntry();
+                                }
+                                if (rState.getEntries() == 0)
+                                {
+                                    currentLine.Append(")");
                                 }
                                 rState.setAppend(true);
                             }
@@ -355,7 +435,7 @@ namespace GH_Toolkit_Core.QB
                                 rState = new RandomState();
                             }
                             break;
-                    }  
+                    }
                 }
                 builder.AppendLine("endscript");
                 return builder.ToString();
@@ -366,12 +446,19 @@ namespace GH_Toolkit_Core.QB
         {
             public string Type { get; set; }
             public object Data { get; set; }
+            public object DataQb { get; set; }
             public ScriptNode(string nodeType, object data)
             {
                 Type = nodeType;
                 Data = data;
             }
-            public string NodeToText(ref bool isArgument) 
+            public ScriptNode(string nodeType, string data) 
+            {
+                Type = nodeType;
+                Data = data;
+                DataQb = ParseData(data, Type);
+            }
+            public string NodeToText(ref bool isArgument)
             {
                 string dataString;
                 if (Data is ScriptNodeStruct structData)
@@ -403,6 +490,7 @@ namespace GH_Toolkit_Core.QB
         {
             public uint ByteSize { get; set; }
             public QBStruct.QBStructData Data { get; set; }
+            public byte[] Bytes { get; set; }
             public ScriptNodeStruct(MemoryStream stream)
             {
                 ByteSize = ScriptReader.ReadUInt16(stream);
@@ -413,7 +501,7 @@ namespace GH_Toolkit_Core.QB
                 {
                     Data = new QBStruct.QBStructData(structStream);
                 }
-                
+
             }
         }
         [DebuggerDisplay("{Name}")]
@@ -443,7 +531,7 @@ namespace GH_Toolkit_Core.QB
                         Text = Encoding.UTF8.GetString(buffer);
                         break;
                     case WIDESTRING:
-                        Text = Encoding.BigEndianUnicode.GetString(buffer); 
+                        Text = Encoding.BigEndianUnicode.GetString(buffer);
                         break;
                 }
             }
@@ -462,6 +550,11 @@ namespace GH_Toolkit_Core.QB
                 {
                     Data.Add(ScriptReader.ReadFloat(stream));
                 }
+            }
+            public ScriptTuple(string tupleData)
+            {
+                Type = ParseMultiFloatType(tupleData);
+                Data = ParseMultiFloat(tupleData);
             }
             private string ListDisplay
             {
@@ -483,9 +576,9 @@ namespace GH_Toolkit_Core.QB
         }
         [DebuggerDisplay("Long Jump - {Jump} Bytes")]
         public class ScriptLongJump
-        { 
+        {
             public uint Jump { get; set; }
-            public ScriptLongJump(uint jump) 
+            public ScriptLongJump(uint jump)
             {
                 Jump = jump;
             }
@@ -510,7 +603,7 @@ namespace GH_Toolkit_Core.QB
                     break;
                 case WIDESTRING:
                     textString = ReadWrite.ReadWideString(stream);
-                    if (textString.Length*2 + 2 != length)
+                    if (textString.Length * 2 + 2 != length)
                     {
                         throw new Exception("String length is not what script says it is.");
                     }
@@ -697,6 +790,7 @@ namespace GH_Toolkit_Core.QB
                             list.Add(new Conditional(FASTELSE, ScriptReader.ReadUInt16(stream)));
                             break;
                         case 0x49:
+                            // Short Jump
                             stream.Position += 2;
                             break;
                         case 0x4A:
@@ -716,7 +810,7 @@ namespace GH_Toolkit_Core.QB
                                 length = ScriptReader.ReadUInt32(stream);
                                 list.Add(new ScriptNode(WIDESTRING, ReadScriptString(WIDESTRING, length, stream)));
                             }
-                            
+
                             break;
                         case 0x4D:
                             if (Reader.Endian() == "little")

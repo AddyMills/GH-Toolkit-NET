@@ -49,9 +49,17 @@ namespace GH_Toolkit_Core.QB
             public object? Parent { get; set; }
             public QBStructItem(string key, string value, string type)
             {
-                Info = new QBStructInfo(type);
                 Props = new QBStructProps(key, ParseData(value, type));
                 Data = Props.DataValue;
+                if (type == MULTIFLOAT && Data is List<float> listFloat)
+                {
+                    if (listFloat.Count < 2 || listFloat.Count > 3)
+                    {
+                        throw new ArgumentException("List of float values does not contain only 2 or 3 items.");
+                    }
+                    type = listFloat.Count == 2 ? PAIR : VECTOR;
+                }
+                Info = new QBStructInfo(type); 
             }
             public QBStructItem(string key, QBArrayNode value) // Array
             {
@@ -144,6 +152,10 @@ namespace GH_Toolkit_Core.QB
                     else if (item.Data is List<float> floats)
                     {
                         writer.WriteLine(indent + $"{item.Props.ID} = {FloatsToText(floats)}");
+                    }
+                    else if (item.Props.ID == FLAG)
+                    {
+                        writer.WriteLine(indent + $"{QbItemText(item.Info.Type, item.Data.ToString())}");
                     }
                     else
                     {

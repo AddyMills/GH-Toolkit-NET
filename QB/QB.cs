@@ -468,6 +468,7 @@ namespace GH_Toolkit_Core.QB
             public string? Name { get; set; }
             public QBArrayNode? Array { get; set; }
             public QBStructData? Struct { get; set; }
+            public QBScriptData? Script { get; set; }
             public ParseLevel(ParseLevel? parent, ParseState state, string type)
             {
                 Parent = parent;
@@ -476,6 +477,7 @@ namespace GH_Toolkit_Core.QB
                 StringType = StringType.isString;
                 if (type == ARRAY) { Array = new QBArrayNode(); }
                 else if (type == STRUCT) { Struct = new QBStructData(); }
+                else if (type == SCRIPT) { Script = new QBScriptData(); }
             }
             public void SetStringType(StringType str)
             {
@@ -561,8 +563,9 @@ namespace GH_Toolkit_Core.QB
             string tmpKey = "";
             string tmpValue = "";
             string tmpType;
-            foreach (char c in data)
+            for (int i = 0; i < data.Length; i++)
             {
+                char c = data[i];
                 switch (currLevel.State)
                 {
                     case ParseState.whitespace:
@@ -591,13 +594,17 @@ namespace GH_Toolkit_Core.QB
                         {
                             case '\r':
                             case '\n':
+                                if (currLevel.LevelType == STRUCT)
+                                {
+                                    HandleStructFlag(ref i, ref tmpKey, currLevel);
+                                    break;
+                                }
                                 throw new Exception($"QB Item Key {tmpKey} found without any data!");
                             case ' ':
                             case '\t':
-                                if (tmpKey == "script")
+                                if (tmpKey == SCRIPTKEY)
                                 {
-                                    tmpKey = "";
-                                    currLevel.State = ParseState.inScript;
+                                    currLevel.State = ParseState.inValue;
                                 }
                                 else if (tmpKey.StartsWith("#\"") && tmpKey.EndsWith("\""))
                                 {
@@ -626,7 +633,7 @@ namespace GH_Toolkit_Core.QB
                                     }
                                     else if (currLevel.LevelType == STRUCT)
                                     {
-                                        throw new NotImplementedException();
+                                        HandleStructFlag(ref i, ref tmpKey, currLevel);
                                     }
                                     else
                                     {
@@ -642,7 +649,7 @@ namespace GH_Toolkit_Core.QB
                         }
                         break;
                     case ParseState.inValue:
-                        if (ParseSpecialCheck(c, tmpValue, currLevel))
+                        if (ParseSpecialCheck(c, ref tmpValue, currLevel))
                         {
                             continue;
                         }
@@ -662,12 +669,33 @@ namespace GH_Toolkit_Core.QB
                             case '\n':
                             case ' ':
                             case '\t':
-                                if (tmpValue == "")
+                                if (tmpValue == "" && currLevel.LevelType != SCRIPT)
                                 {
                                     throw new Exception($"QB Item Key {tmpKey} found without any data!");
                                 }
+                                else if (tmpValue == "" && currLevel.LevelType == SCRIPT)
+                                {
+                                    if (c == '\n')
+                                    {
+                                        currLevel.Script.AddScriptElem(NEWLINE);
+                                    }
+                                    continue;
+                                }
+                                else if (tmpKey == SCRIPTKEY)
+                                {
+                                    AddLevel(ref currLevel, ref currItem, ParseState.inValue, SCRIPT, ref tmpValue);
+                                    ClearTmpValues(ref tmpKey, ref tmpValue);
+                                    break;
+                                }
                                 StateSwitch(currLevel);
                                 AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
+                                if (currLevel.LevelType == SCRIPT)
+                                {
+                                    if (c == '\n')
+                                    {
+                                        currLevel.Script.AddScriptElem(NEWLINE);
+                                    }
+                                }
                                 break;
                             case '(':
                                 if (tmpValue.ToLower() == "qs")
@@ -680,6 +708,33 @@ namespace GH_Toolkit_Core.QB
                                     throw new NotSupportedException($"Unsupported character '(' in value of {tmpKey}");
                                 }
                                 break;
+                            case ')':
+                                if (currLevel.LevelType != SCRIPT)
+                                {
+                                    throw new NotSupportedException("Closing parenthesis ) found where it shouldn't!");
+                                }
+                                AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
+                                tmpValue = RIGHTPAR;
+                                AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                                break;
+                            case '}':
+                                if (currLevel.LevelType != STRUCT)
+                                {
+                                    throw new NotSupportedException("Closing bracket } found outside of struct!");
+                                }
+                                StateSwitch(currLevel);
+                                AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
+                                CloseStruct(ref currLevel, ref currItem, ref qbFile);
+                                break;
+                            case ']':
+                                if (currLevel.LevelType != ARRAY)
+                                {
+                                    throw new NotSupportedException("Closing brace ] found outside of array!");
+                                }
+                                StateSwitch(currLevel);
+                                AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
+                                CloseArray(ref currLevel, ref currItem, ref qbFile);
+                                break;
                             default:
                                 tmpValue += c;
                                 break;
@@ -690,20 +745,51 @@ namespace GH_Toolkit_Core.QB
                         {
                             case '\r':
                             case '\n':
+                                break;
                             case ' ':
                             case '\t':
+                                if (currLevel.LevelType == SCRIPT)
+                                {
+                                    tmpValue += c;
+                                }
                                 break;
                             case ')':
+                                if (currLevel.LevelType == SCRIPT)
+                                {
+                                    tmpValue = tmpValue.Replace("\t","").Replace(" ", "");
+                                }
                                 StateSwitch(currLevel);
                                 AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, MULTIFLOAT);
                                 break;
-                            default:
+                            case '1':
+                            case '2':
+                            case '3':
+                            case '4':
+                            case '5':
+                            case '6':
+                            case '7':
+                            case '8':
+                            case '9':
+                            case '0':
+                            case ',':
+                            case '.':
+                            case '-':
                                 tmpValue += c;
                                 break;
+                            default:
+                                if (currLevel.LevelType == SCRIPT)
+                                {
+                                    i -= (tmpValue.Length + 1);
+                                    tmpValue = LEFTPAR;
+                                    StateSwitch(currLevel);
+                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                                    break;
+                                }
+                                throw new NotSupportedException("Unknown value found in Pair/Vector value");
                         }
                         break;
                     case ParseState.inArray:
-                        if (ParseSpecialCheck(c, tmpValue, currLevel))
+                        if (ParseSpecialCheck(c, ref tmpValue, currLevel))
                         {
                             continue;
                         }
@@ -742,9 +828,13 @@ namespace GH_Toolkit_Core.QB
                             case '\t':
                                 break;
                             case '[':
-                                throw new NotImplementedException();
+                                tmpKey = FLAGBYTE;
+                                AddLevel(ref currLevel, ref currItem, ParseState.inArray, ARRAY, ref tmpKey);
+                                break;
                             case '{':
-                                throw new NotImplementedException();
+                                tmpKey = FLAGBYTE;
+                                AddLevel(ref currLevel, ref currItem, ParseState.inStruct, STRUCT, ref tmpKey);
+                                break;
                             case '}':
                                 CloseStruct(ref currLevel, ref currItem, ref qbFile);
                                 break;
@@ -807,7 +897,14 @@ namespace GH_Toolkit_Core.QB
                     case ParseState.inQbKey:
                         switch (c)
                         {
+                            case '"':
                             case '`':
+                                if (tmpKey == SCRIPTKEY)
+                                {
+                                    AddLevel(ref currLevel, ref currItem, ParseState.inValue, SCRIPT, ref tmpValue);
+                                    ClearTmpValues(ref tmpKey, ref tmpValue);
+                                    break;
+                                }
                                 AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
                                 StateSwitch(currLevel);
                                 break;
@@ -839,6 +936,13 @@ namespace GH_Toolkit_Core.QB
                                 break;
                         }
                         break;
+                    case ParseState.inScript:
+                        switch (c)
+                        {
+                            default:
+                                break;
+                        }
+                        break;
                     case ParseState.inComment:
                         switch (c)
                         {
@@ -860,18 +964,29 @@ namespace GH_Toolkit_Core.QB
         }
         private static void StateSwitch(ParseLevel currLevel)
         {
-            if (currLevel.LevelType == ROOT)
+            switch (currLevel.LevelType)
             {
-                currLevel.State = ParseState.whitespace;
+                case ROOT:
+                    currLevel.State = ParseState.whitespace;
+                    break;
+                case ARRAY:
+                    currLevel.State = ParseState.inArray;
+                    break;
+                case STRUCT:
+                    currLevel.State = ParseState.inStruct;
+                    break;
+                case SCRIPT:
+                    currLevel.State = ParseState.inValue;
+                    break;
+                default:
+                    throw new NotImplementedException();
             }
-            else if (currLevel.LevelType == ARRAY)
-            {
-                currLevel.State = ParseState.inArray;
-            }
-            else if (currLevel.LevelType == STRUCT)
-            {
-                currLevel.State = ParseState.inStruct;
-            }
+        }
+        private static void HandleStructFlag(ref int i, ref string tmpKey, ParseLevel currLevel)
+        {
+            i -= (tmpKey.Length + 1);
+            tmpKey = FLAGBYTE;
+            currLevel.State = ParseState.inValue;
         }
         private static void AddParseItem(ref ParseLevel currLevel,
             ref QBItem currItem,
@@ -880,25 +995,38 @@ namespace GH_Toolkit_Core.QB
             ref string tmpValue,
             string itemType)
         {
-            if (currLevel.LevelType == ROOT)
+            if (tmpKey == "" && tmpValue == "")
             {
-                ProcessQbItem(ref currItem, qbFile, tmpKey, tmpValue, itemType);
+                return;
             }
-            else if (currLevel.LevelType == ARRAY)
+            switch (currLevel.LevelType)
             {
-                currLevel.Array.AddParseToArray(tmpValue, itemType);
-            }
-            else if (currLevel.LevelType == STRUCT)
-            {
-                currLevel.Struct.AddVarToStruct(tmpKey, tmpValue, itemType);
-            }
-            else
-            {
-                throw new Exception();
+                case ROOT:
+                    ProcessQbItem(ref currItem, qbFile, tmpKey, tmpValue, itemType);
+                    break;
+                case ARRAY:
+                    currLevel.Array.AddParseToArray(tmpValue, itemType);
+                    break;
+                case STRUCT:
+                    if (tmpKey == "")
+                    {
+                        tmpKey = FLAGBYTE;
+                    }
+                    currLevel.Struct.AddVarToStruct(tmpKey, tmpValue, itemType);
+                    break;
+                case SCRIPT:
+                    currLevel.Script.AddToScript(itemType, tmpValue);
+                    if (tmpValue == ENDSCRIPT)
+                    {
+                        CloseScript(ref currLevel, ref currItem, ref qbFile);
+                    }
+                    break;
+                default:
+                    throw new NotImplementedException();
             }
             ClearTmpValues(ref tmpKey, ref tmpValue);
         }
-        private static bool ParseSpecialCheck(char c, string tmpValue, ParseLevel currLevel)
+        private static bool ParseSpecialCheck(char c, ref string tmpValue, ParseLevel currLevel)
         {
             if ((c == ' ' || c == '\t') && tmpValue == "")
             {
@@ -914,6 +1042,12 @@ namespace GH_Toolkit_Core.QB
             {
                 currLevel.State = ParseState.inString;
                 currLevel.SetStringType(StringType.isWideString);
+                return true;
+            }
+            else if (c == '"' && tmpValue == "#")
+            {
+                tmpValue = "";
+                currLevel.State = ParseState.inQbKey;
                 return true;
             }
             else if (c == '`' && tmpValue == "")
@@ -945,6 +1079,10 @@ namespace GH_Toolkit_Core.QB
         }
         private static void CloseArray(ref ParseLevel currLevel, ref QBItem currItem, ref QB qbFile)
         {
+            if (currLevel.Array.FirstItem == null)
+            {
+                currLevel.Array.MakeEmpty();
+            }
             if (currLevel.Parent.LevelType == ROOT)
             {
                 currItem.AddData(currLevel.Array);
@@ -991,6 +1129,15 @@ namespace GH_Toolkit_Core.QB
             currLevel = currLevel.Parent;
             StateSwitch(currLevel);
         }
+        private static void CloseScript(ref ParseLevel currLevel, ref QBItem currItem, ref QB qbFile)
+        {
+            currItem.AddData(currLevel.Script);
+            currItem.AddInfo(SCRIPT);
+            qbFile.AddQbChild(currItem);
+            currItem = new QBItem();
+            currLevel = currLevel.Parent;
+            StateSwitch(currLevel);
+        }
         private static void ProcessQbItem(
             ref QBItem currItem,
             QB qbFile,
@@ -1002,7 +1149,20 @@ namespace GH_Toolkit_Core.QB
             qbFile.AddQbChild(currItem);
             currItem = new QBItem();
         }
-        public static void CompileQbFile(List<QBItem> file, string qbName, string game = "GHWT", string console = "360")
+        public static string ParseMultiFloatType(string multiFloat)
+        {
+            int commas = multiFloat.Count(x => x == ','); // I don't know where else to put this. Might as well be here
+            switch (commas)
+            {
+                case 1:
+                    return PAIR;
+                case 2:
+                    return VECTOR;
+                default:
+                    throw new ArgumentException("Too many or too few float values found.");
+            }
+        }
+        public static void CompileQbFile(List<QBItem> file, string qbName, string game = "GH3", string console = "360")
         {
             string qbHeader = "1C 08 02 04 10 04 08 0C 0C 08 02 04 14 02 04 0C 10 10 0C 00";
 
