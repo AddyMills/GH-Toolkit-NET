@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Text;
 using static GH_Toolkit_Core.QB.QB;
 using static GH_Toolkit_Core.QB.QBConstants;
-using static System.Runtime.InteropServices.JavaScript.JSType;
+using static GH_Toolkit_Core.QB.QBScript;
 
 namespace GH_Toolkit_Core.QB
 {
@@ -143,7 +143,7 @@ namespace GH_Toolkit_Core.QB
                             break;
                     }
                 }
-                
+
             }
             public string GetIndent(int level)
             {
@@ -441,6 +441,145 @@ namespace GH_Toolkit_Core.QB
                 return builder.ToString();
             }
         }
+        public class SwitchNode
+        {
+            public List<object> Condition { get; set; }
+            public List<CaseNode> Cases { get; set; }
+            public SwitchNode(List<object> script,
+                ref int scriptPos,
+                MemoryStream noCrcStream,
+                MemoryStream scriptStream,
+                ReadWrite writer
+                )
+            {
+                Condition = new List<object>();
+                Cases = new List<CaseNode>();
+                string currItem = "";
+                while (currItem != NEWLINE)
+                {
+                    object scriptItem = script[scriptPos];
+                    UpdateItem(ref currItem, scriptItem);
+                    Condition.Add(scriptItem);
+                    scriptPos += 1;
+                }
+                CaseNode? currCase = new CaseNode(CASE);
+                while (currItem != ENDSWITCH)
+                {
+                    object scriptItem = script[scriptPos];
+                    UpdateItem(ref currItem, scriptItem);
+                    if (currItem == CASE || currItem == DEFAULT)
+                    {
+                        if (currCase.Actions.Count != 0)
+                        {
+                            Cases.Add(currCase);
+                        }
+                        currCase = new CaseNode(currItem);
+                        currItem = "";
+                    }
+                    else if (currItem == SWITCH)
+                    {
+                        throw new Exception();
+                    }
+                    else
+                    {
+                        currCase.Actions.Add(scriptItem);
+                    }
+                    scriptPos += 1;
+                }
+
+                Cases.Add(currCase);
+
+                int loopStart = 0;
+                writer.AddScriptToStream(SWITCH_BYTE, noCrcStream, scriptStream);
+                writer.ScriptLoop(Condition, ref loopStart, noCrcStream, scriptStream);
+
+                for (int i = 0; i < Cases.Count; i++)
+                {
+                    CaseNode caseNode = Cases[i];
+                    using (MemoryStream switchStreamForCrc = new MemoryStream())
+                    using (MemoryStream switchStream = new MemoryStream())
+                    {
+                        loopStart = 0;
+                        writer.ScriptLoop(caseNode.Actions, ref loopStart, switchStreamForCrc, switchStream);
+                        caseNode.CrcBytes = switchStreamForCrc.ToArray();
+                        caseNode.ScriptBytes = switchStream.ToArray();
+                        caseNode.SetJumpIfFalse();
+                    }
+                    caseNode.CasesLeft = Cases.Count - (i + 1);
+                }
+                for (int i = 0; i < Cases.Count; i++)
+                {
+                    loopStart = 0;
+                    CaseNode caseNode = Cases[i];
+                    writer.ScriptStringParse(caseNode.Type, script, ref loopStart, noCrcStream, scriptStream);
+                    writer.AddScriptToStream(SHORTJUMP_BYTE, noCrcStream, scriptStream);
+                    writer.AddShortToStream((short)caseNode.JumpIfFalse, noCrcStream, scriptStream);
+                    writer.WriteNoFlipBytes(noCrcStream, caseNode.CrcBytes);
+                    writer.WriteNoFlipBytes(scriptStream, caseNode.ScriptBytes);
+                    if (caseNode.Type != DEFAULT)
+                    {
+                        caseNode.JumpIfTrue = MakeJumpIfTrue(i);
+                        writer.AddScriptToStream(SHORTJUMP_BYTE, noCrcStream, scriptStream);
+                        writer.AddShortToStream((short)caseNode.JumpIfTrue, noCrcStream, scriptStream);
+                    }
+                    
+                }
+                    
+
+            }
+            public int MakeJumpIfTrue(int i)
+            {
+                int trueJump = 0;
+                for (int j = i + 1; j < Cases.Count; j++)
+                {
+                    trueJump += Cases[j].JumpIfFalse;
+                    trueJump += 2; // Byte for case or default and byte for short jump
+                }
+                trueJump += 3; // More missing bytes at the end
+                return trueJump;
+
+            }
+            private void UpdateItem(ref string currItem, object newItem)
+            {
+                if (newItem is string stringEntry)
+                {
+                    currItem = stringEntry;
+                }
+            }
+
+
+        }
+        public class CaseNode
+        {
+            public List<object> Actions { get; set; }
+            public string Type { get; set; }
+            public int JumpIfFalse { get; set; } // The jump value at the start of a case. Used if the case is not true
+            public int JumpIfTrue { get; set; } // The jump value at the end of the case. Only used if the case is true.
+            public byte[] ScriptBytes { get; set; }
+            public byte[] CrcBytes { get; set; }
+            public int CasesLeft { get; set; }
+            public CaseNode(string type)
+            {
+                Actions = new List<object>();
+                Type = type;
+            }
+            public void SetJumpIfFalse()
+            {
+                if (Type == CASE)
+                {
+                    JumpIfFalse = ScriptBytes.Length + 5; // 2 bytes for the False short, plus 1 for the short jump byte plus 2 bytes for the True short
+                }
+                else if (Type == DEFAULT)
+                {
+                    JumpIfFalse = ScriptBytes.Length + 1; // This should place it one before the endswitch byte. Add 2 for the if false short, subtract one because endswitch is included
+                }
+                else
+                {
+                    throw new NotSupportedException("Strange Case Type found.");
+                }
+            }
+        }
+
         [DebuggerDisplay("{Type,nq} - {Data,nq}")]
         public class ScriptNode
         {
@@ -452,7 +591,7 @@ namespace GH_Toolkit_Core.QB
                 Type = nodeType;
                 Data = data;
             }
-            public ScriptNode(string nodeType, string data) 
+            public ScriptNode(string nodeType, string data)
             {
                 Type = nodeType;
                 Data = data;

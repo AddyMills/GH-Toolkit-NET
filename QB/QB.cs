@@ -658,9 +658,23 @@ namespace GH_Toolkit_Core.QB
                             AddLevel(ref currLevel, ref currItem, ParseState.inArray, ARRAY, ref tmpKey);
                             continue;
                         }
-                        if (c == '{' && tmpValue == "")
+                        if (c == '{' && tmpValue == "" && currLevel.LevelType != SCRIPT)
                         {
                             AddLevel(ref currLevel, ref currItem, ParseState.inStruct, STRUCT, ref tmpKey);
+                            continue;
+                        }
+                        else if (c == '{' && tmpValue == "" && currLevel.LevelType == SCRIPT)
+                        {
+                            if (escaped)
+                            {
+                                AddLevel(ref currLevel, ref currItem, ParseState.inStruct, STRUCT, ref tmpKey);
+                                escaped = false;
+                            }
+                            else
+                            {
+                                tmpValue = new string(c, 1);
+                                AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                            }
                             continue;
                         }
                         switch (c)
@@ -711,29 +725,73 @@ namespace GH_Toolkit_Core.QB
                             case ')':
                                 if (currLevel.LevelType != SCRIPT)
                                 {
-                                    throw new NotSupportedException("Closing parenthesis ) found where it shouldn't!");
+                                    throw new NotSupportedException($"'{c}' found where it shouldn't be!");
                                 }
                                 AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
-                                tmpValue = RIGHTPAR;
+                                tmpValue = new string(c, 1);
                                 AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
                                 break;
+                            case '.':
+                                if (currLevel.LevelType != SCRIPT)
+                                {
+                                    tmpValue += c;
+                                }
+                                else if (float.TryParse(tmpValue, out float val))
+                                {
+                                    tmpValue += c;
+                                }
+                                else
+                                {
+                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
+                                    tmpValue = new string(c, 1);
+                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                                }
+                                break;
                             case '}':
-                                if (currLevel.LevelType != STRUCT)
+                                if (currLevel.LevelType == STRUCT)
+                                {
+                                    StateSwitch(currLevel);
+                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
+                                    CloseStruct(ref currLevel, ref currItem, ref qbFile);
+                                }
+                                else if (currLevel.LevelType == SCRIPT)
+                                {
+                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
+                                    tmpValue = new string(c, 1);
+                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                                }
+                                else
                                 {
                                     throw new NotSupportedException("Closing bracket } found outside of struct!");
                                 }
-                                StateSwitch(currLevel);
-                                AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
-                                CloseStruct(ref currLevel, ref currItem, ref qbFile);
+                                
                                 break;
                             case ']':
-                                if (currLevel.LevelType != ARRAY)
+                                if (currLevel.LevelType == ARRAY)
+                                {
+                                    StateSwitch(currLevel);
+                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
+                                    CloseArray(ref currLevel, ref currItem, ref qbFile);
+                                }
+                                else if (currLevel.LevelType == SCRIPT)
+                                {
+                                    tmpValue = new string(c, 1);
+                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                                }
+                                else
                                 {
                                     throw new NotSupportedException("Closing brace ] found outside of array!");
                                 }
-                                StateSwitch(currLevel);
-                                AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
-                                CloseArray(ref currLevel, ref currItem, ref qbFile);
+                                break;
+                            case '\\':
+                                if (currLevel.LevelType == SCRIPT)
+                                {
+                                    escaped = true;
+                                }
+                                else
+                                {
+                                    throw new NotSupportedException("\\ character found outside of string or script!");
+                                }
                                 break;
                             default:
                                 tmpValue += c;
@@ -904,6 +962,10 @@ namespace GH_Toolkit_Core.QB
                                     AddLevel(ref currLevel, ref currItem, ParseState.inValue, SCRIPT, ref tmpValue);
                                     ClearTmpValues(ref tmpKey, ref tmpValue);
                                     break;
+                                }
+                                if (tmpValue.StartsWith("<"))
+                                {
+                                    throw new Exception();
                                 }
                                 AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
                                 StateSwitch(currLevel);

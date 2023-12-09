@@ -10,6 +10,7 @@ using GH_Toolkit_Core.Checksum;
 using GH_Toolkit_Core.QB;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using static GH_Toolkit_Core.QB.QBConstants;
+using static GH_Toolkit_Core.QB.QBScript;
 
 namespace GH_Toolkit_Core.Methods
 {
@@ -21,6 +22,7 @@ namespace GH_Toolkit_Core.Methods
         private readonly Dictionary<string, byte> _qbtype;
         private readonly Dictionary<string, byte> _qbstruct;
         private readonly Dictionary<string, byte> _scriptbytes;
+        private readonly ReadWrite _scriptwriter;
         public ReadWrite(string endian)
         {
             // Determine if bytes need to be flipped based on endianness and system architecture.
@@ -38,6 +40,8 @@ namespace GH_Toolkit_Core.Methods
 
             // Create a copy of the scriptDict from QBConstants
             _scriptbytes = new Dictionary<string, byte>(QBConstants.scriptDict);
+
+            _scriptwriter = new ReadWrite("little");
 
             if (_endian == "little" && _game == "GH3")
             {
@@ -181,6 +185,10 @@ namespace GH_Toolkit_Core.Methods
             }
             s.Write(data);
         }
+        public void WriteNoFlipBytes(MemoryStream s, byte[] data)
+        {
+            s.Write(data);
+        }
         public byte[] GetFloatBytes(float f)
         {
             return BitConverter.GetBytes(f);
@@ -241,6 +249,11 @@ namespace GH_Toolkit_Core.Methods
             byte[] bytes = BitConverter.GetBytes(value);
             return ProcessBytes(bytes);
         }
+        public byte[] ValueHex(short value)
+        {
+            byte[] bytes = BitConverter.GetBytes(value);
+            return ProcessBytes(bytes);
+        }
         public byte[] ValueHex(object value)
         {
             if (value is int intVal)
@@ -250,6 +263,10 @@ namespace GH_Toolkit_Core.Methods
             else if (value is float floatVal)
             {
                 return ValueHex(floatVal);
+            }
+            else if (value is short shortVal)
+            {
+                return ValueHex(shortVal);
             }
             else if (value is string stringVal) 
             {
@@ -408,37 +425,15 @@ namespace GH_Toolkit_Core.Methods
             }
             else if (value is QBScript.QBScriptData scriptVal)
             {
-                ReadWrite ScriptWriter = new ReadWrite("little");
+                
                 Lzss lzss = new Lzss();
                 using (MemoryStream mainStream = new MemoryStream())
                 using (MemoryStream noCrcStream = new MemoryStream())
                 using (MemoryStream scriptStream = new MemoryStream())
                 {
-                    foreach(object o in scriptVal.ScriptParsed)
-                    {
-                        if (o is string scriptString)
-                        {
-                            AddScriptToStream(_scriptbytes[scriptString], noCrcStream, scriptStream);
-                        }
-                        else if (o is QBScript.ScriptNode scriptNode)
-                        {
-                            byte scriptType = _scriptbytes[scriptNode.Type];
-                            AddScriptToStream(scriptType, noCrcStream, scriptStream);
-                            byte[] scriptBytes = ScriptWriter.GetScriptBytes(scriptNode.Type, scriptNode.DataQb);
-                            ScriptWriter.AddArrayToStream(scriptBytes, scriptType, noCrcStream, scriptStream);
-                        }
-                        else if (o is QBScript.ScriptTuple scriptTuple)
-                        {
-                            byte scriptType = _scriptbytes[scriptTuple.Type];
-                            AddScriptToStream(scriptType, noCrcStream, scriptStream);
-                            byte[] scriptBytes = ScriptWriter.GetScriptBytes(scriptTuple.Type, scriptTuple.Data);
-                            ScriptWriter.AddArrayToStream(scriptBytes, scriptType, noCrcStream, scriptStream);
-                        }
-                        else
-                        {
-                            throw new NotImplementedException();
-                        }
-                    }
+                    int loopStart = 0;
+                    ScriptLoop(scriptVal.ScriptParsed, ref loopStart, noCrcStream, scriptStream);
+
                     string scriptCrc = CRC.GenQBKey(noCrcStream.ToArray());
                     mainStream.Write(ValueHex(scriptCrc), 0, 4);
                     byte[] uncompressedScript = scriptStream.ToArray();
@@ -463,6 +458,58 @@ namespace GH_Toolkit_Core.Methods
                 throw new NotSupportedException(); 
             }
         }
+        public void ScriptLoop(List<object> script, ref int scriptPos, MemoryStream noCrcStream, MemoryStream scriptStream)
+        {
+            for (int i = scriptPos; i < script.Count; i++)
+            {
+                ScriptToStream(script, ref i, noCrcStream, scriptStream);
+            }
+        }
+        public void ScriptToStream(List<object> script, ref int i, MemoryStream noCrcStream, MemoryStream scriptStream)
+        {
+            object o = script[i];
+            if (o is string scriptString)
+            {
+                ScriptStringParse(scriptString, script, ref i, noCrcStream, scriptStream);
+            }
+            else if (o is QBScript.ScriptNode scriptNode)
+            {
+                byte scriptType = _scriptbytes[scriptNode.Type];
+                AddScriptToStream(scriptType, noCrcStream, scriptStream);
+                byte[] scriptBytes = _scriptwriter.GetScriptBytes(scriptNode.Type, scriptNode.DataQb);
+                _scriptwriter.AddArrayToStream(scriptBytes, scriptType, noCrcStream, scriptStream);
+            }
+            else if (o is QBScript.ScriptTuple scriptTuple)
+            {
+                byte scriptType = _scriptbytes[scriptTuple.Type];
+                AddScriptToStream(scriptType, noCrcStream, scriptStream);
+                byte[] scriptBytes = _scriptwriter.GetScriptBytes(scriptTuple.Type, scriptTuple.Data);
+                _scriptwriter.AddArrayToStream(scriptBytes, scriptType, noCrcStream, scriptStream);
+            }
+            else
+            {
+                throw new NotImplementedException();
+            }
+        }
+        public void ScriptStringParse(string scriptString, 
+            List<object> script, 
+            ref int scriptPos, 
+            MemoryStream noCrcStream, 
+            MemoryStream scriptStream
+            )
+        {
+            if (scriptString == SWITCH)
+            {
+                scriptPos += 1;
+                SwitchNode switchNode = new SwitchNode(script, ref scriptPos, noCrcStream, scriptStream, this);
+                scriptPos -= 1;
+                //throw new NotImplementedException();
+            }
+            else
+            {
+                AddScriptToStream(_scriptbytes[scriptString], noCrcStream, scriptStream);
+            }
+        }
         public void AddScriptToStream(byte scriptByte, MemoryStream noCrcStream, MemoryStream scriptStream)
         {
             if (scriptByte != NEWLINE_BYTE && scriptByte != ENDSCRIPT_BYTE)
@@ -475,6 +522,12 @@ namespace GH_Toolkit_Core.Methods
                 noCrcStream.WriteByte(QBKEY_BYTE);
                 scriptStream.WriteByte(QBKEY_BYTE);
             }
+        }
+        public void AddShortToStream(short shortVal, MemoryStream noCrcStream, MemoryStream scriptStream)
+        {
+            byte[] shortBytes = _scriptwriter.ValueHex(shortVal);
+            noCrcStream.Write(shortBytes, 0, shortBytes.Length);
+            scriptStream.Write(shortBytes, 0, shortBytes.Length);
         }
         public void AddArrayToStream(byte[] scriptBytes, byte type, MemoryStream noCrcStream, MemoryStream scriptStream)
         {
