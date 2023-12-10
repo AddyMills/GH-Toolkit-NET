@@ -505,6 +505,10 @@ namespace GH_Toolkit_Core.Methods
                 scriptPos -= 1;
                 //throw new NotImplementedException();
             }
+            else if (scriptString == IF)
+            {
+
+            }
             else
             {
                 AddScriptToStream(_scriptbytes[scriptString], noCrcStream, scriptStream);

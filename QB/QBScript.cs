@@ -522,10 +522,7 @@ namespace GH_Toolkit_Core.QB
                         writer.AddScriptToStream(SHORTJUMP_BYTE, noCrcStream, scriptStream);
                         writer.AddShortToStream((short)caseNode.JumpIfTrue, noCrcStream, scriptStream);
                     }
-                    
                 }
-                    
-
             }
             public int MakeJumpIfTrue(int i)
             {
@@ -643,10 +640,17 @@ namespace GH_Toolkit_Core.QB
 
             }
         }
+        public class ConditionalCollection
+        {
+            public List<Conditional> Conditionals { get; set; } = new List<Conditional>();  
+
+        }
         [DebuggerDisplay("{Name}")]
         public class Conditional
         {
             public string Name { get; set; }
+            public string Type { get; set; } //If, elseif, or else
+            public string NextType { get; set; } // Elseif, or else
             public uint Jump { get; set; }
             public Conditional(string name, uint jump)
             {
