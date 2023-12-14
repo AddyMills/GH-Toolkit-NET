@@ -34,9 +34,9 @@ namespace GH_Toolkit_Core.QB
         public const string NEWLINE = "newline";
 
         public const string IF = "if";
-        public const string FASTIF = "Fast If";
+        public const string FASTIF = "fastif";
         public const string ELSE = "else";
-        public const string FASTELSE = "Fast Else";
+        public const string FASTELSE = "fastelse";
         public const string ELSEIF = "elseif";
         public const string ENDIF = "endif";
         public const string RETURN = "return";
@@ -66,7 +66,10 @@ namespace GH_Toolkit_Core.QB
         public const string DOT = ".";
 
         public const string RANDOM = "Random";
+        public const string RANDOM2 = "Random2";
         public const string RANDOMNOREPEAT = "RandomNoRepeat";
+        public const string RANDOMPERMUTE = "RandomPermute";
+
         public const string RANDOMRANGE = "RandomRange";
         public const string RANDOMFLOAT = "RandomFloat";
         public const string RANDOMINTEGER = "RandomInteger";
@@ -131,6 +134,7 @@ namespace GH_Toolkit_Core.QB
         public const byte RANDOMRANGE_BYTE = 0x30;
         public const byte ORCOMP_BYTE = 0x32;
         public const byte ANDCOMP_BYTE = 0x33;
+        public const byte RANDOM2_BYTE = 0x37;
         public const byte NOT_BYTE = 0x39;
         public const byte AND_BYTE = 0x3A;
         public const byte OR_BYTE = 0x3B;
@@ -139,6 +143,7 @@ namespace GH_Toolkit_Core.QB
         public const byte CASE_BYTE = 0x3E;
         public const byte DEFAULT_BYTE = 0x3F;
         public const byte RANDOMNOREPEAT_BYTE = 0x40;
+        public const byte RANDOMPERMUTE_BYTE = 0x41;
         public const byte COLON_BYTE = 0x42;
         public const byte FASTIF_BYTE = 0x47;
         public const byte FASTELSE_BYTE = 0x48;
@@ -192,6 +197,8 @@ namespace GH_Toolkit_Core.QB
             { LONGJUMP, LONGJUMP_BYTE },
             { RANDOM, RANDOM_BYTE },
             { RANDOMRANGE, RANDOMRANGE_BYTE },
+            { RANDOM2, RANDOM2_BYTE },
+            { RANDOMPERMUTE, RANDOMPERMUTE_BYTE },
             { ORCOMP, ORCOMP_BYTE },
             { ANDCOMP, ANDCOMP_BYTE },
             { NOT, NOT_BYTE },

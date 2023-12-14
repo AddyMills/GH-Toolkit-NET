@@ -4,16 +4,17 @@ using System.Diagnostics;
 using System.Text;
 using static GH_Toolkit_Core.QB.QB;
 using static GH_Toolkit_Core.QB.QBConstants;
-using static GH_Toolkit_Core.QB.QBScript;
 
 namespace GH_Toolkit_Core.QB
 {
     public class QBScript
     {
-        enum State
+        private static void UpdateItem(ref string currItem, object newItem)
         {
-            inDefault,
-            inRandom
+            if (newItem is string stringEntry)
+            {
+                currItem = stringEntry;
+            }
         }
         public static ReadWrite ScriptReader = new ReadWrite("little"); // Scripts are always little endian, but qbkeys within structs are not...
         [DebuggerDisplay("{ScriptSize} bytes ({CompressedSize} compressed)")]
@@ -45,23 +46,6 @@ namespace GH_Toolkit_Core.QB
                 {
                     ScriptData = CompressedData;
                 }
-                //byte[] tryArray = CompressedData.Where(b => b != 0x01 && b != 0x24).ToArray();
-                //string tryCrc = CRC.GenQBKey(tryArray);
-                /*
-                 * Trying to RE the script CRC value
-                byte[] tryArray = new byte[ScriptSize];
-                for (int i = 0; i < ScriptSize; i++)
-                {
-                    tryArray[i] = ScriptData[i];
-                }
-                byte[] tryArray2 = new byte[CompressedSize];
-                for (int i = 0; i < CompressedSize; i++)
-                {
-                    tryArray2[i] = CompressedData[i];
-                }
-                string tryCrc = CRC.GenQBKey(tryArray);
-                string tryCrc2 = CRC.GenQBKey(tryArray2);
-                */
                 ScriptParsed = ParseScript(ScriptData);
             }
             public void AddScriptElem(string byteType)
@@ -153,6 +137,7 @@ namespace GH_Toolkit_Core.QB
             {
                 private uint RandomEntries;
                 private uint MaxEntries;
+                private uint CurrEntry;
                 private bool AppendEntry;
                 private bool NoClose;
                 private bool MultiLine;
@@ -168,10 +153,12 @@ namespace GH_Toolkit_Core.QB
                 {
                     RandomEntries = entries;
                     MaxEntries = entries;
+                    CurrEntry = 0;
                 }
                 public void useEntry()
                 {
                     RandomEntries--;
+                    CurrEntry++;
                 }
                 public void setAppend(bool status)
                 {
@@ -285,159 +272,85 @@ namespace GH_Toolkit_Core.QB
                 }
             }
 
-            public string ScriptToText(int level = 1)
+            public string ScriptToText(List<object> list, int level = 1)
             {
                 StringBuilder builder = new StringBuilder();
                 StringBuilder currentLine = new StringBuilder();
-                State state = new State();
-                state = State.inDefault;
                 isArgument = false;
-                RandomState rState = new RandomState();
-                foreach (object item in ScriptParsed)
+                foreach (object item in list)
                 {
                     stringIndent = GetIndent(level);
-                    switch (state)
+                    if (item is string)
                     {
-                        case State.inDefault:
-                            if (item is string)
-                            {
-                                StringParser(item, ref level, builder, currentLine);
-                            }
-                            else if (item is ScriptNode node)
-                            {
-                                string currString = currentLine.ToString();
-                                if (currString.EndsWith("\t") && currString != stringIndent)
-                                {
-                                    DeleteTabs(currentLine);
-                                }
-                                string data = node.NodeToText(ref isArgument);
-                                currentLine.Append(data);
-                            }
-                            else if (item is Conditional conditional)
-                            {
-                                switch (conditional.Name)
-                                {
-                                    case IF:
-                                    case FASTIF:
-                                        level++;
-                                        currentLine.Append("if ");
-                                        break;
-                                    case ELSEIF:
-                                        currentLine.Clear(); // Clear the current line buffer
-                                        currentLine.Append(GetIndent(level - 1)); // Update the indent
-                                        currentLine.Append("elseif ");
-                                        break;
-                                    case ELSE:
-                                    case FASTELSE:
-                                        currentLine.Clear(); // Clear the current line buffer
-                                        currentLine.Append(GetIndent(level - 1)); // Update the indent
-                                        currentLine.Append("else ");
-                                        break;
-                                    default:
-                                        throw new NotImplementedException();
-                                }
-                            }
-                            else if (item is ScriptTuple tuple)
-                            {
-                                currentLine.Append($"{FloatsToText(tuple.Data)} ");
-                            }
-                            else if (item is ScriptRandom random)
-                            {
-                                //level++;
-                                state = State.inRandom;
-                                rState.setEntries(random.Entries);
-                                currentLine.Append($"{random.Name} (");
-                                rState.setAppend(true);
-                            }
-                            else
-                            {
-                                throw new NotImplementedException("Not implemented");
-                            }
-                            break;
-                        case State.inRandom:
-                            if (rState.getAppend() && !(rState.getMax() == rState.getEntries()))
-                            {
-                                currentLine.Append("@ ");
-                                rState.setAppend(false);
-                            }
-                            if (item is ScriptNode randnode)
-                            {
-
-                                string data = randnode.NodeToText(ref isArgument);
-                                currentLine.Append($"{data}");
-                                if (rState.getEntries() == 1 && !rState.getMulti())
-                                {
-                                    builder.Append(currentLine.ToString().TrimEnd());
-                                    currentLine.Clear();
-                                    currentLine.Append(") ");
-                                    rState.useEntry();
-                                }
-                            }
-                            else if (item is ScriptLongJump jump)
-                            {
-                                rState.useEntry();
-                                if (jump.Jump == 0)
-                                {
-                                    currentLine.Append("@ ");
-                                    rState.useEntry();
-                                }
-                                if (rState.getEntries() == 0)
-                                {
-                                    currentLine.Append(")");
-                                }
-                                rState.setAppend(true);
-                            }
-                            else if (item == NEWLINE)
-                            {
-                                if (rState.getEntries() > 1 && !rState.getMulti())
-                                {
-                                    rState.setMulti(true);
-                                    level++;
-                                }
-                                builder.Append(currentLine.ToString().TrimEnd()); // This line here needs to be changed to add the space for multi-line randoms. Might not be needed
-                                if (currentLine.ToString() == GetIndent(level))
-                                {
-                                    currentLine.Clear();
-                                    rState.useEntry();
-                                    level--;
-                                    builder.Append(GetIndent(level));
-                                    builder.Append(")");
-                                    builder.AppendLine();
-                                    rState.setNoClose(true);
-                                }
-                                else
-                                {
-                                    builder.AppendLine();
-                                    currentLine.Clear();
-                                    currentLine.Append(GetIndent(level));
-                                    if (rState.getAppend() && (rState.getMax() == rState.getEntries()))
-                                    {
-                                        currentLine.Append("@ ");
-                                        rState.setAppend(false);
-                                    }
-                                }
-
-                            }
-                            else if (item is string)
-                            {
-                                StringParser(item, ref level, builder, currentLine);
-                            }
-                            else
-                            {
-                                throw new NotImplementedException("Not implemented");
-                            }
-                            if (rState.getEntries() <= 0)
-                            {
-                                // builder.Append(currentLine.ToString().TrimEnd());
-
-                                currentLine.Append(GetIndent(level));
-                                state = State.inDefault;
-                                rState = new RandomState();
-                            }
-                            break;
+                        StringParser(item, ref level, builder, currentLine);
                     }
+                    else if (item is ScriptNode node)
+                    {
+                        string currString = currentLine.ToString();
+                        if (currString.EndsWith("\t") && currString != stringIndent)
+                        {
+                            DeleteTabs(currentLine);
+                        }
+                        string data = node.NodeToText(ref isArgument);
+                        currentLine.Append(data);
+                    }
+                    else if (item is Conditional conditional)
+                    {
+                        switch (conditional.Type)
+                        {
+                            case IF:
+                            case FASTIF:
+                                level++;
+                                currentLine.Append("if ");
+                                break;
+                            case ELSEIF:
+                                currentLine.Clear(); // Clear the current line buffer
+                                currentLine.Append(GetIndent(level - 1)); // Update the indent
+                                currentLine.Append("elseif ");
+                                break;
+                            case ELSE:
+                            case FASTELSE:
+                                currentLine.Clear(); // Clear the current line buffer
+                                currentLine.Append(GetIndent(level - 1)); // Update the indent
+                                currentLine.Append("else ");
+                                break;
+                            default:
+                                throw new NotImplementedException();
+                        }
+                    }
+                    else if (item is ScriptTuple tuple)
+                    {
+                        currentLine.Append($"{FloatsToText(tuple.Data)} ");
+                    }
+                    else if (item is ScriptRandom random)
+                    {
+                        currentLine.Append($"{random.Name} (");
+                        foreach (RandomEntry randomEntry in random.RandomEntries)
+                        {
+                            currentLine.Append(randomEntry.WeightString());
+                            currentLine.Append(ScriptToText(randomEntry.Actions, level + 1));
+                        }
+                        currentLine.Append(")");
+                    }
+                    else if (item is ScriptLongJump)
+                    {
+                        continue;
+                    }
+                    else
+                    {
+                        throw new NotImplementedException("Not implemented");
+                    }
+
                 }
-                builder.AppendLine("endscript");
+                string lineCheck = currentLine.ToString();
+                if (lineCheck.Length > 0)
+                {
+                    if (lineCheck.IndexOf(ENDSCRIPT) >= 0)
+                    {
+                        lineCheck = lineCheck.Trim();
+                    }
+                    builder.Append(lineCheck);
+                }
                 return builder.ToString();
             }
         }
@@ -445,6 +358,8 @@ namespace GH_Toolkit_Core.QB
         {
             public List<object> Condition { get; set; }
             public List<CaseNode> Cases { get; set; }
+            public byte[] CrcBytes { get; set; }
+            public byte[] ScriptBytes { get; set; }
             public SwitchNode(List<object> script,
                 ref int scriptPos,
                 MemoryStream noCrcStream,
@@ -490,8 +405,6 @@ namespace GH_Toolkit_Core.QB
                 Cases.Add(currCase);
 
                 int loopStart = 0;
-                writer.AddScriptToStream(SWITCH_BYTE, noCrcStream, scriptStream);
-                writer.ScriptLoop(Condition, ref loopStart, noCrcStream, scriptStream);
 
                 for (int i = 0; i < Cases.Count; i++)
                 {
@@ -507,21 +420,30 @@ namespace GH_Toolkit_Core.QB
                     }
                     caseNode.CasesLeft = Cases.Count - (i + 1);
                 }
-                for (int i = 0; i < Cases.Count; i++)
+
+                using (MemoryStream switchCrc = new MemoryStream())
+                using (MemoryStream switchStream = new MemoryStream())
                 {
-                    loopStart = 0;
-                    CaseNode caseNode = Cases[i];
-                    writer.ScriptStringParse(caseNode.Type, script, ref loopStart, noCrcStream, scriptStream);
-                    writer.AddScriptToStream(SHORTJUMP_BYTE, noCrcStream, scriptStream);
-                    writer.AddShortToStream((short)caseNode.JumpIfFalse, noCrcStream, scriptStream);
-                    writer.WriteNoFlipBytes(noCrcStream, caseNode.CrcBytes);
-                    writer.WriteNoFlipBytes(scriptStream, caseNode.ScriptBytes);
-                    if (caseNode.Type != DEFAULT)
+                    writer.AddScriptToStream(SWITCH_BYTE, switchCrc, switchStream);
+                    writer.ScriptLoop(Condition, ref loopStart, switchCrc, switchStream);
+                    for (int i = 0; i < Cases.Count; i++)
                     {
-                        caseNode.JumpIfTrue = MakeJumpIfTrue(i);
-                        writer.AddScriptToStream(SHORTJUMP_BYTE, noCrcStream, scriptStream);
-                        writer.AddShortToStream((short)caseNode.JumpIfTrue, noCrcStream, scriptStream);
+                        loopStart = 0;
+                        CaseNode caseNode = Cases[i];
+                        writer.ScriptStringParse(caseNode.Type, script, ref loopStart, switchCrc, switchStream);
+                        writer.AddScriptToStream(SHORTJUMP_BYTE, switchCrc, switchStream);
+                        writer.AddShortToStream((short)caseNode.JumpIfFalse, switchCrc, switchStream);
+                        writer.WriteNoFlipBytes(switchCrc, caseNode.CrcBytes);
+                        writer.WriteNoFlipBytes(switchStream, caseNode.ScriptBytes);
+                        if (caseNode.Type != DEFAULT)
+                        {
+                            caseNode.JumpIfTrue = MakeJumpIfTrue(i);
+                            writer.AddScriptToStream(SHORTJUMP_BYTE, switchCrc, switchStream);
+                            writer.AddShortToStream((short)caseNode.JumpIfTrue, switchCrc, switchStream);
+                        }
                     }
+                    CrcBytes = switchCrc.ToArray();
+                    ScriptBytes = switchStream.ToArray();
                 }
             }
             public int MakeJumpIfTrue(int i)
@@ -536,15 +458,6 @@ namespace GH_Toolkit_Core.QB
                 return trueJump;
 
             }
-            private void UpdateItem(ref string currItem, object newItem)
-            {
-                if (newItem is string stringEntry)
-                {
-                    currItem = stringEntry;
-                }
-            }
-
-
         }
         public class CaseNode
         {
@@ -642,21 +555,157 @@ namespace GH_Toolkit_Core.QB
         }
         public class ConditionalCollection
         {
-            public List<Conditional> Conditionals { get; set; } = new List<Conditional>();  
+            public List<Conditional> Conditionals { get; set; }
+            public byte[] CrcBytes { get; set; }
+            public byte[] ScriptBytes { get; set; }
+            public ConditionalCollection(List<object> script,
+                ref int scriptPos,
+                MemoryStream noCrcStream,
+                MemoryStream scriptStream,
+                ReadWrite writer
+                )
+            {
+                Conditionals = new List<Conditional>();
+                Conditional currCondition = new Conditional(IF);
+                string currItem = "";
+                int elseIfs = 0;
+                while (currItem != ENDIF)
+                {
+                    object scriptItem = script[scriptPos];
+                    UpdateItem(ref currItem, scriptItem);
+                    if (currItem == ELSEIF || currItem == ELSE)
+                    {
+                        if (currCondition.Actions.Count != 0)
+                        {
+                            currCondition.NextType = currItem;
+                            Conditionals.Add(currCondition);
+                        }
+                        if (currItem == ELSEIF)
+                        {
+                            elseIfs += 1;
+                        }
+                        currCondition = new Conditional(currItem);
+                        currItem = "";
+                    }
+                    else if (currItem == IF)
+                    {
+                        throw new Exception();
+                    }
+                    else
+                    {
+                        currCondition.Actions.Add(scriptItem);
+                    }
+                    scriptPos += 1;
+                }
 
+                Conditionals.Add(currCondition);
+
+                int loopStart = 0;
+
+                for (int i = 0; i < Conditionals.Count; i++)
+                {
+                    Conditional conditional = Conditionals[i];
+                    using (MemoryStream switchStreamForCrc = new MemoryStream())
+                    using (MemoryStream switchStream = new MemoryStream())
+                    {
+                        loopStart = 0;
+                        writer.ScriptLoop(conditional.Actions, ref loopStart, switchStreamForCrc, switchStream);
+                        conditional.CrcBytes = switchStreamForCrc.ToArray();
+                        conditional.ScriptBytes = switchStream.ToArray();
+                        conditional.SetJump();
+                    }
+                }
+
+                if (elseIfs > 0)
+                {
+                    for (int i = 0; i < Conditionals.Count; i++)
+                    {
+                        Conditional conditional = Conditionals[i];
+                        if (conditional.Type == ELSEIF)
+                        {
+                            conditional.JumpEnd = MakeJumpEnd(i);
+                        }
+                    }
+                }
+
+                using (MemoryStream ifCrc = new MemoryStream())
+                using (MemoryStream ifStream = new MemoryStream())
+                {
+                    for (int i = 0; i < Conditionals.Count; i++)
+                    {
+                        loopStart = 0;
+                        Conditional conditional = Conditionals[i];
+                        byte condByte = writer.GetScriptByte(conditional.Type);
+                        writer.AddScriptToStream(condByte, ifCrc, ifStream);
+                        writer.AddShortToStream((short)conditional.Jump, ifCrc, ifStream);
+
+                        if (conditional.Type == ELSEIF)
+                        {
+                            writer.AddShortToStream((short)conditional.JumpEnd, ifCrc, ifStream);
+                        }
+
+                        writer.WriteNoFlipBytes(ifCrc, conditional.CrcBytes);
+                        writer.WriteNoFlipBytes(ifStream, conditional.ScriptBytes);
+                    }
+
+                    CrcBytes = ifCrc.ToArray();
+                    ScriptBytes = ifStream.ToArray();
+                }
+            }
+            public uint MakeJumpEnd(int i)
+            {
+                uint jumpEnd = 0;
+                for (int j = i; j < Conditionals.Count; j++)
+                {
+                    jumpEnd += Conditionals[j].Jump;
+                    jumpEnd -= 2; // Since this takes place 2 bytes after the Jump byte, also for else jump being after
+                    try
+                    {
+                        if (Conditionals[j + 1].Type == ELSEIF)
+                        {
+                            jumpEnd += 3;
+                        }
+                    }
+                    catch { }
+                }
+                return jumpEnd;
+            }
         }
-        [DebuggerDisplay("{Name}")]
+        [DebuggerDisplay("{Type}")]
         public class Conditional
         {
-            public string Name { get; set; }
-            public string Type { get; set; } //If, elseif, or else
-            public string NextType { get; set; } // Elseif, or else
+            public string Type { get; set; }
+            public List<object> Actions { get; set; }
+            public string NextType { get; set; } = "end"; // Elseif, or else
             public uint Jump { get; set; }
+            public uint JumpEnd { get; set; } // Only set for elseifs
+            public byte[] CrcBytes { get; set; }
+            public byte[] ScriptBytes { get; set; }
+            public Conditional(string name)
+            {
+                Type = name;
+                Actions = new List<object>();
+            }
             public Conditional(string name, uint jump)
             {
-                Name = name;
+                Type = name;
                 Jump = jump;
             }
+            public void SetJump()
+            {
+                uint jumpVal = (uint)(ScriptBytes.Length);
+                jumpVal += 2; // To cover the 2 bytes in the short jump
+                if (Type == ELSEIF)
+                {
+                    jumpVal += 2; // 2 bytes for the Jump to End value found after the Next Jump value
+                }
+                if (NextType == ELSE)
+                {
+                    jumpVal += 3; // To cover the Else byte and jump val
+                }
+                Jump = jumpVal;
+            }
+
         }
         [DebuggerDisplay("{Type, nq} - {Text, nq}")]
         public class ScriptString
@@ -709,12 +758,61 @@ namespace GH_Toolkit_Core.QB
         {
             public string Name { get; set; }
             public uint Entries { get; set; }
+            public List<RandomEntry> RandomEntries { get; set; } = new List<RandomEntry>();
             public ScriptRandom(string random, MemoryStream stream)
             {
                 Name = random;
                 Entries = ScriptReader.ReadUInt32(stream);
-                stream.Position += (Entries * 2); // Skip weights
+                for (int i = 0; i < Entries; i++)
+                {
+                    RandomEntry entry = new RandomEntry(stream);
+                    RandomEntries.Add(entry);
+                }
+
                 stream.Position += (Entries * 4); // Skip offsets
+
+                uint entriesCountdown = Entries;
+                uint randEnd = 0xffffffff;
+                bool nextGlobal = false;
+                bool nextArg = false;
+                for (int i = 0; i < Entries; i++)
+                {
+                    object currItem = 0;
+                    RandomEntry entry = RandomEntries[i];
+                    while (stream.Position < randEnd)
+                    {
+                        AddToList(stream, entry.Actions, ref nextGlobal, ref nextArg);
+                        currItem = entry.Actions.Last();
+                        if (currItem is ScriptLongJump longJump)
+                        {
+                            randEnd = (uint)stream.Position + longJump.Jump;
+                            entriesCountdown--;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        public class RandomEntry
+        {
+            public short Weight { get; set; }
+            public List<object> Actions { get; set; } = new List<object>();
+            public RandomEntry(MemoryStream stream)
+            {
+                Weight = ScriptReader.ReadInt16(stream);
+            }
+            public string WeightString()
+            {
+                string entryString;
+                if (Weight > 1)
+                {
+                    entryString = $"@*{Weight} ";
+                }
+                else
+                {
+                    entryString = "@ ";
+                }
+                return entryString;
             }
         }
         [DebuggerDisplay("Long Jump - {Jump} Bytes")]
@@ -764,222 +862,237 @@ namespace GH_Toolkit_Core.QB
         private static List<object> ParseScript(byte[] script)
         {
             List<object> list = new List<object>();
-            bool nextGlobal = false;
-            bool nextArg = false;
             using (MemoryStream stream = new MemoryStream(script))
             {
-                while (stream.Position < stream.Length)
-                {
-                    var scriptByte = Reader.ReadUInt8(stream);
-                    uint length;
-                    switch (scriptByte)
-                    {
-                        case 0x01:
-                            list.Add(NEWLINE); // New line
-                            break;
-                        case 0x03:
-                            list.Add(LEFTBRACE);
-                            break;
-                        case 0x04:
-                            list.Add(RIGHTBRACE);
-                            break;
-                        case 0x05:
-                            list.Add(LEFTBKT);
-                            break;
-                        case 0x06:
-                            list.Add(RIGHTBKT);
-                            break;
-                        case 0x07:
-                            list.Add(EQUALS);
-                            break;
-                        case 0x08:
-                            list.Add(DOT);
-                            break;
-                        case 0x09:
-                            list.Add(COMMA);
-                            break;
-                        case 0x0A:
-                            list.Add(MINUS);
-                            break;
-                        case 0x0B:
-                            list.Add(PLUS);
-                            break;
-                        case 0x0C:
-                            list.Add(DIVIDE);
-                            break;
-                        case 0x0D:
-                            list.Add(MULTIPLY);
-                            break;
-                        case 0x0E:
-                            list.Add(LEFTPAR);
-                            break;
-                        case 0x0F:
-                            list.Add(RIGHTPAR);
-                            break;
-                        case 0x12:
-                            list.Add(LESSTHAN);
-                            break;
-                        case 0x13:
-                            list.Add(LESSTHANEQUAL);
-                            break;
-                        case 0x14:
-                            list.Add(GREATERTHAN);
-                            break;
-                        case 0x15:
-                            list.Add(GREATERTHANEQUAL);
-                            break;
-                        case 0x16:
-                            if (nextGlobal)
-                            {
-                                list.Add(new ScriptNode(POINTER, ReadScriptQBKey(stream)));
-                                nextGlobal = false;
-                            }
-                            else
-                            {
-                                list.Add(new ScriptNode(QBKEY, ReadScriptQBKey(stream)));
-                            }
-                            break;
-                        case 0x17:
-                            list.Add(new ScriptNode(INTEGER, ScriptReader.ReadInt32(stream)));
-                            break;
-                        case 0x1A:
-                            list.Add(new ScriptNode(FLOAT, ScriptReader.ReadFloat(stream)));
-                            break;
-                        case 0x1B:
-                            length = ScriptReader.ReadUInt32(stream);
-                            list.Add(new ScriptNode(STRING, ReadScriptString(STRING, length, stream)));
-                            break;
-                        case 0x1E:
-                            list.Add(new ScriptTuple(VECTOR, stream));
-                            break;
-                        case 0x1F:
-                            list.Add(new ScriptTuple(PAIR, stream));
-                            break;
-                        case 0x20:
-                            list.Add(BEGIN); // Loop
-                            break;
-                        case 0x21:
-                            list.Add(REPEAT);
-                            break;
-                        case 0x22:
-                            list.Add(BREAK);
-                            break;
-                        case 0x24:
-                            list.Add(ENDSCRIPT);
-                            break;
-                        case 0x27:
-                            uint nextComp = ScriptReader.ReadUInt16(stream); // This is either another else if or else. It can also be an endif if there are no more comparisons
-                            uint lastComp = ScriptReader.ReadUInt16(stream); // I think this is the last byte before the end of the else if statement
-                            list.Add(ELSEIF);
-                            break;
-                        case 0x28:
-                            list.Add(ENDIF);
-                            break;
-                        case 0x29:
-                            list.Add(RETURN);
-                            break;
-                        case 0x2C:
-                            list.Add(ALLARGS); // All Args
-                            break;
-                        case 0x2D:
-                            list.Add(ARGUMENT); // surround next item in <> when parsing
-                            break;
-                        case 0x2E:
-                            list.Add(new ScriptLongJump(ScriptReader.ReadUInt32(stream)));
-                            break;
-                        case 0x2F:
-                            list.Add(new ScriptRandom(RANDOM, stream));
-                            break;
-                        case 0x30:
-                            list.Add(RANDOMRANGE); // Random Range?
-                            break;
-                        case 0x32:
-                            list.Add(ORCOMP);
-                            break;
-                        case 0x33:
-                            list.Add(ANDCOMP);
-                            break;
-                        case 0x39:
-                            list.Add(NOT);
-                            break;
-                        case 0x3A:
-                            list.Add(AND);
-                            break;
-                        case 0x3B:
-                            list.Add(OR);
-                            break;
-                        case 0x3C:
-                            list.Add(SWITCH);
-                            break;
-                        case 0x3D:
-                            list.Add(ENDSWITCH);
-                            break;
-                        case 0x3E:
-                            list.Add(CASE);
-                            break;
-                        case 0x3F:
-                            list.Add(DEFAULT);
-                            break;
-                        case 0x40:
-                            list.Add(new ScriptRandom(RANDOMNOREPEAT, stream));
-                            break;
-                        case 0x42:
-                            list.Add(COLON);
-                            break;
-                        case 0x47:
-                            list.Add(new Conditional(FASTIF, ScriptReader.ReadUInt16(stream)));
-                            break;
-                        case 0x48:
-                            list.Add(new Conditional(FASTELSE, ScriptReader.ReadUInt16(stream)));
-                            break;
-                        case 0x49:
-                            // Short Jump
-                            stream.Position += 2;
-                            break;
-                        case 0x4A:
-                            list.Add(new ScriptNode(STRUCT, new ScriptNodeStruct(stream)));
-                            ReadWrite.MoveToModFour(stream);
-                            break;
-                        case 0x4B: // This byte makes the next QbKey a Pointer instead
-                            nextGlobal = true;
-                            break;
-                        case 0x4C:
-                            if (Reader.Endian() == "little")
-                            {
-                                list.Add(NOTEQUALS);
-                            }
-                            else
-                            {
-                                length = ScriptReader.ReadUInt32(stream);
-                                list.Add(new ScriptNode(WIDESTRING, ReadScriptString(WIDESTRING, length, stream)));
-                            }
-
-                            break;
-                        case 0x4D:
-                            if (Reader.Endian() == "little")
-                            {
-                                list.Add(NOTEQUALS);
-                            }
-                            else
-                            {
-                                list.Add(NOTEQUALS);
-                            }
-                            break;
-                        case 0x4E:
-                            list.Add(new ScriptNode(QSKEY, ReadScriptQBKey(stream)));
-                            break;
-                        case 0x4F:
-                            list.Add(RANDOMFLOAT);
-                            break;
-                        case 0x50:
-                            list.Add(RANDOMINTEGER);
-                            break;
-                        default:
-                            throw new Exception("Not supported");
-                    }
-                }
+                ParseList(stream, list);
             }
             return list;
+        }
+        private static void ParseList(MemoryStream stream, List<object> list)
+        {
+            bool nextGlobal = false;
+            bool nextArg = false;
+            while (stream.Position < stream.Length)
+            {
+                AddToList(stream, list, ref nextGlobal, ref nextArg);
+            }
+        }
+
+        private static void AddToList(MemoryStream stream, List<object> list, ref bool nextGlobal, ref bool nextArg)
+        {
+            var scriptByte = Reader.ReadUInt8(stream);
+            uint length;
+            switch (scriptByte)
+            {
+                case 0x01:
+                    list.Add(NEWLINE); // New line
+                    break;
+                case 0x03:
+                    list.Add(LEFTBRACE);
+                    break;
+                case 0x04:
+                    list.Add(RIGHTBRACE);
+                    break;
+                case 0x05:
+                    list.Add(LEFTBKT);
+                    break;
+                case 0x06:
+                    list.Add(RIGHTBKT);
+                    break;
+                case 0x07:
+                    list.Add(EQUALS);
+                    break;
+                case 0x08:
+                    list.Add(DOT);
+                    break;
+                case 0x09:
+                    list.Add(COMMA);
+                    break;
+                case 0x0A:
+                    list.Add(MINUS);
+                    break;
+                case 0x0B:
+                    list.Add(PLUS);
+                    break;
+                case 0x0C:
+                    list.Add(DIVIDE);
+                    break;
+                case 0x0D:
+                    list.Add(MULTIPLY);
+                    break;
+                case 0x0E:
+                    list.Add(LEFTPAR);
+                    break;
+                case 0x0F:
+                    list.Add(RIGHTPAR);
+                    break;
+                case 0x12:
+                    list.Add(LESSTHAN);
+                    break;
+                case 0x13:
+                    list.Add(LESSTHANEQUAL);
+                    break;
+                case 0x14:
+                    list.Add(GREATERTHAN);
+                    break;
+                case 0x15:
+                    list.Add(GREATERTHANEQUAL);
+                    break;
+                case 0x16:
+                    if (nextGlobal)
+                    {
+                        list.Add(new ScriptNode(POINTER, ReadScriptQBKey(stream)));
+                        nextGlobal = false;
+                    }
+                    else
+                    {
+                        list.Add(new ScriptNode(QBKEY, ReadScriptQBKey(stream)));
+                    }
+                    break;
+                case 0x17:
+                    list.Add(new ScriptNode(INTEGER, ScriptReader.ReadInt32(stream)));
+                    break;
+                case 0x1A:
+                    list.Add(new ScriptNode(FLOAT, ScriptReader.ReadFloat(stream)));
+                    break;
+                case 0x1B:
+                    length = ScriptReader.ReadUInt32(stream);
+                    list.Add(new ScriptNode(STRING, ReadScriptString(STRING, length, stream)));
+                    break;
+                case 0x1E:
+                    list.Add(new ScriptTuple(VECTOR, stream));
+                    break;
+                case 0x1F:
+                    list.Add(new ScriptTuple(PAIR, stream));
+                    break;
+                case 0x20:
+                    list.Add(BEGIN); // Loop
+                    break;
+                case 0x21:
+                    list.Add(REPEAT);
+                    break;
+                case 0x22:
+                    list.Add(BREAK);
+                    break;
+                case 0x24:
+                    list.Add(ENDSCRIPT);
+                    break;
+                case 0x27:
+                    uint nextComp = ScriptReader.ReadUInt16(stream); // This is either another else if or else. It can also be an endif if there are no more comparisons
+                    uint lastComp = ScriptReader.ReadUInt16(stream); // I think this is the last byte before the end of the else if statement
+                    list.Add(ELSEIF);
+                    break;
+                case 0x28:
+                    list.Add(ENDIF);
+                    break;
+                case 0x29:
+                    list.Add(RETURN);
+                    break;
+                case 0x2C:
+                    list.Add(ALLARGS); // All Args
+                    break;
+                case 0x2D:
+                    list.Add(ARGUMENT); // surround next item in <> when parsing
+                    break;
+                case 0x2E:
+                    list.Add(new ScriptLongJump(ScriptReader.ReadUInt32(stream)));
+                    break;
+                case 0x2F:
+                    list.Add(new ScriptRandom(RANDOM, stream));
+                    break;
+                case 0x30:
+                    list.Add(RANDOMRANGE); // Random Range?
+                    break;
+                case 0x32:
+                    list.Add(ORCOMP);
+                    break;
+                case 0x33:
+                    list.Add(ANDCOMP);
+                    break;
+                case 0x37:
+                    list.Add(new ScriptRandom(RANDOM2, stream));
+                    break;
+                case 0x39:
+                    list.Add(NOT);
+                    break;
+                case 0x3A:
+                    list.Add(AND);
+                    break;
+                case 0x3B:
+                    list.Add(OR);
+                    break;
+                case 0x3C:
+                    list.Add(SWITCH);
+                    break;
+                case 0x3D:
+                    list.Add(ENDSWITCH);
+                    break;
+                case 0x3E:
+                    list.Add(CASE);
+                    break;
+                case 0x3F:
+                    list.Add(DEFAULT);
+                    break;
+                case 0x40:
+                    list.Add(new ScriptRandom(RANDOMNOREPEAT, stream));
+                    break;
+                case 0x41:
+                    list.Add(new ScriptRandom(RANDOMPERMUTE, stream));
+                    break;
+                case 0x42:
+                    list.Add(COLON);
+                    break;
+                case 0x47:
+                    list.Add(new Conditional(FASTIF, ScriptReader.ReadUInt16(stream)));
+                    break;
+                case 0x48:
+                    list.Add(new Conditional(FASTELSE, ScriptReader.ReadUInt16(stream)));
+                    break;
+                case 0x49:
+                    // Short Jump
+                    stream.Position += 2;
+                    break;
+                case 0x4A:
+                    list.Add(new ScriptNode(STRUCT, new ScriptNodeStruct(stream)));
+                    ReadWrite.MoveToModFour(stream);
+                    break;
+                case 0x4B: // This byte makes the next QbKey a Pointer instead
+                    nextGlobal = true;
+                    break;
+                case 0x4C:
+                    if (Reader.Endian() == "little")
+                    {
+                        list.Add(NOTEQUALS);
+                    }
+                    else
+                    {
+                        length = ScriptReader.ReadUInt32(stream);
+                        list.Add(new ScriptNode(WIDESTRING, ReadScriptString(WIDESTRING, length, stream)));
+                    }
+
+                    break;
+                case 0x4D:
+                    if (Reader.Endian() == "little")
+                    {
+                        list.Add(NOTEQUALS);
+                    }
+                    else
+                    {
+                        list.Add(NOTEQUALS);
+                    }
+                    break;
+                case 0x4E:
+                    list.Add(new ScriptNode(QSKEY, ReadScriptQBKey(stream)));
+                    break;
+                case 0x4F:
+                    list.Add(RANDOMFLOAT);
+                    break;
+                case 0x50:
+                    list.Add(RANDOMINTEGER);
+                    break;
+                default:
+                    throw new Exception("Not supported");
+            }
         }
     }
 }

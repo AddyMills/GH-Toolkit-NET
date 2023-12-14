@@ -429,7 +429,8 @@ namespace GH_Toolkit_Core.QB
                     {
                         writer.WriteLine();
                         writer.Write($"script {item.Name} ");
-                        writer.Write(scriptData.ScriptToText(1));
+                        writer.Write(scriptData.ScriptToText(scriptData.ScriptParsed, 1));
+                        writer.WriteLine();
                     }
                     else
                     {
@@ -655,7 +656,15 @@ namespace GH_Toolkit_Core.QB
                         }
                         if (c == '[' && tmpValue == "")
                         {
-                            AddLevel(ref currLevel, ref currItem, ParseState.inArray, ARRAY, ref tmpKey);
+                            if (currLevel.LevelType == SCRIPT)
+                            {
+                                tmpValue = new string(c, 1);
+                                AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                            }
+                            else
+                            {
+                                AddLevel(ref currLevel, ref currItem, ParseState.inArray, ARRAY, ref tmpKey);
+                            }
                             continue;
                         }
                         if (c == '{' && tmpValue == "" && currLevel.LevelType != SCRIPT)
@@ -775,6 +784,7 @@ namespace GH_Toolkit_Core.QB
                                 }
                                 else if (currLevel.LevelType == SCRIPT)
                                 {
+                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
                                     tmpValue = new string(c, 1);
                                     AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
                                 }

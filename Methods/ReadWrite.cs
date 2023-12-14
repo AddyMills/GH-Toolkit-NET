@@ -51,6 +51,14 @@ namespace GH_Toolkit_Core.Methods
                 }
             }
         }
+        public byte GetScriptByte(string scriptEntry)
+        {
+            if ((scriptEntry == IF || scriptEntry == ELSE) && _game.StartsWith("GH"))
+            {
+                scriptEntry = "fast" + scriptEntry;
+            }
+            return _scriptbytes[scriptEntry];
+        }
         public static bool FlipCheck(string endian)
         {
             return endian == "little" != BitConverter.IsLittleEndian;
@@ -166,6 +174,10 @@ namespace GH_Toolkit_Core.Methods
         public float ReadFloat(MemoryStream stream)
         {
             return BitConverter.ToSingle(ReadAndMaybeFlipBytes(stream, 4), 0);
+        }
+        public short ReadInt16(MemoryStream stream)
+        {
+            return unchecked((short)ReadUInt16(stream));
         }
         public int ReadInt32(MemoryStream stream)
         {
@@ -494,24 +506,30 @@ namespace GH_Toolkit_Core.Methods
         public void ScriptStringParse(string scriptString, 
             List<object> script, 
             ref int scriptPos, 
-            MemoryStream noCrcStream, 
+            MemoryStream crcStream, 
             MemoryStream scriptStream
             )
         {
             if (scriptString == SWITCH)
             {
                 scriptPos += 1;
-                SwitchNode switchNode = new SwitchNode(script, ref scriptPos, noCrcStream, scriptStream, this);
+                SwitchNode switchNode = new SwitchNode(script, ref scriptPos, crcStream, scriptStream, this);
+                crcStream.Write(switchNode.CrcBytes, 0, switchNode.CrcBytes.Length);
+                scriptStream.Write(switchNode.ScriptBytes, 0, switchNode.ScriptBytes.Length);
                 scriptPos -= 1;
                 //throw new NotImplementedException();
             }
             else if (scriptString == IF)
             {
-
+                scriptPos += 1;
+                ConditionalCollection conditional = new ConditionalCollection(script, ref scriptPos, crcStream, scriptStream, this);
+                crcStream.Write(conditional.CrcBytes, 0, conditional.CrcBytes.Length);
+                scriptStream.Write(conditional.ScriptBytes, 0, conditional.ScriptBytes.Length);
+                scriptPos -= 1;
             }
             else
             {
-                AddScriptToStream(_scriptbytes[scriptString], noCrcStream, scriptStream);
+                AddScriptToStream(_scriptbytes[scriptString], crcStream, scriptStream);
             }
         }
         public void AddScriptToStream(byte scriptByte, MemoryStream noCrcStream, MemoryStream scriptStream)
