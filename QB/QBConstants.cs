@@ -30,6 +30,24 @@ namespace GH_Toolkit_Core.QB
 
         public const string SCRIPTKEY = "script";
 
+        public const string CONSOLE_PS2 = "PS2";
+        public const string CONSOLE_XBOX = "360";
+
+        public const string GAME_GH3 = "GH3";
+
+        public const string DOTNGC = ".ngc";
+        public const string DOTPS2 = ".ps2";
+        public const string DOTPS3 = ".ps3";
+        public const string DOTXEN = ".xen";
+
+        public const string DOT_Q = ".q";
+        public const string DOT_QB = ".qb";
+        public const string DOT_MQB = ".mqb";
+        public const string DOT_SQB = ".sqb";
+
+        public const string _GFX = "_gfx";
+        public const string _SFX = "_sfx";
+
         // QB Script constants
         public const string NEWLINE = "newline";
 
@@ -64,6 +82,7 @@ namespace GH_Toolkit_Core.QB
         public const string COLON = ":";
         public const string COMMA = ",";
         public const string DOT = ".";
+        public const string AT = "@";
 
         public const string RANDOM = "Random";
         public const string RANDOM2 = "Random2";
@@ -94,6 +113,14 @@ namespace GH_Toolkit_Core.QB
         public const string LONGJUMP = "longjump";
         public const string SHORTJUMP = "shortjump";
         public const string NEXTGLOBAL = "nextglobal";
+
+        // Unknown Script Things
+
+        public const string UNKNOWN52 = "0x52";
+        public const string UNKNOWN54 = "0x54";
+        public const string UNKNOWN55 = "0x55";
+        public const string UNKNOWN59 = "0x59";
+        public const string UNKNOWN5A = "0x5A";
 
         // Byte Constants
         public const byte NEWLINE_BYTE = 0x01;

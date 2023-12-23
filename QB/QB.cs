@@ -11,6 +11,7 @@ using static GH_Toolkit_Core.QB.QBScript;
 using static GH_Toolkit_Core.QB.QBStruct;
 using static GH_Toolkit_Core.Methods.Exceptions;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace GH_Toolkit_Core.QB
 {
@@ -127,7 +128,14 @@ namespace GH_Toolkit_Core.QB
                 if (infoByte == 0x01 && infoByte2 != 0x00)
                 {
                     infoByte = infoByte2;
-                    Type = QbType[infoByte];
+                    try
+                    {
+                        Type = QbType[infoByte];
+                    }
+                    catch
+                    {
+                        Type = QBKEY;
+                    }
                 }
                 else
                 {
@@ -287,6 +295,13 @@ namespace GH_Toolkit_Core.QB
             {0x0D, "QbKey" },
             {0x1A, "Pointer" },
             {0x1C, "QsKey" }, // AKA localized string
+
+            /*Values found in WoR in-pack scripts
+            {0x24, "WoRInteger" },
+            {0x25, "WoRFloat" },
+            {0x26, "WoRQbKey" },
+            {0x2C, "WoRArray" }
+            */
         };
 
         private static readonly Dictionary<byte, string> QbTypeGh3Ps2Struct = new Dictionary<byte, string>()
@@ -351,7 +366,13 @@ namespace GH_Toolkit_Core.QB
             string itemString;
             if (itemType == FLOAT)
             {
-                itemString = Convert.ToSingle(itemData).ToString("0.0");
+                float itemFloat = Convert.ToSingle(itemData);
+                string format = itemFloat % 1 == 0 ? "0.0" : "G";
+
+                itemString = itemFloat.ToString(format);
+                //string 
+
+                //return f.ToString(format);
             }
             else
             {
@@ -398,7 +419,10 @@ namespace GH_Toolkit_Core.QB
         }
         public static string FloatsToText(List<float> floats)
         {
-            var formattedFloats = floats.Select(f => f.ToString("0.0"));
+            var formattedFloats = floats.Select(f => {
+                string format = f % 1 == 0 ? "0.0" : "G";
+                return f.ToString(format);
+            });
             string floatString = string.Join(", ", formattedFloats);
             return $"({floatString})";
         }
@@ -555,6 +579,10 @@ namespace GH_Toolkit_Core.QB
         }
         public static List<QBItem> ParseQFile(string data)
         {
+            if (File.Exists(data))
+            {
+                data = File.ReadAllText(data);
+            }
             ParseLevel root = new ParseLevel(null, ParseState.whitespace, ROOT);
             ParseLevel currLevel = root;
             bool escaped = false;
@@ -732,6 +760,7 @@ namespace GH_Toolkit_Core.QB
                                 }
                                 break;
                             case ')':
+                            case ':':
                                 if (currLevel.LevelType != SCRIPT)
                                 {
                                     throw new NotSupportedException($"'{c}' found where it shouldn't be!");
@@ -749,6 +778,10 @@ namespace GH_Toolkit_Core.QB
                                 {
                                     tmpValue += c;
                                 }
+                                /*else if (tmpValue.StartsWith("<"))
+                                {
+                                    tmpValue += c;
+                                }*/
                                 else
                                 {
                                     AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
@@ -956,7 +989,9 @@ namespace GH_Toolkit_Core.QB
                             default:
                                 if (escaped)
                                 {
-                                    throw new InvalidOperationException("Invalid character found after escape character");
+                                    //throw new InvalidOperationException("Invalid character found after escape character");
+                                    escaped = false;
+                                    tmpValue += '\\';
                                 }
                                 tmpValue += c;
                                 break;
@@ -1194,6 +1229,10 @@ namespace GH_Toolkit_Core.QB
             {
                 currLevel.Parent.Struct.AddStructToStruct(currLevel.Name, currLevel.Struct);
             }
+            else if (currLevel.Parent.LevelType == SCRIPT)
+            {
+                currLevel.Parent.Script.AddStructToScript(currLevel.Struct);
+            }
             else
             {
                 throw new NotImplementedException();
@@ -1234,7 +1273,7 @@ namespace GH_Toolkit_Core.QB
                     throw new ArgumentException("Too many or too few float values found.");
             }
         }
-        public static void CompileQbFile(List<QBItem> file, string qbName, string game = "GH3", string console = "360")
+        public static byte[] CompileQbFile(List<QBItem> file, string qbName, string game = "GH3", string console = "360")
         {
             string qbHeader = "1C 08 02 04 10 04 08 0C 0C 08 02 04 14 02 04 0C 10 10 0C 00";
 
@@ -1299,6 +1338,7 @@ namespace GH_Toolkit_Core.QB
                 stream.Position = 0; // Reset the position of 'stream' to the beginning
                 stream.CopyTo(fullFile); // Copy the contents of 'stream' to 'fullFile'
                 byte[] currentContents = fullFile.ToArray();
+                return currentContents;
             }
         }
 

@@ -1,7 +1,9 @@
 ﻿using GH_Toolkit_Core.Debug;
 using GH_Toolkit_Core.Methods;
 using System.Diagnostics;
+using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using static GH_Toolkit_Core.QB.QB;
 using static GH_Toolkit_Core.QB.QBConstants;
 
@@ -52,18 +54,34 @@ namespace GH_Toolkit_Core.QB
             {
                 ScriptParsed.Add(byteType);
             }
-            public void StripArgData(ref string arg)
+            public void StripArgData(ref string arg, ref string type)
             {
+                if (arg.StartsWith("$"))
+                {
+                    arg = arg.Substring(1);
+                    AddScriptElem(NEXTGLOBAL);
+                    type = QBKEY;
+                }
                 if (arg.StartsWith("<") && arg.EndsWith(">"))
                 {
                     arg = arg.Substring(1, arg.Length - 2);
                     AddScriptElem(ARGUMENT);
                 }
             }
+            public void AddStructToScript(QBStruct.QBStructData data)
+            {
+                ScriptNodeStruct scriptNode = new ScriptNodeStruct(data);
+                ScriptParsed.Add(scriptNode);
+            }
             public void AddToScript(string type, object data)
             {
                 if (data is string strData)
                 {
+                    if (type == STRING || type == WIDESTRING)
+                    {
+                        ScriptParsed.Add(new ScriptNode(type, strData));
+                        return;
+                    }
                     switch (strData)
                     {
                         case EQUALS:
@@ -87,6 +105,7 @@ namespace GH_Toolkit_Core.QB
                         case COLON:
                         case COMMA:
                         case DOT:
+                        case AT:
                         case NOT:
                         case AND:
                         case OR:
@@ -101,7 +120,9 @@ namespace GH_Toolkit_Core.QB
                         case DEFAULT:
                         case ENDSCRIPT:
                         case RANDOM:
+                        case RANDOM2:
                         case RANDOMNOREPEAT:
+                        case RANDOMPERMUTE:
                         case RANDOMRANGE:
                         case RANDOMFLOAT:
                         case RANDOMINTEGER:
@@ -114,9 +135,16 @@ namespace GH_Toolkit_Core.QB
                             AddScriptElem(strData);
                             return;
                         default:
+                            string pattern = @"@\*[1-9][0-9]*";
+                            Regex regex = new Regex(pattern);
+                            if (regex.IsMatch(strData))
+                            {
+                                AddScriptElem(strData);
+                                return;
+                            }
                             break;
                     }
-                    StripArgData(ref strData);
+                    StripArgData(ref strData, ref type);
                     switch (type)
                     {
                         case MULTIFLOAT:
@@ -127,71 +155,10 @@ namespace GH_Toolkit_Core.QB
                             break;
                     }
                 }
-
             }
             public string GetIndent(int level)
             {
                 return new string('\t', level);
-            }
-            private class RandomState
-            {
-                private uint RandomEntries;
-                private uint MaxEntries;
-                private uint CurrEntry;
-                private bool AppendEntry;
-                private bool NoClose;
-                private bool MultiLine;
-                public RandomState()
-                {
-                    RandomEntries = 0;
-                    MaxEntries = 0;
-                    AppendEntry = false; // To keep track of multiline random entries and adding @ if true
-                    NoClose = false; // To keep track of closing parentheses in random events
-                    MultiLine = false;
-                }
-                public void setEntries(uint entries)
-                {
-                    RandomEntries = entries;
-                    MaxEntries = entries;
-                    CurrEntry = 0;
-                }
-                public void useEntry()
-                {
-                    RandomEntries--;
-                    CurrEntry++;
-                }
-                public void setAppend(bool status)
-                {
-                    AppendEntry = status;
-                }
-                public void setNoClose(bool status)
-                {
-                    NoClose = status;
-                }
-                public void setMulti(bool status)
-                {
-                    MultiLine = status;
-                }
-                public uint getEntries()
-                {
-                    return RandomEntries;
-                }
-                public uint getMax()
-                {
-                    return MaxEntries;
-                }
-                public bool getAppend()
-                {
-                    return AppendEntry;
-                }
-                public bool getNoClose()
-                {
-                    return NoClose;
-                }
-                public bool getMulti()
-                {
-                    return MultiLine;
-                }
             }
             public void DeleteTabs(StringBuilder sb)
             {
@@ -360,12 +327,7 @@ namespace GH_Toolkit_Core.QB
             public List<CaseNode> Cases { get; set; }
             public byte[] CrcBytes { get; set; }
             public byte[] ScriptBytes { get; set; }
-            public SwitchNode(List<object> script,
-                ref int scriptPos,
-                MemoryStream noCrcStream,
-                MemoryStream scriptStream,
-                ReadWrite writer
-                )
+            public SwitchNode(List<object> script, ref int scriptPos)
             {
                 Condition = new List<object>();
                 Cases = new List<CaseNode>();
@@ -403,23 +365,63 @@ namespace GH_Toolkit_Core.QB
                 }
 
                 Cases.Add(currCase);
-
+            }
+            private void SetFalseJumps()
+            {
+                foreach (CaseNode @case in Cases)
+                {
+                    @case.SetJumpIfFalse();
+                }
+            }
+            public void MakeBytes(List<object> script, 
+                MemoryStream noCrcStream,
+                MemoryStream scriptStream,
+                ReadWrite writer)
+            {
                 int loopStart = 0;
+                long streamStart = scriptStream.Position;
+                long crcStart = noCrcStream.Position;
+
+                writer.AddScriptToStream(SWITCH_BYTE, noCrcStream, scriptStream);
+                writer.ScriptLoop(Condition, ref loopStart, noCrcStream, scriptStream);
 
                 for (int i = 0; i < Cases.Count; i++)
                 {
                     CaseNode caseNode = Cases[i];
+                    loopStart = 0;
+                    writer.ScriptStringParse(caseNode.Type, script, ref loopStart, noCrcStream, scriptStream);
+                    writer.AddScriptToStream(SHORTJUMP_BYTE, noCrcStream, scriptStream);
+                    writer.AddShortToStream((short)caseNode.JumpIfFalse, noCrcStream, scriptStream);
+
+
+                    long streamBytesStart = scriptStream.Position;
+                    long crcBytesStart = noCrcStream.Position;
+
+                    writer.ScriptLoop(caseNode.Actions, ref loopStart, noCrcStream, scriptStream);
+
                     using (MemoryStream switchStreamForCrc = new MemoryStream())
                     using (MemoryStream switchStream = new MemoryStream())
                     {
-                        loopStart = 0;
-                        writer.ScriptLoop(caseNode.Actions, ref loopStart, switchStreamForCrc, switchStream);
+                        scriptStream.Position = streamBytesStart;
+                        noCrcStream.Position = crcBytesStart;
+                        scriptStream.CopyTo(switchStream);
+                        noCrcStream.CopyTo(switchStreamForCrc);
                         caseNode.CrcBytes = switchStreamForCrc.ToArray();
                         caseNode.ScriptBytes = switchStream.ToArray();
-                        caseNode.SetJumpIfFalse();
+                        
                     }
                     caseNode.CasesLeft = Cases.Count - (i + 1);
+                    if (caseNode.CasesLeft > 0)
+                    {
+                        writer.AddScriptToStream(SHORTJUMP_BYTE, noCrcStream, scriptStream);
+                        writer.AddShortToStream((short)caseNode.JumpIfFalse, noCrcStream, scriptStream);
+                    }
                 }
+
+                SetFalseJumps();
+
+                scriptStream.SetLength(streamStart);
+                noCrcStream.SetLength(crcStart);
 
                 using (MemoryStream switchCrc = new MemoryStream())
                 using (MemoryStream switchStream = new MemoryStream())
@@ -435,7 +437,7 @@ namespace GH_Toolkit_Core.QB
                         writer.AddShortToStream((short)caseNode.JumpIfFalse, switchCrc, switchStream);
                         writer.WriteNoFlipBytes(switchCrc, caseNode.CrcBytes);
                         writer.WriteNoFlipBytes(switchStream, caseNode.ScriptBytes);
-                        if (caseNode.Type != DEFAULT)
+                        if (caseNode.CasesLeft > 0)
                         {
                             caseNode.JumpIfTrue = MakeJumpIfTrue(i);
                             writer.AddScriptToStream(SHORTJUMP_BYTE, switchCrc, switchStream);
@@ -445,6 +447,15 @@ namespace GH_Toolkit_Core.QB
                     CrcBytes = switchCrc.ToArray();
                     ScriptBytes = switchStream.ToArray();
                 }
+            }
+            public void WriteToStream(List<object> script, 
+                MemoryStream noCrcStream,
+                MemoryStream scriptStream,
+                ReadWrite writer)
+            {
+                MakeBytes(script, noCrcStream, scriptStream, writer);
+                noCrcStream.Write(CrcBytes, 0, CrcBytes.Length);
+                scriptStream.Write(ScriptBytes, 0, ScriptBytes.Length);
             }
             public int MakeJumpIfTrue(int i)
             {
@@ -475,17 +486,14 @@ namespace GH_Toolkit_Core.QB
             }
             public void SetJumpIfFalse()
             {
-                if (Type == CASE)
+                JumpIfFalse = ScriptBytes.Length;
+                if (CasesLeft > 0)
                 {
-                    JumpIfFalse = ScriptBytes.Length + 5; // 2 bytes for the False short, plus 1 for the short jump byte plus 2 bytes for the True short
-                }
-                else if (Type == DEFAULT)
-                {
-                    JumpIfFalse = ScriptBytes.Length + 1; // This should place it one before the endswitch byte. Add 2 for the if false short, subtract one because endswitch is included
+                    JumpIfFalse += 5; // 2 bytes for the False short, plus 1 for the short jump byte plus 2 bytes for the True short
                 }
                 else
                 {
-                    throw new NotSupportedException("Strange Case Type found.");
+                    JumpIfFalse += 1; // This should place it one before the endswitch byte. Add 2 for the if false short, subtract one because endswitch is included
                 }
             }
         }
@@ -539,7 +547,9 @@ namespace GH_Toolkit_Core.QB
         {
             public uint ByteSize { get; set; }
             public QBStruct.QBStructData Data { get; set; }
-            public byte[] Bytes { get; set; }
+            public byte[] CrcBytes { get; set; }
+            public byte[] ScriptBytes { get; set; }
+
             public ScriptNodeStruct(MemoryStream stream)
             {
                 ByteSize = ScriptReader.ReadUInt16(stream);
@@ -552,18 +562,22 @@ namespace GH_Toolkit_Core.QB
                 }
 
             }
+            public ScriptNodeStruct(QBStruct.QBStructData data)
+            {
+                Data = data;
+            }
         }
         public class ConditionalCollection
         {
             public List<Conditional> Conditionals { get; set; }
             public byte[] CrcBytes { get; set; }
             public byte[] ScriptBytes { get; set; }
+            public int ElseIfs { get; set; }
             public ConditionalCollection(List<object> script,
                 ref int scriptPos,
                 MemoryStream noCrcStream,
                 MemoryStream scriptStream,
-                ReadWrite writer
-                )
+                ReadWrite writer)
             {
                 Conditionals = new List<Conditional>();
                 Conditional currCondition = new Conditional(IF);
@@ -589,7 +603,10 @@ namespace GH_Toolkit_Core.QB
                     }
                     else if (currItem == IF)
                     {
-                        throw new Exception();
+                        scriptPos++;
+                        ConditionalCollection conditional = new ConditionalCollection(script, ref scriptPos, noCrcStream, scriptStream, writer);
+                        currCondition.Actions.Add(conditional);
+                        scriptPos--;
                     }
                     else
                     {
@@ -598,25 +615,74 @@ namespace GH_Toolkit_Core.QB
                     scriptPos += 1;
                 }
 
-                Conditionals.Add(currCondition);
+                ElseIfs = elseIfs;
 
+                Conditionals.Add(currCondition);
+            }
+            public uint MakeJumpEnd(int i)
+            {
+                uint jumpEnd = 0;
+                for (int j = i; j < Conditionals.Count; j++)
+                {
+                    jumpEnd += Conditionals[j].Jump;
+                    jumpEnd -= 2; // Since this takes place 2 bytes after the Jump byte, also for else jump being after
+                    try
+                    {
+                        if (Conditionals[j + 1].Type == ELSEIF)
+                        {
+                            jumpEnd += 3;
+                        }
+                    }
+                    catch { }
+                }
+                return jumpEnd;
+            }
+            public void MakeBytes(MemoryStream noCrcStream,
+                MemoryStream scriptStream,
+                ReadWrite writer)
+            {
                 int loopStart = 0;
+                long streamStart = scriptStream.Position;
+                long crcStart = noCrcStream.Position;
 
                 for (int i = 0; i < Conditionals.Count; i++)
                 {
                     Conditional conditional = Conditionals[i];
-                    using (MemoryStream switchStreamForCrc = new MemoryStream())
+                    /*using (MemoryStream switchStreamForCrc = new MemoryStream())
                     using (MemoryStream switchStream = new MemoryStream())
+                    {*/
+                    loopStart = 0;
+                    byte[] condByte = { 0x0 };
+                    byte[] bytes = [0x0, 0x0];
+                    scriptStream.Write(condByte, 0, condByte.Length);
+                    scriptStream.Write(bytes, 0, bytes.Length);
+                    noCrcStream.Write(condByte, 0, condByte.Length);
+                    noCrcStream.Write(bytes, 0, bytes.Length);
+                    if (conditional.Type == ELSEIF)
                     {
-                        loopStart = 0;
-                        writer.ScriptLoop(conditional.Actions, ref loopStart, switchStreamForCrc, switchStream);
-                        conditional.CrcBytes = switchStreamForCrc.ToArray();
-                        conditional.ScriptBytes = switchStream.ToArray();
-                        conditional.SetJump();
+                        scriptStream.Write(bytes, 0, bytes.Length);
+                        noCrcStream.Write(bytes, 0, bytes.Length);
                     }
+
+                    long streamBytesStart = scriptStream.Position;
+                    long crcBytesStart = noCrcStream.Position;
+
+
+                    writer.ScriptLoop(conditional.Actions, ref loopStart, noCrcStream, scriptStream);
+                    using (MemoryStream ifStreamForCrc = new MemoryStream())
+                    using (MemoryStream ifStream = new MemoryStream())
+                    {
+                        scriptStream.Position = streamBytesStart;
+                        noCrcStream.Position = crcBytesStart;
+                        scriptStream.CopyTo(ifStream);
+                        noCrcStream.CopyTo(ifStreamForCrc);
+                        conditional.CrcBytes = ifStreamForCrc.ToArray();
+                        conditional.ScriptBytes = ifStream.ToArray();
+                    }
+                    conditional.SetJump();
                 }
 
-                if (elseIfs > 0)
+                if (ElseIfs > 0)
                 {
                     for (int i = 0; i < Conditionals.Count; i++)
                     {
@@ -627,6 +693,9 @@ namespace GH_Toolkit_Core.QB
                         }
                     }
                 }
+
+                scriptStream.SetLength(streamStart);
+                noCrcStream.SetLength(crcStart);
 
                 using (MemoryStream ifCrc = new MemoryStream())
                 using (MemoryStream ifStream = new MemoryStream())
@@ -652,23 +721,13 @@ namespace GH_Toolkit_Core.QB
                     ScriptBytes = ifStream.ToArray();
                 }
             }
-            public uint MakeJumpEnd(int i)
+            public void WriteToStream(MemoryStream noCrcStream,
+                MemoryStream scriptStream,
+                ReadWrite writer)
             {
-                uint jumpEnd = 0;
-                for (int j = i; j < Conditionals.Count; j++)
-                {
-                    jumpEnd += Conditionals[j].Jump;
-                    jumpEnd -= 2; // Since this takes place 2 bytes after the Jump byte, also for else jump being after
-                    try
-                    {
-                        if (Conditionals[j + 1].Type == ELSEIF)
-                        {
-                            jumpEnd += 3;
-                        }
-                    }
-                    catch { }
-                }
-                return jumpEnd;
+                MakeBytes(noCrcStream, scriptStream, writer);
+                noCrcStream.Write(CrcBytes, 0, CrcBytes.Length);
+                scriptStream.Write(ScriptBytes, 0, ScriptBytes.Length);
             }
         }
         [DebuggerDisplay("{Type}")]
@@ -759,6 +818,8 @@ namespace GH_Toolkit_Core.QB
             public string Name { get; set; }
             public uint Entries { get; set; }
             public List<RandomEntry> RandomEntries { get; set; } = new List<RandomEntry>();
+            public byte[] CrcBytes { get; set; }
+            public byte[] ScriptBytes { get; set; }
             public ScriptRandom(string random, MemoryStream stream)
             {
                 Name = random;
@@ -782,24 +843,239 @@ namespace GH_Toolkit_Core.QB
                     while (stream.Position < randEnd)
                     {
                         AddToList(stream, entry.Actions, ref nextGlobal, ref nextArg);
-                        currItem = entry.Actions.Last();
+                        object newItemCheck = entry.Actions.Last();
+                        if (newItemCheck is string newItem && currItem is string currString)
+                        {
+                            if (newItem == currString && newItem == NEWLINE)
+                            {
+                                stream.Position--;
+                                entry.Actions.RemoveAt(entry.Actions.Count - 1);
+                                break;
+                            }
+                        }
+                        currItem = newItemCheck;
                         if (currItem is ScriptLongJump longJump)
                         {
                             randEnd = (uint)stream.Position + longJump.Jump;
                             entriesCountdown--;
                             break;
                         }
+
                     }
                 }
+            }
+            public ScriptRandom(string name,
+                List<object> script,
+                ref int scriptPos
+                )
+            {
+                Name = name;
+                string currItem = "";
+                int brackets = 0;
+                RandomEntry randomEntry = null;
+                do
+                {
+                    object scriptItem = script[scriptPos];
+                    UpdateItem(ref currItem, scriptItem);
+                    if (currItem == LEFTPAR)
+                    {
+                        brackets++;
+                        if (brackets != 1)
+                        {
+                            randomEntry.Actions.Add(scriptItem);
+                        }
+                    }
+                    else if (currItem == RIGHTPAR)
+                    {
+                        brackets--;
+                        if (brackets != 0)
+                        {
+                            randomEntry.Actions.Add(scriptItem);
+                        }
+                    }
+                    else if (currItem.StartsWith("@"))
+                    {
+                        if (randomEntry != null)
+                        {
+                            RandomEntries.Add(randomEntry);
+                        }
+                        randomEntry = new RandomEntry(currItem);
+                    }
+                    else
+                    {
+                        randomEntry.Actions.Add(scriptItem);
+                    }
+                    if (currItem != "")
+                    {
+                        currItem = "";
+                    }
+                    scriptPos++;
+                } while (brackets > 0);
+
+                RandomEntries.Add(randomEntry);
+            }
+            private void FakeHeader(ReadWrite writer, MemoryStream fakeCrc,
+                MemoryStream fakeStream)
+            {
+                // This is needed since in-line structs are 4-byte boundary dependent
+                // All bytes need to be written as if they're already calculated
+                // They will be deleted later and replaced with the real data
+                byte condByte = writer.GetScriptByte(Name);
+                writer.AddScriptToStream(condByte, fakeCrc, fakeStream);
+                writer.AddIntToStream(RandomEntries.Count, fakeCrc, fakeStream);
+                for (int i = 0; i < RandomEntries.Count; i++)
+                {
+                    RandomEntry entry = RandomEntries[i];
+                    writer.AddShortToStream(entry.Weight, fakeCrc, fakeStream);
+                }
+                for (int i = 0; i < RandomEntries.Count; i++)
+                {
+                    RandomEntry entry = RandomEntries[i];
+                    writer.AddIntToStream(entry.Offset, fakeCrc, fakeStream);
+                }
+            }
+            public void MakeBytes(MemoryStream noCrcStream,
+                MemoryStream scriptStream,
+                ReadWrite writer)
+            {
+                int loopStart = 0;
+                long streamStart = scriptStream.Position;
+                long crcStart = noCrcStream.Position;
+
+                FakeHeader(writer, noCrcStream, scriptStream);
+
+                for (int i = 0; i < RandomEntries.Count; i++)
+                {
+                    RandomEntry randomEntry = RandomEntries[i];
+                    loopStart = 0;
+
+                    long streamBytesStart = scriptStream.Position;
+                    long crcBytesStart = noCrcStream.Position;
+
+                    writer.ScriptLoop(randomEntry.Actions, ref loopStart, noCrcStream, scriptStream);
+                    using (MemoryStream randStreamForCrc = new MemoryStream())
+                    using (MemoryStream randStream = new MemoryStream())
+                    {
+                        scriptStream.Position = streamBytesStart;
+                        noCrcStream.Position = crcBytesStart;
+                        scriptStream.CopyTo(randStream);
+                        noCrcStream.CopyTo(randStreamForCrc);
+                        randomEntry.CrcBytes = randStreamForCrc.ToArray();
+                        randomEntry.ScriptBytes = randStream.ToArray();
+                    }
+                    if (i != RandomEntries.Count - 1)
+                    {
+                        byte[] longBytes = { 0x0, 0x0, 0x0, 0x0, 0x0 };
+                        scriptStream.Write(longBytes, 0, longBytes.Length);
+                        noCrcStream.Write(longBytes, 0, longBytes.Length);
+                    }
+
+                    randomEntry.Offset = SetOffset(i);
+                }
+
+                scriptStream.SetLength(streamStart);
+                noCrcStream.SetLength(crcStart);
+
+                using (MemoryStream randomCrc = new MemoryStream())
+                using (MemoryStream randomStream = new MemoryStream())
+                {
+                    byte condByte = writer.GetScriptByte(Name);
+                    writer.AddScriptToStream(condByte, randomCrc, randomStream);
+                    writer.AddIntToStream(RandomEntries.Count, randomCrc, randomStream);
+                    for (int i = 0; i < RandomEntries.Count; i++)
+                    {
+                        RandomEntry entry = RandomEntries[i];
+                        SetLongJump(i);
+                        writer.AddShortToStream(entry.Weight, randomCrc, randomStream);
+                    }
+                    for (int i = 0; i < RandomEntries.Count; i++)
+                    {
+                        RandomEntry entry = RandomEntries[i];
+                        writer.AddIntToStream(entry.Offset, randomCrc, randomStream);
+                    }
+                    for (int i = 0; i < RandomEntries.Count; i++)
+                    {
+                        RandomEntry entry = RandomEntries[i];
+                        writer.WriteNoFlipBytes(randomCrc, entry.CrcBytes);
+                        writer.WriteNoFlipBytes(randomStream, entry.ScriptBytes);
+                        if (i != RandomEntries.Count - 1)
+                        {
+                            writer.AddScriptToStream(LONGJUMP_BYTE, randomCrc, randomStream);
+                            writer.AddIntToStream(entry.LongJump, randomCrc, randomStream);
+                        }
+                    }
+                    CrcBytes = randomCrc.ToArray();
+                    ScriptBytes = randomStream.ToArray();
+                }
+            }
+            public void WriteToStream(MemoryStream noCrcStream,
+                MemoryStream scriptStream,
+                ReadWrite writer)
+            {
+                MakeBytes(noCrcStream, scriptStream, writer);
+                noCrcStream.Write(CrcBytes, 0, CrcBytes.Length);
+                scriptStream.Write(ScriptBytes, 0, ScriptBytes.Length);
+            }
+            private int SetOffset(int loopIter)
+            {
+                int count = RandomEntries.Count - 1;
+                int offset = (count - loopIter) * 4;
+
+                if (loopIter != 0)
+                {
+                    for (int i = 0; i < loopIter; i++)
+                    {
+                        RandomEntry randomEntry = RandomEntries[i];
+                        offset += randomEntry.ScriptBytes.Length;
+                        offset += 5; // Long Jump to end of random
+                    }
+                }
+
+                return offset;
+            }
+            private void SetLongJump(int loopIter)
+            {
+                int count = RandomEntries.Count - 1;
+                int longJump = 0;
+                for (int i = loopIter +1; i <= count; i++)
+                {
+                    RandomEntry randomEntry = RandomEntries[i];
+                    longJump += randomEntry.ScriptBytes.Length;
+                    if (i != (count))
+                    {
+                        longJump += 5;
+                    }
+                }
+                RandomEntries[loopIter].LongJump = longJump;
             }
         }
         public class RandomEntry
         {
             public short Weight { get; set; }
+            public int Offset { get; set; }
+            public int LongJump { get; set; }
             public List<object> Actions { get; set; } = new List<object>();
+            public byte[] CrcBytes { get; set; }
+            public byte[] ScriptBytes { get; set; }
             public RandomEntry(MemoryStream stream)
             {
                 Weight = ScriptReader.ReadInt16(stream);
+            }
+            public RandomEntry(string weight)
+            {
+                if (weight == AT)
+                {
+                    Weight = 1;
+                }
+                else
+                {
+                    string[] splitString = weight.Split('*');
+                    if (splitString.Length > 2)
+                    {
+                        throw new NotSupportedException("There appear to be multiple * values in the weight");
+                    }
+                    Weight = Convert.ToInt16(splitString[1]);
+                }
             }
             public string WeightString()
             {
@@ -1090,6 +1366,23 @@ namespace GH_Toolkit_Core.QB
                 case 0x50:
                     list.Add(RANDOMINTEGER);
                     break;
+                // The below are added when calling certain scripts. Could it be references?
+                case 0x52:
+                    list.Add(UNKNOWN52); // Something with int values
+                    break;
+                case 0x54:
+                    list.Add(UNKNOWN54); // Something with pointers or qbkeys
+                    break;
+                case 0x55:
+                    list.Add(UNKNOWN55); // Something with QS strings?
+                    break;
+                case 0x59:
+                    list.Add(UNKNOWN59); // Something with structs
+                    break;
+                case 0x5A:
+                    list.Add(UNKNOWN5A); // Something with Arrays
+                    break;
+
                 default:
                     throw new Exception("Not supported");
             }

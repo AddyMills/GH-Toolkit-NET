@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using System.IO;
 using System.Linq;
 using System.Reflection.Metadata.Ecma335;
 using System.Security.Cryptography;
@@ -11,6 +13,9 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using GH_Toolkit_Core.Debug;
 using GH_Toolkit_Core.Methods;
+using static GH_Toolkit_Core.PAK.PAK;
+using static GH_Toolkit_Core.QB.QB;
+using static GH_Toolkit_Core.QB.QBConstants;
 
 namespace GH_Toolkit_Core.PAK
 {
@@ -27,8 +32,109 @@ namespace GH_Toolkit_Core.PAK
             public string? NameNoExt { get; set; }
             public uint Parent { get; set; }
             public int Flags { get; set; }
+            public string? FullFlagPath { get; set; } // If flags contains 0x20 byte, this gets added
             public byte[]? EntryData { get; set; }
+            public byte[]? ExtraData { get; set; }
+            public string ConsoleType {  get; set; }
+            public int ByteLength { get; set; }
+            public PakEntry()
+            {
+
+            }
+            public PakEntry(string console, string game)
+            {
+                if (console == CONSOLE_PS2 && game == GAME_GH3)
+                {
+                    MakeLastEntry("last");
+                }
+                else
+                {
+                    MakeLastEntry(".last");
+                }
+            }
+            public PakEntry(byte[] bytes, string console)
+            {
+                EntryData = bytes;
+                FileSize = (uint)EntryData.Length;
+                ConsoleType = console;
+                ByteLength = 32;
+            }
+            public void MakeLastEntry(string lastType)
+            {
+                EntryData = [0xAB, 0xAB, 0xAB, 0xAB];
+                FileSize = (uint)EntryData.Length;
+                ByteLength = 32;
+                SetExtension(lastType);
+                SetNameNoExt("0x0");
+                SetFullName("0x0");
+            }
+            public void SetExtension(string extension)
+            {
+                Extension = extension;
+            }
+            public void SetNameNoExt(string nameNoExt)
+            {
+                NameNoExt = nameNoExt;
+            }
+            public void SetFullFlagPath(string fullFlagPath)
+            {
+                FullFlagPath = fullFlagPath;
+            }
+            public void SetFullName(string fullName)
+            { 
+                FullName = fullName;
+            }
+            public void SetNames(bool isQb)
+            {
+                if (ConsoleType == CONSOLE_PS2)
+                {
+                    if ((Flags & 0x20) != 0)
+                    {
+                        AssetContext = FullFlagPath;
+                        FullFlagPath = FullFlagPath.PadRight(160, '\0');
+                        ByteLength += 160;
+                    }
+                    if (!isQb && FullFlagPath.EndsWith(DOTPS2))
+                    {
+                        AssetContext = AssetContext.Substring(0, AssetContext.Length - 4);
+                    }
+                    FullName = FLAGBYTE;
+                }
+                else
+                {
+
+                }
+            }
+            public void SetFlags()
+            {
+                if (ConsoleType == CONSOLE_PS2)
+                {
+                    switch (Extension)
+                    {
+                        case DOT_QB:
+                        case DOT_MQB:
+                        case DOT_SQB:
+                            Flags |= 0x20;
+                            break;
+                        default: 
+                            throw new NotImplementedException();
+                    }
+                    if (NameNoExt.LastIndexOf(_SFX) != -1)
+                    {
+                        Flags |= 0x02;
+                    }
+                    else if (NameNoExt.LastIndexOf(_GFX) != -1)
+                    {
+                        Flags |= 0x04;
+                    }
+                }
+                else
+                {
+                    Flags = 0;
+                }
+            }
         }
+
         public static void ProcessPAKFromFile(string file)
         {
             string fileName = Path.GetFileName(file);
@@ -98,6 +204,7 @@ namespace GH_Toolkit_Core.PAK
                 }
 
                 string saveName = Path.Combine(NewFolderPath, pakFileName);
+                Console.WriteLine(pakFileName);
                 Directory.CreateDirectory(Path.GetDirectoryName(saveName));
                 File.WriteAllBytes(saveName, entry.EntryData);
 
@@ -159,8 +266,6 @@ namespace GH_Toolkit_Core.PAK
                 }
             }
             List<PakEntry> pakList = ExtractOldPak(pakBytes, endian, songName);
-
-
 
             return pakList;
         }
@@ -244,7 +349,7 @@ namespace GH_Toolkit_Core.PAK
                     {
                         entry.FullName = entry.AssetContext;
                     }
-                    entry.FullName = entry.FullName.Replace(".qb", entry.Extension);
+                    // entry.FullName = entry.FullName.Replace(".qb", entry.Extension);
                     if (entry.FullName.IndexOf(entry.Extension, StringComparison.CurrentCultureIgnoreCase) == -1) 
                     {
                         entry.FullName += entry.Extension;
@@ -268,6 +373,219 @@ namespace GH_Toolkit_Core.PAK
 
             Console.WriteLine("Success!");
             return PakList;
+        }
+        public class PakCompiler
+        {
+            public string Game { get; set; }
+            public string ConsoleType { get; set; }
+            public bool IsQb {  get; set; }
+            public bool Split {  get; set; }
+            private ReadWrite Writer { get; set; }
+            public PakCompiler(string game, bool isQb = false, bool split = false)
+            {
+                Game = game;
+                IsQb = isQb; // Meaning qb.pak, really only used for PS2 to differentiate .qb files from .mqb files
+                Split = split;
+            }
+            private void SetConsole(string filePath)
+            {
+                string ext = Path.GetExtension(filePath).ToLower();
+                if (ext == DOTPS2)
+                {
+                    ConsoleType = CONSOLE_PS2;
+                    Writer = new ReadWrite("little");
+                }
+                else
+                {
+                    ConsoleType = CONSOLE_XBOX;
+                    Writer = new ReadWrite("big");
+                }
+                Console.WriteLine($"Compiling {ConsoleType} PAK file.");
+            }
+            public (byte[]? itemData, byte[]? otherData, string console) CompilePAK(string folderPath)
+            {
+                if (!Directory.Exists(folderPath))
+                {
+                    throw new NotSupportedException("Argument given is not a folder.");
+                }
+
+                //string[] entries = Directory.GetFileSystemEntries(folderPath);
+                string[] entries = Directory.GetFileSystemEntries(folderPath, "*", SearchOption.AllDirectories);
+                /*string[] entries = File.ReadAllLines("D:\\Visual Studio\\Repos\\PAK Compiler\\qb_listing.txt");
+
+                for (int i  = 0; i < entries.Length; i++)
+                {
+                    entries[i] = Path.Combine(folderPath, entries[i]);
+                }*/
+                /*
+                 * List<string> files = new List<string>();
+                foreach(string entry in entries)
+                {
+                    if (File.Exists(entry))
+                    {
+                        files.Add(entry);
+                    }
+                    else if (Directory.Exists(entry))
+                    {
+                        string[] tempEntries = Directory.GetFileSystemEntries(entry, "*", SearchOption.AllDirectories);
+                        List<string> tempFiles = new List<string>();
+                        foreach (string tempEntry in tempEntries)
+                        {
+                            if (File.Exists(tempEntry))
+                            {
+                                tempFiles.Add(tempEntry.Substring(0, tempEntry.IndexOf('.')));
+                            }
+                        }
+                        tempEntries = tempFiles.ToArray();
+                        Array.Sort(tempEntries);
+                        Array.Reverse(tempEntries);
+                        files.AddRange(tempEntries);
+                    }
+                }
+
+                entries = files.ToArray(); */
+
+                for (int i = 0; i < entries.Length; i++)
+                {
+                    if (File.Exists(entries[i]))
+                    {
+                        SetConsole(entries[i]);
+                        break;
+                    } 
+                }
+                List<PakEntry> PakEntries = new List<PakEntry>();
+                List<string> fileNames = new List<string>();
+                int pakSize = 16;
+
+                foreach (string entry in entries)
+                {
+                    if (File.Exists(entry))
+                    {
+                        byte[] fileData;
+                        string relPath = GetRelPath(folderPath, entry);
+                        if (Path.GetExtension(entry) == DOT_Q)
+                        {
+                            List<QBItem> qBItems = ParseQFile(entry);
+                            relPath += "b";
+                            fileData = CompileQbFile(qBItems, relPath);
+                            if (ConsoleType == CONSOLE_PS2)
+                            {
+                                relPath += ".ps2";
+                            }
+                            else
+                            {
+                                relPath += ".xen";
+                            }
+                        }
+                        else
+                        {
+                            fileData = File.ReadAllBytes(entry);
+                        }
+                        PakEntry pakEntry = new PakEntry(fileData, ConsoleType);
+                        
+                        pakEntry.SetFullFlagPath(relPath);
+                        pakEntry.SetNameNoExt(GetFileNoExt(Path.GetFileName(relPath)));
+                        pakEntry.SetExtension(GetFileExt(relPath));
+                        pakEntry.SetFlags();
+                        pakEntry.SetNames(IsQb);
+
+                        if (!fileNames.Contains(pakEntry.NameNoExt))
+                        {
+                            fileNames.Add(pakEntry.NameNoExt);
+                        }
+                        else
+                        {
+
+                        }
+                        PakEntries.Add(pakEntry);
+                        pakSize += pakEntry.ByteLength;
+                    }
+                }
+
+                PakEntries.Add(new PakEntry(ConsoleType, Game));
+                pakSize += PakEntries[fileNames.Count].ByteLength;
+
+                byte[] pakData;
+                byte[] pabData;
+
+                using (MemoryStream pak = new MemoryStream())
+                using (MemoryStream pab = new MemoryStream())
+                {
+                    int bytesPassed = 0;
+                    foreach (PakEntry entry in PakEntries)
+                    {
+                        entry.StartOffset = (uint)(pakSize - bytesPassed + pab.Position);
+                        pak.Write(Writer.ValueHex(entry.Extension), 0, 4);
+                        pak.Write(Writer.ValueHex(entry.StartOffset), 0, 4);
+                        pak.Write(Writer.ValueHex(entry.FileSize), 0, 4);
+                        pak.Write(Writer.ValueHex(entry.AssetContext), 0, 4);
+                        pak.Write(Writer.ValueHex(entry.FullName), 0, 4);
+                        pak.Write(Writer.ValueHex(entry.NameNoExt), 0, 4);
+                        pak.Write(Writer.ValueHex(entry.Parent), 0, 4);
+                        pak.Write(Writer.ValueHex(entry.Flags), 0, 4);
+                        if ((entry.Flags & 0x20) != 0)
+                        {
+                            ReadWrite.WriteStringBytes(pak, entry.FullFlagPath);
+                        }
+                        pab.Write(entry.EntryData);
+                        Writer.PadStreamTo(pab, 16);
+                        bytesPassed += entry.ByteLength;
+                    }
+                    ReadWrite.WriteStringBytes(pak, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
+                    pakData = pak.ToArray();
+                    pabData = pab.ToArray();
+                }
+                return (pakData, pabData, ConsoleType);
+
+            }
+            private string GetFileExt(string path)
+            {
+                string fileEnd = path.Substring(path.LastIndexOf('.')).ToLower();
+                string extension;
+                switch (fileEnd)
+                {
+                    case DOTNGC:
+                    case DOTPS2:
+                    case DOTPS3:
+                    case DOTXEN:
+                        extension = Path.GetExtension(Path.GetFileNameWithoutExtension(path)).ToLower();
+                        break;
+                    default:
+                        extension = Path.GetExtension(path).ToLower();
+                        break;
+                }
+                if (ConsoleType == CONSOLE_PS2 && extension == DOT_QB && !IsQb)
+                {
+                    if (path.IndexOf("_scripts") != -1 && path.IndexOf("song_scripts") == -1)
+                    {
+                        extension = DOT_SQB;
+                    }
+                    else
+                    {
+                        extension = DOT_MQB;
+                    }
+                }
+                return extension;
+            }
+            private string GetFileNoExt(string path)
+            {
+                string noExt = Path.GetFileNameWithoutExtension(path);
+                while (Path.GetFileNameWithoutExtension(noExt) != noExt)
+                {
+                    noExt = Path.GetFileNameWithoutExtension(noExt);
+                }
+                return noExt;
+            }
+            private string GetRelPath(string folderPath, string entry)
+            {
+                string relPath = Path.GetRelativePath(folderPath, entry);
+                if (ConsoleType == CONSOLE_PS2)
+                {
+                    return relPath;
+                }
+
+                return Path.GetFileNameWithoutExtension(relPath); 
+            }
         }
     }
 }

@@ -115,6 +115,7 @@ namespace GH_Toolkit_Core.PS2
 
             foreach (var entry in hedEntries)
             {
+                Console.WriteLine($"Adding {entry.RelPath}");
                 entry.sectorIndex = sectorIndex;
                 UpdateFolderEntries(entry, folders, folderChecks);
                 hedFile.AddEntry(sectorIndex, entry.fileSize, "\\" + entry.RelPath);

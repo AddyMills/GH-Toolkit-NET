@@ -134,6 +134,11 @@ namespace GH_Toolkit_Core.Methods
             byte[] byteArray = Encoding.UTF8.GetBytes(str);
             stream.Write(byteArray, 0, byteArray.Length);
         }
+        public static void WriteStringBytes(MemoryStream stream, string str)
+        {
+            byte[] byteArray = Encoding.UTF8.GetBytes(str);
+            stream.Write(byteArray, 0, byteArray.Length);
+        }
         public static void FillNullTermString(MemoryStream stream, uint padding)
         {
             byte[] nullBytes = new byte[padding];
@@ -228,24 +233,38 @@ namespace GH_Toolkit_Core.Methods
         }
         public void PadStreamToFour(Stream stream)
         {
+            PadStreamTo(stream, 4);
+        }
+
+        public void PadStreamTo(Stream stream, int padding)
+        {
             // Ensure the stream is writable
             if (!stream.CanWrite)
             {
                 throw new InvalidOperationException("Stream is not writable.");
             }
 
-            // Calculate the padding needed to make the length divisible by 4
-            long paddingNeeded = 4 - (stream.Length % 4);
-            if (paddingNeeded != 4) // If the length is already a multiple of 4, paddingNeeded will be 4
+            // Calculate the padding needed to make the length divisible by {padding}
+            long paddingNeeded = padding - (stream.Length % padding);
+            if (paddingNeeded != padding) // If the length is already a multiple of {padding}, paddingNeeded will be {padding}
             {
-                byte[] padding = new byte[paddingNeeded];
-                stream.Seek(0, SeekOrigin.End); // Go to the end of the stream
-                stream.Write(padding, 0, (int)paddingNeeded); // Write the padding bytes
+                AddPaddingToStream(paddingNeeded, stream);
             }
+        }
+
+        public void AddPaddingToStream(long paddingNeeded, Stream stream)
+        {
+            byte[] padding = new byte[paddingNeeded];
+            stream.Seek(0, SeekOrigin.End); // Go to the end of the stream
+            stream.Write(padding, 0, (int)paddingNeeded); // Write the padding bytes
         }
 
         public byte[] ValueHex(string text) // For Qb Keys, Qs Keys, and Pointers
         {
+            if (text == null)
+            {
+                text = "0x0";
+            }
             var qbKey = CRC.QBKey(text);
             var qbKeyInt = Convert.ToInt32(qbKey, 16);
             var bytes = BitConverter.GetBytes(qbKeyInt);
@@ -257,6 +276,11 @@ namespace GH_Toolkit_Core.Methods
             return ProcessBytes(bytes);
         }
         public byte[] ValueHex(int value)
+        {
+            byte[] bytes = BitConverter.GetBytes(value);
+            return ProcessBytes(bytes);
+        }
+        public byte[] ValueHex(uint value)
         {
             byte[] bytes = BitConverter.GetBytes(value);
             return ProcessBytes(bytes);
@@ -484,19 +508,39 @@ namespace GH_Toolkit_Core.Methods
             {
                 ScriptStringParse(scriptString, script, ref i, noCrcStream, scriptStream);
             }
-            else if (o is QBScript.ScriptNode scriptNode)
+            else if (o is ScriptNode scriptNode)
             {
                 byte scriptType = _scriptbytes[scriptNode.Type];
                 AddScriptToStream(scriptType, noCrcStream, scriptStream);
                 byte[] scriptBytes = _scriptwriter.GetScriptBytes(scriptNode.Type, scriptNode.DataQb);
                 _scriptwriter.AddArrayToStream(scriptBytes, scriptType, noCrcStream, scriptStream);
             }
-            else if (o is QBScript.ScriptTuple scriptTuple)
+            else if (o is ScriptTuple scriptTuple)
             {
                 byte scriptType = _scriptbytes[scriptTuple.Type];
                 AddScriptToStream(scriptType, noCrcStream, scriptStream);
                 byte[] scriptBytes = _scriptwriter.GetScriptBytes(scriptTuple.Type, scriptTuple.Data);
                 _scriptwriter.AddArrayToStream(scriptBytes, scriptType, noCrcStream, scriptStream);
+            }
+            else if (o is ScriptNodeStruct scriptStruct)
+            {
+                byte scriptType = _scriptbytes[STRUCT];
+                AddScriptToStream(scriptType, noCrcStream, scriptStream);
+                byte[] scriptBytes = GetScriptBytes(STRUCT, scriptStruct.Data); // This can be little or big endian
+                AddShortToStream((short)scriptBytes.Length, noCrcStream, scriptStream);
+                if (scriptStream.Length % 4 != 0)
+                {
+                    // For some ungodly reason, structs have to start on a 4-byte boundary, even in scripts!
+                    // These blanks have to be added to both the stream and the script CRC
+                    long paddingNeeded = 4 - (scriptStream.Length % 4);
+                    PadStreamToFour(scriptStream);
+                    AddPaddingToStream(paddingNeeded, noCrcStream);
+                }
+                _scriptwriter.AddArrayToStream(scriptBytes, scriptType, noCrcStream, scriptStream);
+            }
+            else if (o is ConditionalCollection scriptConditional)
+            {
+                scriptConditional.WriteToStream(noCrcStream, scriptStream, this);
             }
             else
             {
@@ -510,27 +554,34 @@ namespace GH_Toolkit_Core.Methods
             MemoryStream scriptStream
             )
         {
-            if (scriptString == SWITCH)
+            switch (scriptString)
             {
-                scriptPos += 1;
-                SwitchNode switchNode = new SwitchNode(script, ref scriptPos, crcStream, scriptStream, this);
-                crcStream.Write(switchNode.CrcBytes, 0, switchNode.CrcBytes.Length);
-                scriptStream.Write(switchNode.ScriptBytes, 0, switchNode.ScriptBytes.Length);
-                scriptPos -= 1;
-                //throw new NotImplementedException();
+                case SWITCH:
+                    scriptPos += 1;
+                    SwitchNode switchNode = new SwitchNode(script, ref scriptPos);
+                    switchNode.WriteToStream(script, crcStream, scriptStream, this);
+                    scriptPos -= 1;
+                    break;
+                case IF:
+                    scriptPos += 1;
+                    ConditionalCollection conditional = new ConditionalCollection(script, ref scriptPos, crcStream, scriptStream, this);
+                    conditional.WriteToStream(crcStream, scriptStream, this);
+                    scriptPos -= 1;
+                    break;
+                case RANDOM:
+                case RANDOM2:
+                case RANDOMNOREPEAT:
+                case RANDOMPERMUTE:
+                    scriptPos += 1;
+                    ScriptRandom scriptRandom = new ScriptRandom(scriptString, script, ref scriptPos);
+                    scriptRandom.WriteToStream(crcStream, scriptStream, this);
+                    scriptPos -= 1;
+                    break;
+                default:
+                    AddScriptToStream(_scriptbytes[scriptString], crcStream, scriptStream);
+                    break;
             }
-            else if (scriptString == IF)
-            {
-                scriptPos += 1;
-                ConditionalCollection conditional = new ConditionalCollection(script, ref scriptPos, crcStream, scriptStream, this);
-                crcStream.Write(conditional.CrcBytes, 0, conditional.CrcBytes.Length);
-                scriptStream.Write(conditional.ScriptBytes, 0, conditional.ScriptBytes.Length);
-                scriptPos -= 1;
-            }
-            else
-            {
-                AddScriptToStream(_scriptbytes[scriptString], crcStream, scriptStream);
-            }
+
         }
         public void AddScriptToStream(byte scriptByte, MemoryStream noCrcStream, MemoryStream scriptStream)
         {
@@ -539,17 +590,23 @@ namespace GH_Toolkit_Core.Methods
                 noCrcStream.WriteByte(scriptByte);
             }
             scriptStream.WriteByte(scriptByte);
-            if (scriptByte == NEXTGLOBAL_BYTE)
+            /*if (scriptByte == NEXTGLOBAL_BYTE)
             {
                 noCrcStream.WriteByte(QBKEY_BYTE);
                 scriptStream.WriteByte(QBKEY_BYTE);
-            }
+            }*/
         }
         public void AddShortToStream(short shortVal, MemoryStream noCrcStream, MemoryStream scriptStream)
         {
             byte[] shortBytes = _scriptwriter.ValueHex(shortVal);
             noCrcStream.Write(shortBytes, 0, shortBytes.Length);
             scriptStream.Write(shortBytes, 0, shortBytes.Length);
+        }
+        public void AddIntToStream(int intVal, MemoryStream noCrcStream, MemoryStream scriptStream)
+        {
+            byte[] intBytes = _scriptwriter.ValueHex(intVal);
+            noCrcStream.Write(intBytes, 0, intBytes.Length);
+            scriptStream.Write(intBytes, 0, intBytes.Length);
         }
         public void AddArrayToStream(byte[] scriptBytes, byte type, MemoryStream noCrcStream, MemoryStream scriptStream)
         {
