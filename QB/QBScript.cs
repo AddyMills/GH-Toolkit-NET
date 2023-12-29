@@ -84,6 +84,36 @@ namespace GH_Toolkit_Core.QB
                     }
                     switch (strData)
                     {
+                        case BEGIN:
+                        case REPEAT:
+                        case BREAK:
+                        case SWITCH:
+                        case ENDSWITCH:
+                        case CASE:
+                        case DEFAULT:
+                        case ENDSCRIPT:
+                        case IF:
+                        case ELSE:
+                        case FASTELSE:
+                        case ELSEIF:
+                        case ENDIF:
+                        case RETURN:
+                            if (ScriptParsed.Last() is string listString && listString == EQUALS)
+                            {
+                                if (strData == DEFAULT)
+                                {
+                                    ScriptParsed.Add(new ScriptNode(type, strData));
+                                }
+                                else
+                                {
+                                    throw new NotImplementedException();
+                                }
+                            }
+                            else
+                            {
+                                AddScriptElem(strData);
+                            }
+                            return;
                         case EQUALS:
                         case NOTEQUALS:
                         case MINUS:
@@ -111,14 +141,6 @@ namespace GH_Toolkit_Core.QB
                         case OR:
                         case ALLARGS:
                         case ARGUMENT:
-                        case BEGIN:
-                        case REPEAT:
-                        case BREAK:
-                        case SWITCH:
-                        case ENDSWITCH:
-                        case CASE:
-                        case DEFAULT:
-                        case ENDSCRIPT:
                         case RANDOM:
                         case RANDOM2:
                         case RANDOMNOREPEAT:
@@ -126,12 +148,6 @@ namespace GH_Toolkit_Core.QB
                         case RANDOMRANGE:
                         case RANDOMFLOAT:
                         case RANDOMINTEGER:
-                        case IF:
-                        case ELSE:
-                        case FASTELSE:
-                        case ELSEIF:
-                        case ENDIF:
-                        case RETURN:
                             AddScriptElem(strData);
                             return;
                         default:
@@ -355,7 +371,18 @@ namespace GH_Toolkit_Core.QB
                     }
                     else if (currItem == SWITCH)
                     {
-                        throw new Exception();
+                        scriptPos++;
+                        SwitchNode switchNode = new SwitchNode(script, ref scriptPos);
+                        scriptPos--;
+                        currCase.Actions.Add(switchNode);
+                        //throw new Exception();
+                    }
+                    else if (currItem == IF)
+                    {
+                        scriptPos++;
+                        ConditionalCollection conditional = new ConditionalCollection(script, ref scriptPos);
+                        currCase.Actions.Add(conditional);
+                        scriptPos--;
                     }
                     else
                     {
@@ -574,10 +601,7 @@ namespace GH_Toolkit_Core.QB
             public byte[] ScriptBytes { get; set; }
             public int ElseIfs { get; set; }
             public ConditionalCollection(List<object> script,
-                ref int scriptPos,
-                MemoryStream noCrcStream,
-                MemoryStream scriptStream,
-                ReadWrite writer)
+                ref int scriptPos)
             {
                 Conditionals = new List<Conditional>();
                 Conditional currCondition = new Conditional(IF);
@@ -604,7 +628,7 @@ namespace GH_Toolkit_Core.QB
                     else if (currItem == IF)
                     {
                         scriptPos++;
-                        ConditionalCollection conditional = new ConditionalCollection(script, ref scriptPos, noCrcStream, scriptStream, writer);
+                        ConditionalCollection conditional = new ConditionalCollection(script, ref scriptPos);
                         currCondition.Actions.Add(conditional);
                         scriptPos--;
                     }

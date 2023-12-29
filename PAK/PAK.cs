@@ -16,6 +16,7 @@ using GH_Toolkit_Core.Methods;
 using static GH_Toolkit_Core.PAK.PAK;
 using static GH_Toolkit_Core.QB.QB;
 using static GH_Toolkit_Core.QB.QBConstants;
+using static GH_Toolkit_Core.Checksum.CRC;
 
 namespace GH_Toolkit_Core.PAK
 {
@@ -102,6 +103,8 @@ namespace GH_Toolkit_Core.PAK
                 }
                 else
                 {
+                    AssetContext = FLAGBYTE;
+                    FullName = FullFlagPath;
 
                 }
             }
@@ -212,6 +215,7 @@ namespace GH_Toolkit_Core.PAK
                 {
                     Console.WriteLine($"Writing {pakFileName}");
                     string[] lines = File.ReadAllLines(saveName);
+                    List<string> master = new List<string>();
 
                     using (StreamWriter masterFileWriter = File.AppendText(masterFilePath))
                     {
@@ -219,10 +223,23 @@ namespace GH_Toolkit_Core.PAK
                         {
                             if (line.StartsWith("0x"))
                             {
-                                masterFileWriter.WriteLine(line);
+                                string check = line.Substring(0, line.IndexOf(" "));
+                                string stringData = line.Substring(line.IndexOf(" ")+1);
+                                if (!master.Contains(check))
+                                {
+                                    string crcCheck = QBKey(stringData);
+                                    if (crcCheck == check)
+                                    {
+                                        master.Add(check);
+                                        masterFileWriter.WriteLine(line);
+                                    }
+                                    
+                                }
+                                
                             }
                         }
                     }
+                    File.Delete(saveName);
                 }
 
             }
@@ -409,41 +426,7 @@ namespace GH_Toolkit_Core.PAK
                     throw new NotSupportedException("Argument given is not a folder.");
                 }
 
-                //string[] entries = Directory.GetFileSystemEntries(folderPath);
                 string[] entries = Directory.GetFileSystemEntries(folderPath, "*", SearchOption.AllDirectories);
-                /*string[] entries = File.ReadAllLines("D:\\Visual Studio\\Repos\\PAK Compiler\\qb_listing.txt");
-
-                for (int i  = 0; i < entries.Length; i++)
-                {
-                    entries[i] = Path.Combine(folderPath, entries[i]);
-                }*/
-                /*
-                 * List<string> files = new List<string>();
-                foreach(string entry in entries)
-                {
-                    if (File.Exists(entry))
-                    {
-                        files.Add(entry);
-                    }
-                    else if (Directory.Exists(entry))
-                    {
-                        string[] tempEntries = Directory.GetFileSystemEntries(entry, "*", SearchOption.AllDirectories);
-                        List<string> tempFiles = new List<string>();
-                        foreach (string tempEntry in tempEntries)
-                        {
-                            if (File.Exists(tempEntry))
-                            {
-                                tempFiles.Add(tempEntry.Substring(0, tempEntry.IndexOf('.')));
-                            }
-                        }
-                        tempEntries = tempFiles.ToArray();
-                        Array.Sort(tempEntries);
-                        Array.Reverse(tempEntries);
-                        files.AddRange(tempEntries);
-                    }
-                }
-
-                entries = files.ToArray(); */
 
                 for (int i = 0; i < entries.Length; i++)
                 {
@@ -455,7 +438,7 @@ namespace GH_Toolkit_Core.PAK
                 }
                 List<PakEntry> PakEntries = new List<PakEntry>();
                 List<string> fileNames = new List<string>();
-                int pakSize = 16;
+                int pakSize = 0;
 
                 foreach (string entry in entries)
                 {
@@ -468,14 +451,12 @@ namespace GH_Toolkit_Core.PAK
                             List<QBItem> qBItems = ParseQFile(entry);
                             relPath += "b";
                             fileData = CompileQbFile(qBItems, relPath);
-                            if (ConsoleType == CONSOLE_PS2)
-                            {
-                                relPath += ".ps2";
-                            }
-                            else
-                            {
-                                relPath += ".xen";
-                            }
+                            AddConsoleExt(ref relPath);
+                        }
+                        else if ((Path.GetExtension(entry) == DOT_QB))
+                        {
+                            AddConsoleExt(ref relPath);
+                            fileData = File.ReadAllBytes(entry);
                         }
                         else
                         {
@@ -505,6 +486,15 @@ namespace GH_Toolkit_Core.PAK
                 PakEntries.Add(new PakEntry(ConsoleType, Game));
                 pakSize += PakEntries[fileNames.Count].ByteLength;
 
+                if (ConsoleType == CONSOLE_PS2)
+                {
+                    pakSize += 16;
+                }
+                else
+                {
+                    pakSize += (4096 - pakSize % 4096);
+                }
+
                 byte[] pakData;
                 byte[] pabData;
 
@@ -531,12 +521,31 @@ namespace GH_Toolkit_Core.PAK
                         Writer.PadStreamTo(pab, 16);
                         bytesPassed += entry.ByteLength;
                     }
-                    ReadWrite.WriteStringBytes(pak, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
+                    if (ConsoleType == CONSOLE_PS2)
+                    {
+                        ReadWrite.WriteStringBytes(pak, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
+                    }
+                    else
+                    {
+                        Writer.PadStreamTo(pak, 4096);
+                    }
                     pakData = pak.ToArray();
                     pabData = pab.ToArray();
                 }
                 return (pakData, pabData, ConsoleType);
 
+            }
+
+            private void AddConsoleExt(ref string filePath)
+            {
+                if (ConsoleType == CONSOLE_PS2)
+                {
+                    filePath += ".ps2";
+                }
+                else
+                {
+                    filePath += ".xen";
+                }
             }
             private string GetFileExt(string path)
             {
@@ -578,13 +587,18 @@ namespace GH_Toolkit_Core.PAK
             }
             private string GetRelPath(string folderPath, string entry)
             {
-                string relPath = Path.GetRelativePath(folderPath, entry);
+                string relPath = Path.GetRelativePath(folderPath, entry).ToLower();
                 if (ConsoleType == CONSOLE_PS2)
                 {
                     return relPath;
                 }
+                if (relPath.EndsWith(".xen") || relPath.EndsWith(".ps3"))
+                {
+                    relPath = relPath.Substring(0, relPath.Length - 4);
+                }
 
-                return Path.GetFileNameWithoutExtension(relPath); 
+
+                return relPath; 
             }
         }
     }

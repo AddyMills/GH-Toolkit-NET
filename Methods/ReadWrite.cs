@@ -542,6 +542,10 @@ namespace GH_Toolkit_Core.Methods
             {
                 scriptConditional.WriteToStream(noCrcStream, scriptStream, this);
             }
+            else if (o is SwitchNode switchNode)
+            {
+                switchNode.WriteToStream(script, noCrcStream, scriptStream, this);
+            }
             else
             {
                 throw new NotImplementedException();
@@ -564,7 +568,7 @@ namespace GH_Toolkit_Core.Methods
                     break;
                 case IF:
                     scriptPos += 1;
-                    ConditionalCollection conditional = new ConditionalCollection(script, ref scriptPos, crcStream, scriptStream, this);
+                    ConditionalCollection conditional = new ConditionalCollection(script, ref scriptPos);
                     conditional.WriteToStream(crcStream, scriptStream, this);
                     scriptPos -= 1;
                     break;

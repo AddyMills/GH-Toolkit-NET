@@ -193,7 +193,7 @@ namespace GH_Toolkit_Core.QB
                     case STRUCT:
                         foreach (QBStructData item in Items)
                         {
-                            data += item.StructToScript();
+                            data += $"{{{item.StructToScript()}}}";
                         }
                         break;
                     case VECTOR:

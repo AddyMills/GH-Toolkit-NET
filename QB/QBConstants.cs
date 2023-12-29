@@ -97,7 +97,7 @@ namespace GH_Toolkit_Core.QB
         public const string AND = "AND";
         public const string OR = "OR";
         public const string ALLARGS = "<...>";
-        public const string ARGUMENT = "Argument";
+        public const string ARGUMENT = "<>";
 
         public const string BEGIN = "begin";
         public const string REPEAT = "repeat";
@@ -121,6 +121,10 @@ namespace GH_Toolkit_Core.QB
         public const string UNKNOWN55 = "0x55";
         public const string UNKNOWN59 = "0x59";
         public const string UNKNOWN5A = "0x5A";
+
+        // Regex Strings
+
+        public const string ALLARGS_REGEX = @"^<\.{1,2}";
 
         // Byte Constants
         public const byte NEWLINE_BYTE = 0x01;

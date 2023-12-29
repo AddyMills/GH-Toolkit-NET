@@ -135,31 +135,33 @@ namespace GH_Toolkit_Core.QB
             public void StructToText(StreamWriter writer, int level = 1)
             {
                 string indent = new string('\t', level);
+                string key;
                 foreach (QBStructItem item in Items)
                 {
+                    key = item.Props.ID == FLAG ? "" : $"{item.Props.ID} = ";
                     if (item.Data is QBArrayNode arrayNode)
                     {
-                        writer.WriteLine(indent + $"{item.Props.ID} = [");
+                        writer.WriteLine(indent + $"{key}[");
                         arrayNode.ArrayToText(writer, level + 1);
                         writer.WriteLine(indent + "]");
                     }
                     else if (item.Data is QBStructData structNode)
                     {
-                        writer.WriteLine(indent + $"{item.Props.ID} = {{");
+                        writer.WriteLine(indent + $"{key}{{");
                         structNode.StructToText(writer, level + 1);
                         writer.WriteLine(indent + "}");
                     }
                     else if (item.Data is List<float> floats)
                     {
-                        writer.WriteLine(indent + $"{item.Props.ID} = {FloatsToText(floats)}");
+                        writer.WriteLine(indent + $"{key}{FloatsToText(floats)}");
                     }
-                    else if (item.Props.ID == FLAG)
+                    /*else if (item.Props.ID == FLAG)
                     {
                         writer.WriteLine(indent + $"{QbItemText(item.Info.Type, item.Data.ToString())}");
-                    }
+                    }*/
                     else
                     {
-                        writer.WriteLine(indent + $"{item.Props.ID} = {QbItemText(item.Info.Type, item.Data.ToString())}");
+                        writer.WriteLine(indent + $"{key}{QbItemText(item.Info.Type, item.Data.ToString())}");
                     }
                 }
             }

@@ -34,7 +34,12 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "QBRecompiler", "..\QBRecomp
 		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PAK Compiler", "..\PAK Compiler\PAK Compiler.csproj", "{88E30218-A4D8-463C-AB11-F9BDA4EAC6D0}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PAK Compiler", "..\PAK Compiler\PAK Compiler.csproj", "{88E30218-A4D8-463C-AB11-F9BDA4EAC6D0}"
+	ProjectSection(ProjectDependencies) = postProject
+		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileComparer", "..\FileComparer\FileComparer.csproj", "{46A8256F-C9CF-43FD-952B-B80063AD92B6}"
 	ProjectSection(ProjectDependencies) = postProject
 		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
 	EndProjectSection
@@ -77,6 +82,10 @@ Global
 		{88E30218-A4D8-463C-AB11-F9BDA4EAC6D0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{88E30218-A4D8-463C-AB11-F9BDA4EAC6D0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{88E30218-A4D8-463C-AB11-F9BDA4EAC6D0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{46A8256F-C9CF-43FD-952B-B80063AD92B6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{46A8256F-C9CF-43FD-952B-B80063AD92B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{46A8256F-C9CF-43FD-952B-B80063AD92B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{46A8256F-C9CF-43FD-952B-B80063AD92B6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

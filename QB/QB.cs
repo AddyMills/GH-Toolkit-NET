@@ -386,10 +386,10 @@ namespace GH_Toolkit_Core.QB
                     test = $"{itemString}";
                     break;
                 case STRING:
-                    test = $"'{itemString.Replace("'", "\\'")}'";
+                    test = $"'{itemString.Replace("\\", "\\\\").Replace("'", "\\'")}'";
                     break;
                 case WIDESTRING:
-                    test = $"\"{itemString}\"";
+                    test = $"\"{itemString.Replace("\\", "\\\\")}\"";
                     break;
                 case QBKEY:
                 case QSKEY:
@@ -623,6 +623,8 @@ namespace GH_Toolkit_Core.QB
                         {
                             case '\r':
                             case '\n':
+                            case '\'':
+                            case '"':
                                 if (currLevel.LevelType == STRUCT)
                                 {
                                     HandleStructFlag(ref i, ref tmpKey, currLevel);
@@ -756,20 +758,37 @@ namespace GH_Toolkit_Core.QB
                                 }
                                 else
                                 {
-                                    throw new NotSupportedException($"Unsupported character '(' in value of {tmpKey}");
+                                    if (tmpValue != "")
+                                    {
+                                        tmpValue += c;
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        throw new NotSupportedException($"Unsupported character '(' in value of {tmpKey}");
+                                    }
                                 }
                                 break;
                             case ')':
                             case ':':
                                 if (currLevel.LevelType != SCRIPT)
                                 {
-                                    throw new NotSupportedException($"'{c}' found where it shouldn't be!");
+                                    if (tmpValue != "")
+                                    {
+                                        tmpValue += c;
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        throw new NotSupportedException($"'{c}' found where it shouldn't be!");
+                                    }
                                 }
                                 AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
                                 tmpValue = new string(c, 1);
                                 AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
                                 break;
                             case '.':
+
                                 if (currLevel.LevelType != SCRIPT)
                                 {
                                     tmpValue += c;
@@ -778,10 +797,14 @@ namespace GH_Toolkit_Core.QB
                                 {
                                     tmpValue += c;
                                 }
-                                /*else if (tmpValue.StartsWith("<"))
+                                else if (tmpValue == "<")
                                 {
                                     tmpValue += c;
-                                }*/
+                                }
+                                else if (Regex.Match(tmpValue, ALLARGS_REGEX, RegexOptions.IgnoreCase).Success)
+                                {
+                                    tmpValue += c;
+                                }
                                 else
                                 {
                                     AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
@@ -858,9 +881,25 @@ namespace GH_Toolkit_Core.QB
                                 if (currLevel.LevelType == SCRIPT)
                                 {
                                     tmpValue = tmpValue.Replace("\t","").Replace(" ", "");
+                                    try
+                                    {
+                                        StateSwitch(currLevel);
+                                        AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, MULTIFLOAT);
+                                    }
+                                    catch
+                                    {
+                                        i -= (tmpValue.Length + 1);
+                                        tmpValue = LEFTPAR;
+                                        StateSwitch(currLevel);
+                                        AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                                    }
                                 }
-                                StateSwitch(currLevel);
-                                AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, MULTIFLOAT);
+                                else
+                                {
+                                    StateSwitch(currLevel);
+                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, MULTIFLOAT);
+                                }
+                                
                                 break;
                             case '1':
                             case '2':
@@ -875,6 +914,7 @@ namespace GH_Toolkit_Core.QB
                             case ',':
                             case '.':
                             case '-':
+                            case 'E':
                                 tmpValue += c;
                                 break;
                             default:
@@ -940,7 +980,7 @@ namespace GH_Toolkit_Core.QB
                                 CloseStruct(ref currLevel, ref currItem, ref qbFile);
                                 break;
                             default:
-                                tmpKey = new string(c, 1);
+                                i--;
                                 currLevel.State = ParseState.inKey;
                                 break;
                         }
@@ -1102,7 +1142,7 @@ namespace GH_Toolkit_Core.QB
             ref string tmpValue,
             string itemType)
         {
-            if (tmpKey == "" && tmpValue == "")
+            if (tmpKey == "" && tmpValue == "" && (itemType != WIDESTRING && itemType != STRING))
             {
                 return;
             }
@@ -1273,7 +1313,7 @@ namespace GH_Toolkit_Core.QB
                     throw new ArgumentException("Too many or too few float values found.");
             }
         }
-        public static byte[] CompileQbFile(List<QBItem> file, string qbName, string game = "GH3", string console = "360")
+        public static byte[] CompileQbFile(List<QBItem> qbList, string qbName, string game = "GH3", string console = "360")
         {
             string qbHeader = "1C 08 02 04 10 04 08 0C 0C 08 02 04 14 02 04 0C 10 10 0C 00";
 
@@ -1310,7 +1350,7 @@ namespace GH_Toolkit_Core.QB
             using (MemoryStream fullFile = new MemoryStream())
             using (MemoryStream stream = new MemoryStream())
             {
-                foreach (QBItem item in file)
+                foreach (QBItem item in qbList)
                 {
                     byte[] parentNode = new byte[] { 0x00, consoleByte, QbTypeLookup[item.Info.Type], 0x00 };
                     stream.Write(parentNode, 0, parentNode.Length);
@@ -1342,14 +1382,13 @@ namespace GH_Toolkit_Core.QB
             }
         }
 
-        public static void DecompileQbFromFile(string file)
+        public static List<QBItem> DecompileQbFromFile(string file)
         {
             string fileName = Path.GetFileName(file);
             Match match = Regex.Match(fileName, @"\.([a-zA-Z])?qb", RegexOptions.IgnoreCase);
             if (!match.Success) // Files can be .qb, .sqb, .sqb.ps2, etc.
             {
-                Console.WriteLine($"Skipping {fileName}");
-                return;
+                return null;
             }
             string fileNoExt = fileName.Substring(0, match.Index);
             string fileExt = Path.GetExtension(file);
@@ -1383,7 +1422,7 @@ namespace GH_Toolkit_Core.QB
                 fileExt = ".xen";
             }
             List<QBItem> qbList = DecompileQb(qbBytes, endian, songName);
-            QbToText(qbList, NewFilePath);
+            return qbList;
         }
 
     }

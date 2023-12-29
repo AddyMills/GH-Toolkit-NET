@@ -18,7 +18,11 @@ namespace GH_Toolkit_Core.Methods
             List<string> files = new List<string>();
             if (Directory.Exists(filePath))
             {
-                foreach (string file in Directory.GetFiles(filePath)) { files.Add(file); }
+                string[] allFiles = Directory.GetFileSystemEntries(filePath, "*", SearchOption.AllDirectories);
+                foreach (string file in allFiles)
+                {
+                    if (File.Exists(file)) { files.Add(file); }
+                }
             }
             else if (File.Exists(filePath))
             {
