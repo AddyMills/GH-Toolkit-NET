@@ -363,3 +363,4 @@ MigrationBackup/
 FodyWeavers.xsd
 /QBDebug/Pre-Build.txt
 /QBDebug/keys.dbg
+/QBDebug/debug_old.txt
