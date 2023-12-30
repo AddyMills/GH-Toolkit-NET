@@ -869,6 +869,13 @@ namespace GH_Toolkit_Core.QB
                         {
                             case '\r':
                             case '\n':
+                                if (currLevel.LevelType == SCRIPT)
+                                {
+                                        i -= (tmpValue.Length + 1);
+                                        tmpValue = LEFTPAR;
+                                        StateSwitch(currLevel);
+                                        AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                                }
                                 break;
                             case ' ':
                             case '\t':
@@ -880,6 +887,7 @@ namespace GH_Toolkit_Core.QB
                             case ')':
                                 if (currLevel.LevelType == SCRIPT)
                                 {
+                                    string origVal = tmpValue;
                                     tmpValue = tmpValue.Replace("\t","").Replace(" ", "");
                                     try
                                     {
@@ -888,7 +896,7 @@ namespace GH_Toolkit_Core.QB
                                     }
                                     catch
                                     {
-                                        i -= (tmpValue.Length + 1);
+                                        i -= (origVal.Length + 1);
                                         tmpValue = LEFTPAR;
                                         StateSwitch(currLevel);
                                         AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);

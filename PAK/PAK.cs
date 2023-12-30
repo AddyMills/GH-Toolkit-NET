@@ -201,15 +201,35 @@ namespace GH_Toolkit_Core.PAK
             foreach (PakEntry entry in pakEntries)
             {
                 string pakFileName = entry.FullName;
-                if (!pakFileName.EndsWith(fileExt, StringComparison.CurrentCultureIgnoreCase))
+
+                if (entry.Extension == DOT_QB)
+                {
+                    pakFileName = pakFileName.Substring(0, pakFileName.LastIndexOf('.')) + ".q";
+                }
+                else if (!pakFileName.EndsWith(fileExt, StringComparison.CurrentCultureIgnoreCase))
                 {
                     pakFileName += fileExt;
                 }
 
+
                 string saveName = Path.Combine(NewFolderPath, pakFileName);
                 Console.WriteLine(pakFileName);
                 Directory.CreateDirectory(Path.GetDirectoryName(saveName));
-                File.WriteAllBytes(saveName, entry.EntryData);
+
+                if (entry.Extension == DOT_QB)
+                {
+                    string songHeader = "";
+                    if (fileNoExt.IndexOf("_song") != -1)
+                    {
+                        songHeader = fileNoExt.Substring(0, fileNoExt.LastIndexOf("_song"));
+                    }
+                    List<QBItem> qBItems = DecompileQb(entry.EntryData, GetEndian(fileExt), songHeader);
+                    QbToText(qBItems, saveName);
+                }
+                else
+                {
+                    File.WriteAllBytes(saveName, entry.EntryData);
+                }
 
                 if (debugFile)
                 {
@@ -225,6 +245,10 @@ namespace GH_Toolkit_Core.PAK
                             {
                                 string check = line.Substring(0, line.IndexOf(" "));
                                 string stringData = line.Substring(line.IndexOf(" ")+1);
+                                if (check == "0xf9e6c3fe")
+                                {
+
+                                }
                                 if (!master.Contains(check))
                                 {
                                     string crcCheck = QBKey(stringData);
@@ -390,6 +414,17 @@ namespace GH_Toolkit_Core.PAK
 
             Console.WriteLine("Success!");
             return PakList;
+        }
+        private static string GetEndian(string fileExt)
+        {
+            if (fileExt == DOTPS2)
+            {
+                return "little";
+            }
+            else
+            {
+                return "big";
+            }
         }
         public class PakCompiler
         {

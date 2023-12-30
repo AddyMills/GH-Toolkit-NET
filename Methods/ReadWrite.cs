@@ -476,7 +476,7 @@ namespace GH_Toolkit_Core.Methods
                     int decompLen = (int)scriptStream.Length;
                     mainStream.Write(ValueHex(decompLen), 0, 4);
                     byte[] compressedScript = lzss.Compress(scriptStream.ToArray());
-                    if (compressedScript.Length > decompLen)
+                    if (compressedScript.Length >= decompLen)
                     {
                         compressedScript = uncompressedScript;
                     }

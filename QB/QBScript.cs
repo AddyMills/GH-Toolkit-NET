@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using static GH_Toolkit_Core.QB.QB;
 using static GH_Toolkit_Core.QB.QBConstants;
+using static GH_Toolkit_Core.QB.QBScript;
 
 namespace GH_Toolkit_Core.QB
 {
@@ -348,13 +349,19 @@ namespace GH_Toolkit_Core.QB
                 Condition = new List<object>();
                 Cases = new List<CaseNode>();
                 string currItem = "";
-                while (currItem != NEWLINE)
+                string nodeType = "Condition";
+                while (true)
                 {
                     object scriptItem = script[scriptPos];
                     UpdateItem(ref currItem, scriptItem);
+                    if (currItem == CASE || currItem == DEFAULT)
+                    {
+                        break;
+                    }
                     Condition.Add(scriptItem);
-                    scriptPos += 1;
+                    scriptPos++;
                 }
+                //scriptPos--;
                 CaseNode? currCase = new CaseNode(CASE);
                 while (currItem != ENDSWITCH)
                 {
@@ -842,6 +849,9 @@ namespace GH_Toolkit_Core.QB
             public string Name { get; set; }
             public uint Entries { get; set; }
             public List<RandomEntry> RandomEntries { get; set; } = new List<RandomEntry>();
+            public List<object> PreRandomEntries { get; set; } = new List<object>();
+            private long RandomBytes = 0;
+            private bool InRandomEntry { get; set; } = false;
             public byte[] CrcBytes { get; set; }
             public byte[] ScriptBytes { get; set; }
             public ScriptRandom(string random, MemoryStream stream)
@@ -906,7 +916,8 @@ namespace GH_Toolkit_Core.QB
                         brackets++;
                         if (brackets != 1)
                         {
-                            randomEntry.Actions.Add(scriptItem);
+                            AddEntry(scriptItem, randomEntry);
+                            //randomEntry.Actions.Add(scriptItem);
                         }
                     }
                     else if (currItem == RIGHTPAR)
@@ -914,20 +925,29 @@ namespace GH_Toolkit_Core.QB
                         brackets--;
                         if (brackets != 0)
                         {
-                            randomEntry.Actions.Add(scriptItem);
+                            AddEntry(scriptItem, randomEntry);
+                            //randomEntry.Actions.Add(scriptItem);
                         }
                     }
                     else if (currItem.StartsWith("@"))
                     {
+                        InRandomEntry = true;
                         if (randomEntry != null)
                         {
+                            //AddEntry(scriptItem, randomEntry);
                             RandomEntries.Add(randomEntry);
+                            //randomEntry.Actions.Add(scriptItem);
                         }
                         randomEntry = new RandomEntry(currItem);
                     }
+                    else if (randomEntry != null && currItem == NEWLINE && randomEntry.Actions.Count == 0)
+                    {
+                        PreRandomEntries.Add(scriptItem);
+                    }
                     else
                     {
-                        randomEntry.Actions.Add(scriptItem);
+                        AddEntry(scriptItem, randomEntry);
+                        //randomEntry.Actions.Add(scriptItem);
                     }
                     if (currItem != "")
                     {
@@ -937,6 +957,17 @@ namespace GH_Toolkit_Core.QB
                 } while (brackets > 0);
 
                 RandomEntries.Add(randomEntry);
+            }
+            private void AddEntry(object scriptItem, RandomEntry? randomEntry)
+            {
+                if (InRandomEntry)
+                {
+                    randomEntry.Actions.Add(scriptItem);
+                }
+                else
+                {
+                    PreRandomEntries.Add(scriptItem);
+                }
             }
             private void FakeHeader(ReadWrite writer, MemoryStream fakeCrc,
                 MemoryStream fakeStream)
@@ -957,6 +988,7 @@ namespace GH_Toolkit_Core.QB
                     RandomEntry entry = RandomEntries[i];
                     writer.AddIntToStream(entry.Offset, fakeCrc, fakeStream);
                 }
+
             }
             public void MakeBytes(MemoryStream noCrcStream,
                 MemoryStream scriptStream,
@@ -967,6 +999,12 @@ namespace GH_Toolkit_Core.QB
                 long crcStart = noCrcStream.Position;
 
                 FakeHeader(writer, noCrcStream, scriptStream);
+                if (PreRandomEntries.Count != 0)
+                {
+                    long preStart = scriptStream.Position;
+                    writer.ScriptLoop(PreRandomEntries, ref loopStart, noCrcStream, scriptStream);
+                    RandomBytes = scriptStream.Position - preStart;
+                }
 
                 for (int i = 0; i < RandomEntries.Count; i++)
                 {
@@ -1017,6 +1055,10 @@ namespace GH_Toolkit_Core.QB
                         RandomEntry entry = RandomEntries[i];
                         writer.AddIntToStream(entry.Offset, randomCrc, randomStream);
                     }
+                    if (PreRandomEntries.Count != 0)
+                    {
+                        writer.ScriptLoop(PreRandomEntries, ref loopStart, randomCrc, randomStream);
+                    }
                     for (int i = 0; i < RandomEntries.Count; i++)
                     {
                         RandomEntry entry = RandomEntries[i];
@@ -1044,6 +1086,7 @@ namespace GH_Toolkit_Core.QB
             {
                 int count = RandomEntries.Count - 1;
                 int offset = (count - loopIter) * 4;
+                offset += (int)RandomBytes;
 
                 if (loopIter != 0)
                 {
@@ -1081,6 +1124,10 @@ namespace GH_Toolkit_Core.QB
             public List<object> Actions { get; set; } = new List<object>();
             public byte[] CrcBytes { get; set; }
             public byte[] ScriptBytes { get; set; }
+            public RandomEntry()
+            {
+
+            }
             public RandomEntry(MemoryStream stream)
             {
                 Weight = ScriptReader.ReadInt16(stream);

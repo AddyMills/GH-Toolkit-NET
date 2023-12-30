@@ -124,7 +124,7 @@ namespace GH_Toolkit_Core.QB
 
         // Regex Strings
 
-        public const string ALLARGS_REGEX = @"^<\.{1,2}";
+        public const string ALLARGS_REGEX = @"^<\.{1,2}$";
 
         // Byte Constants
         public const byte NEWLINE_BYTE = 0x01;
