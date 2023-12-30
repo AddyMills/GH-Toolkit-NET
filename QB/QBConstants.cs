@@ -134,7 +134,7 @@ namespace GH_Toolkit_Core.QB
         public const byte RIGHTBKT_BYTE = 0x06;
         public const byte EQUALS_BYTE = 0x07;
         public const byte DOT_BYTE = 0x08;
-        public const byte COMMAE_BYTE = 0x09;
+        public const byte COMMA_BYTE = 0x09;
         public const byte MINUS_BYTE = 0x0A;
         public const byte PLUS_BYTE = 0x0B;
         public const byte DIVIDE_BYTE = 0x0C;
@@ -198,7 +198,7 @@ namespace GH_Toolkit_Core.QB
             { RIGHTBKT, RIGHTBKT_BYTE },
             { EQUALS, EQUALS_BYTE },
             { DOT, DOT_BYTE },
-            { COMMA, COMMAE_BYTE },
+            { COMMA, COMMA_BYTE },
             { MINUS, MINUS_BYTE },
             { PLUS, PLUS_BYTE },
             { DIVIDE, DIVIDE_BYTE },

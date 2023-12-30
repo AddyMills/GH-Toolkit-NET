@@ -138,7 +138,7 @@ namespace GH_Toolkit_Core.PAK
             }
         }
 
-        public static void ProcessPAKFromFile(string file)
+        public static void ProcessPAKFromFile(string file, bool convertQ = true)
         {
             string fileName = Path.GetFileName(file);
             if (fileName.IndexOf(".pab", 0, fileName.Length, StringComparison.CurrentCultureIgnoreCase) != -1)
@@ -201,8 +201,9 @@ namespace GH_Toolkit_Core.PAK
             foreach (PakEntry entry in pakEntries)
             {
                 string pakFileName = entry.FullName;
+                bool convToQ = (entry.Extension == DOT_QB && convertQ) ? true : false;
 
-                if (entry.Extension == DOT_QB)
+                if (convToQ)
                 {
                     pakFileName = pakFileName.Substring(0, pakFileName.LastIndexOf('.')) + ".q";
                 }
@@ -216,7 +217,7 @@ namespace GH_Toolkit_Core.PAK
                 Console.WriteLine(pakFileName);
                 Directory.CreateDirectory(Path.GetDirectoryName(saveName));
 
-                if (entry.Extension == DOT_QB)
+                if (convToQ)
                 {
                     string songHeader = "";
                     if (fileNoExt.IndexOf("_song") != -1)

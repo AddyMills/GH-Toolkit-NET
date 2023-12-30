@@ -30,6 +30,7 @@ namespace GH_Toolkit_Core.QB
             public byte[] ScriptData { get; set; }
             public byte[] CRCData { get; set; }
             public List<object> ScriptParsed { get; set; }
+            public bool InSwitch { get; set; } = false;
             public QBScriptData()
             {
                 ScriptParsed = new List<object>();
@@ -99,7 +100,7 @@ namespace GH_Toolkit_Core.QB
                         case ELSEIF:
                         case ENDIF:
                         case RETURN:
-                            if (ScriptParsed.Last() is string listString && listString == EQUALS)
+                            if (ScriptParsed.Last() is string listString && (listString == EQUALS || listString == DOT))
                             {
                                 if (strData == DEFAULT)
                                 {

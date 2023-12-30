@@ -394,7 +394,11 @@ namespace GH_Toolkit_Core.QB
                 case QBKEY:
                 case QSKEY:
                 case POINTER:
-                    if (itemString.IndexOf(" ", 0) == -1)
+                    if (itemString == "default")
+                    {
+                        test = $"`{itemString}`";
+                    }
+                    else if (itemString.IndexOf(" ", 0) == -1)
                     {
                         test = $"{itemString}";
                     }
@@ -548,6 +552,7 @@ namespace GH_Toolkit_Core.QB
                 case QBKEY:
                 case QSKEY:
                 case POINTER:
+                    data = StripQbKeyQuotes(data);
                     if (type == POINTER)
                     {
                         data = data.Substring(1);
@@ -556,6 +561,18 @@ namespace GH_Toolkit_Core.QB
                 default:
                     throw new NotImplementedException("Not yet implemented");
             }
+        }
+        public static string StripQbKeyQuotes(string str)
+        {
+            if (str.StartsWith('`') && str.EndsWith('`'))
+            {
+                str = str.Substring(1, str.Length - 2);
+            }
+            else if (str.StartsWith("#\"") && str.EndsWith('"'))
+            {
+                str = str.Substring(2, str.Length - 1);
+            }
+            return str;
         }
         public static List<float> ParseMultiFloat(string data)
         {
@@ -637,14 +654,14 @@ namespace GH_Toolkit_Core.QB
                                 {
                                     currLevel.State = ParseState.inValue;
                                 }
-                                else if (tmpKey.StartsWith("#\"") && tmpKey.EndsWith("\""))
+                                /*else if (tmpKey.StartsWith("#\"") && tmpKey.EndsWith("\""))
                                 {
                                     tmpKey = tmpKey.Substring(2, tmpKey.Length - 3); // Removing #"" from the start and end
                                 }
                                 else if (tmpKey.StartsWith("`") && tmpKey.EndsWith("`"))
                                 {
                                     tmpKey = tmpKey.Substring(1, tmpKey.Length - 2); // Removing ` from the start and end
-                                }
+                                }*/
                                 else
                                 {
                                     tmpKey += c;
@@ -658,7 +675,7 @@ namespace GH_Toolkit_Core.QB
                                 if (tmpKey.EndsWith(" ") || tmpKey.EndsWith("\t"))
                                 {
                                     tmpKey = tmpKey.TrimStart();
-                                    if (tmpKey.StartsWith("#\"") || tmpKey.StartsWith("`"))
+                                    if ((tmpKey.StartsWith("#\"") || tmpKey.StartsWith("`")) && !(tmpKey.EndsWith("#\"") || tmpKey.EndsWith("`")))
                                     {
                                         tmpKey += c;
                                     }
@@ -1050,8 +1067,10 @@ namespace GH_Toolkit_Core.QB
                         {
                             case '"':
                             case '`':
+                                tmpValue += c;
                                 if (tmpKey == SCRIPTKEY)
                                 {
+                                    tmpValue = StripQbKeyQuotes(tmpValue);
                                     AddLevel(ref currLevel, ref currItem, ParseState.inValue, SCRIPT, ref tmpValue);
                                     ClearTmpValues(ref tmpKey, ref tmpValue);
                                     break;
@@ -1201,12 +1220,14 @@ namespace GH_Toolkit_Core.QB
             }
             else if (c == '"' && tmpValue == "#")
             {
-                tmpValue = "";
+                //tmpValue = "";
+                tmpValue += c;
                 currLevel.State = ParseState.inQbKey;
                 return true;
             }
             else if (c == '`' && tmpValue == "")
             {
+                tmpValue += c;
                 currLevel.State = ParseState.inQbKey;
                 return true;
             }
