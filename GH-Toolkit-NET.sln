@@ -44,6 +44,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileComparer", "..\FileComp
 		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Comparison", "..\Comparison\Comparison.csproj", "{00DBA2D4-31C8-4F33-9940-E1B694E2B503}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -86,6 +88,10 @@ Global
 		{46A8256F-C9CF-43FD-952B-B80063AD92B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{46A8256F-C9CF-43FD-952B-B80063AD92B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{46A8256F-C9CF-43FD-952B-B80063AD92B6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{00DBA2D4-31C8-4F33-9940-E1B694E2B503}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{00DBA2D4-31C8-4F33-9940-E1B694E2B503}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{00DBA2D4-31C8-4F33-9940-E1B694E2B503}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{00DBA2D4-31C8-4F33-9940-E1B694E2B503}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

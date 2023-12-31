@@ -675,7 +675,7 @@ namespace GH_Toolkit_Core.QB
                                 if (tmpKey.EndsWith(" ") || tmpKey.EndsWith("\t"))
                                 {
                                     tmpKey = tmpKey.TrimStart();
-                                    if ((tmpKey.StartsWith("#\"") || tmpKey.StartsWith("`")) && !(tmpKey.EndsWith("#\"") || tmpKey.EndsWith("`")))
+                                    if ((tmpKey.StartsWith("#\"") || tmpKey.StartsWith("`")) && !(tmpKey.EndsWith("\" ") || tmpKey.EndsWith("` ")))
                                     {
                                         tmpKey += c;
                                     }
