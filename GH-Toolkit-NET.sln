@@ -44,7 +44,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileComparer", "..\FileComp
 		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Comparison", "..\Comparison\Comparison.csproj", "{00DBA2D4-31C8-4F33-9940-E1B694E2B503}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Comparison", "..\Comparison\Comparison.csproj", "{00DBA2D4-31C8-4F33-9940-E1B694E2B503}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MIDITest", "..\MIDITest\MIDITest.csproj", "{9B612D63-20E4-4989-AE34-055BFD8F204A}"
+	ProjectSection(ProjectDependencies) = postProject
+		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -92,6 +97,10 @@ Global
 		{00DBA2D4-31C8-4F33-9940-E1B694E2B503}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{00DBA2D4-31C8-4F33-9940-E1B694E2B503}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{00DBA2D4-31C8-4F33-9940-E1B694E2B503}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9B612D63-20E4-4989-AE34-055BFD8F204A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9B612D63-20E4-4989-AE34-055BFD8F204A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9B612D63-20E4-4989-AE34-055BFD8F204A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9B612D63-20E4-4989-AE34-055BFD8F204A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
