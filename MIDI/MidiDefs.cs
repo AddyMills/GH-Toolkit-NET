@@ -42,5 +42,15 @@ namespace GH_Toolkit_Core.MIDI
             { MidiTheory.NoteName.F, 1 }
         };
 
+        public enum Colours
+        {
+            Green = 1,
+            Red = 2,
+            Yellow = 4,
+            Blue = 8,
+            Orange = 16,
+            Purple = 32
+        }
+
     }
 }
