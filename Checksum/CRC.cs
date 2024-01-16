@@ -85,6 +85,17 @@ namespace GH_Toolkit_Core.Checksum
             0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
         };
 
+        public static string QBKeyQs(string text)
+        {
+            if (text.StartsWith("0x") && text.Length <= 10)
+            {
+                return text;
+            }
+            byte[] textBytes = Encoding.Unicode.GetBytes(text);
+
+            return GenQBKey(textBytes);
+        }
+
         public static string QBKey(string text)
         {
             if (text.StartsWith("0x") && text.Length <= 10)
@@ -93,17 +104,6 @@ namespace GH_Toolkit_Core.Checksum
             }
             text = text.ToLower().Replace("/", "\\");
             byte[] textBytes = Encoding.UTF8.GetBytes(text);
-
-            return GenQBKey(textBytes);
-        }
-
-        public static string QBKeyQs(string text)
-        {
-            if (text.StartsWith("0x") && text.Length <= 10)
-            {
-                return text;
-            }
-            byte[] textBytes = Encoding.Unicode.GetBytes(text);
 
             return GenQBKey(textBytes);
         }

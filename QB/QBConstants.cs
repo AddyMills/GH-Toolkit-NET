@@ -33,7 +33,11 @@ namespace GH_Toolkit_Core.QB
         public const string CONSOLE_PS2 = "PS2";
         public const string CONSOLE_XBOX = "360";
 
+        public const string HEXSTART = "0x";
+
         public const string GAME_GH3 = "GH3";
+        public const string GAME_GHA = "GHA";
+        public const string GAME_GHWOR = "GHWoR";
 
         public const string DOTNGC = ".ngc";
         public const string DOTPS2 = ".ps2";
@@ -44,6 +48,9 @@ namespace GH_Toolkit_Core.QB
         public const string DOT_QB = ".qb";
         public const string DOT_MQB = ".mqb";
         public const string DOT_SQB = ".sqb";
+        public const string DOT_QS = ".qs";
+        public const string DOT_MID_QS = ".mid.qs";
+        public const string DOT_SKA = ".ska";
 
         public const string _GFX = "_gfx";
         public const string _SFX = "_sfx";

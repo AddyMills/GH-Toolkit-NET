@@ -12,6 +12,9 @@ using static GH_Toolkit_Core.QB.QB;
 using static GH_Toolkit_Core.QB.QBArray;
 using static GH_Toolkit_Core.QB.QBConstants;
 using GH_Toolkit_Core.Methods;
+using static GH_Toolkit_Core.MIDI.MidiDefs;
+using GH_Toolkit_Core.Debug;
+using System.Globalization;
 
 namespace GH_Toolkit_Core.QB
 {
@@ -39,7 +42,7 @@ namespace GH_Toolkit_Core.QB
                 NextItem = Reader.ReadUInt32(stream);
             }
         }
-        [DebuggerDisplay("{Info,nq} {Props,nq} - {Data}")]
+        [DebuggerDisplay("{Info,nq} {Props,nq} - {DataKey}")]
         public class QBStructItem
         {
             public QBStructInfo Info { get; set; }
@@ -47,6 +50,23 @@ namespace GH_Toolkit_Core.QB
             public object Data { get; set; }
             public object? Children { get; set; }
             public object? Parent { get; set; }
+            // Property to get QB key string
+            public object DataKey
+            {
+                get
+                {
+                    if (Data is string key && key.StartsWith("0x"))
+                    {
+                        // Remove the "0x" prefix
+                        string hexValue = key.Substring(2);
+                        if (uint.TryParse(hexValue, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint result))
+                        {
+                            return DebugReader.DbgString(result);
+                        }
+                    }
+                    return Data;
+                }
+            }
             public QBStructItem(string key, string value, string type)
             {
                 Props = new QBStructProps(key, ParseData(value, type));
@@ -60,6 +80,12 @@ namespace GH_Toolkit_Core.QB
                     type = listFloat.Count == 2 ? PAIR : VECTOR;
                 }
                 Info = new QBStructInfo(type); 
+            }
+            public QBStructItem(string key, int value) // Construct an integer item
+            {
+                Props = new QBStructProps(key, value);
+                Data = Props.DataValue;
+                Info = new QBStructInfo(INTEGER);
             }
             public QBStructItem(string key, QBArrayNode value) // Array
             {
@@ -116,6 +142,11 @@ namespace GH_Toolkit_Core.QB
                     //throw new Exception("Not yet implemented!");
                 }
                 ItemCount = Items.Count;
+            }
+            public void AddToStruct(string key, int value) // Integer item
+            {
+                var item = new QBStructItem(key, value);
+                Items.Add(item);
             }
             public void AddVarToStruct(string key, string value, string type)
             {

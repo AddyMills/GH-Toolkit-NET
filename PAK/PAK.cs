@@ -17,6 +17,7 @@ using static GH_Toolkit_Core.PAK.PAK;
 using static GH_Toolkit_Core.QB.QB;
 using static GH_Toolkit_Core.QB.QBConstants;
 using static GH_Toolkit_Core.Checksum.CRC;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace GH_Toolkit_Core.PAK
 {
@@ -42,7 +43,7 @@ namespace GH_Toolkit_Core.PAK
             {
 
             }
-            public PakEntry(string console, string game)
+            public PakEntry(string console, string game, string? assetContext = null)
             {
                 if (console == CONSOLE_PS2 && game == GAME_GH3)
                 {
@@ -52,13 +53,15 @@ namespace GH_Toolkit_Core.PAK
                 {
                     MakeLastEntry(".last");
                 }
+                AssetContext = assetContext;
             }
-            public PakEntry(byte[] bytes, string console)
+            public PakEntry(byte[] bytes, string console, string? assetContext = null)
             {
                 EntryData = bytes;
                 FileSize = (uint)EntryData.Length;
                 ConsoleType = console;
                 ByteLength = 32;
+                AssetContext = assetContext;
             }
             public void MakeLastEntry(string lastType)
             {
@@ -71,7 +74,14 @@ namespace GH_Toolkit_Core.PAK
             }
             public void SetExtension(string extension)
             {
-                Extension = extension;
+                if (FullFlagPath != null && FullFlagPath!.IndexOf(DOT_MID_QS) != -1)
+                {
+                    Extension = $"{DOT_QS}{extension}";
+                }
+                else
+                {
+                    Extension = extension;
+                }
             }
             public void SetNameNoExt(string nameNoExt)
             {
@@ -101,11 +111,34 @@ namespace GH_Toolkit_Core.PAK
                     }
                     FullName = FLAGBYTE;
                 }
+                else if (FullFlagPath!.StartsWith(HEXSTART))
+                {
+                    FullName = NameNoExt;
+                    if (FullFlagPath.IndexOf($"{HEXSTART}") != -1)
+                    {
+                        NameNoExt = FullFlagPath.Substring(FullFlagPath.IndexOf(".") + 1, 10); // Should always be 10 characters since it's a normalized hex value
+                    }
+                    else
+                    {
+                        NameNoExt = FullName;
+                    }
+                }
+                else if (FullFlagPath.IndexOf(DOT_MID_QS) != -1)
+                {
+                    FullName = FullFlagPath.Substring(0, FullFlagPath.IndexOf(DOT_QS) + 3); // Filter out the language portion
+                }
+                else if (FullFlagPath.IndexOf(DOT_SKA) != -1)
+                {
+                    FullName = NameNoExt;
+                }
                 else
                 {
-                    AssetContext = FLAGBYTE;
                     FullName = FullFlagPath;
+                }
 
+                if (ConsoleType != CONSOLE_PS2 && AssetContext == null)
+                {
+                    AssetContext = FLAGBYTE;
                 }
             }
             public void SetFlags()
@@ -149,9 +182,9 @@ namespace GH_Toolkit_Core.PAK
             {
                 throw new Exception("Invalid File");
             }
-            string fileNoExt = fileName.Substring(0, fileName.IndexOf(".pak"));
+            string fileNoExt = fileName.Substring(0, fileName.ToLower().IndexOf(".pak"));
             string fileExt = Path.GetExtension(file);
-            Console.WriteLine($"Extracting {fileNoExt}");
+            Console.WriteLine($"Processing {fileNoExt}");
             string folderPath = Path.GetDirectoryName(file);
             string NewFolderPath = Path.Combine(folderPath, fileNoExt);
             string songCheck = "_song";
@@ -214,7 +247,8 @@ namespace GH_Toolkit_Core.PAK
 
 
                 string saveName = Path.Combine(NewFolderPath, pakFileName);
-                Console.WriteLine(pakFileName);
+
+                Console.WriteLine($"Extracting {pakFileName}");
                 Directory.CreateDirectory(Path.GetDirectoryName(saveName));
 
                 if (convToQ)
@@ -266,8 +300,8 @@ namespace GH_Toolkit_Core.PAK
                     }
                     File.Delete(saveName);
                 }
-
             }
+            Console.WriteLine("Success!");
         }
         private static uint CheckPabType(byte[] pakBytes, string endian = "big")
         {
@@ -310,6 +344,23 @@ namespace GH_Toolkit_Core.PAK
             List<PakEntry> pakList = ExtractOldPak(pakBytes, endian, songName);
 
             return pakList;
+        }
+        public static List<string> GetFilesFromFolder(string filePath)
+        {
+            List<string> files = new List<string>();
+            if (Directory.Exists(filePath))
+            {
+                foreach (string file in Directory.GetFiles(filePath)) { files.Add(file); }
+            }
+            else if (File.Exists(filePath))
+            {
+                files.Add(filePath);
+            }
+            else
+            {
+                throw new Exception("Could not find valid file or folder to parse.");
+            }
+            return files;
         }
         public static List<PakEntry> ExtractOldPak(byte[] pakBytes, string endian, string songName = "")
         {
@@ -394,7 +445,15 @@ namespace GH_Toolkit_Core.PAK
                     // entry.FullName = entry.FullName.Replace(".qb", entry.Extension);
                     if (entry.FullName.IndexOf(entry.Extension, StringComparison.CurrentCultureIgnoreCase) == -1) 
                     {
-                        entry.FullName += entry.Extension;
+                        if (entry.Extension.IndexOf(DOT_QS) != -1)
+                        {
+                            // QS files are weird inside paks and ".qs" is found twice. Don't need it twice.
+                            entry.FullName += entry.Extension.Replace(DOT_QS, "");
+                        }
+                        else
+                        {
+                            entry.FullName += entry.Extension;
+                        }
                     }
                     PakList.Add(entry);
                 }
@@ -412,8 +471,6 @@ namespace GH_Toolkit_Core.PAK
                     TryGH3 = true;
                 }
             }
-
-            Console.WriteLine("Success!");
             return PakList;
         }
         private static string GetEndian(string fileExt)
@@ -430,9 +487,10 @@ namespace GH_Toolkit_Core.PAK
         public class PakCompiler
         {
             public string Game { get; set; }
-            public string ConsoleType { get; set; }
+            public string? ConsoleType { get; set; }
             public bool IsQb {  get; set; }
             public bool Split {  get; set; }
+            public string? AssetContext { get; set; }
             private ReadWrite Writer { get; set; }
             public PakCompiler(string game, bool isQb = false, bool split = false)
             {
@@ -440,20 +498,39 @@ namespace GH_Toolkit_Core.PAK
                 IsQb = isQb; // Meaning qb.pak, really only used for PS2 to differentiate .qb files from .mqb files
                 Split = split;
             }
+            public PakCompiler(string game, string console, string? assetContext, bool isQb = false, bool split = false)
+            {
+                Game = game;
+                IsQb = isQb; // Meaning qb.pak, really only used for PS2 to differentiate .qb files from .mqb files
+                Split = split;
+                ConsoleType = console;
+                SetWriter();
+                AssetContext = assetContext;
+            }
             private void SetConsole(string filePath)
             {
                 string ext = Path.GetExtension(filePath).ToLower();
                 if (ext == DOTPS2)
                 {
                     ConsoleType = CONSOLE_PS2;
-                    Writer = new ReadWrite("little");
                 }
                 else
                 {
                     ConsoleType = CONSOLE_XBOX;
+                }
+                SetWriter();
+                Console.WriteLine($"Compiling {ConsoleType} PAK file.");
+            }
+            private void SetWriter()
+            {
+                if (ConsoleType == CONSOLE_PS2)
+                {
+                    Writer = new ReadWrite("little");
+                }
+                else
+                {
                     Writer = new ReadWrite("big");
                 }
-                Console.WriteLine($"Compiling {ConsoleType} PAK file.");
             }
             public (byte[]? itemData, byte[]? otherData, string console) CompilePAK(string folderPath)
             {
@@ -464,14 +541,18 @@ namespace GH_Toolkit_Core.PAK
 
                 string[] entries = Directory.GetFileSystemEntries(folderPath, "*", SearchOption.AllDirectories);
 
-                for (int i = 0; i < entries.Length; i++)
+                if (ConsoleType == null)
                 {
-                    if (File.Exists(entries[i]))
+                    for (int i = 0; i < entries.Length; i++)
                     {
-                        SetConsole(entries[i]);
-                        break;
-                    } 
+                        if (File.Exists(entries[i]))
+                        {
+                            SetConsole(entries[i]);
+                            break;
+                        }
+                    }
                 }
+
                 List<PakEntry> PakEntries = new List<PakEntry>();
                 List<string> fileNames = new List<string>();
                 int pakSize = 0;
@@ -486,19 +567,19 @@ namespace GH_Toolkit_Core.PAK
                         {
                             List<QBItem> qBItems = ParseQFile(entry);
                             relPath += "b";
-                            fileData = CompileQbFile(qBItems, relPath);
-                            AddConsoleExt(ref relPath);
+                            fileData = CompileQbFile(qBItems, relPath, game: Game);
+                            //AddConsoleExt(ref relPath);
                         }
                         else if ((Path.GetExtension(entry) == DOT_QB))
                         {
-                            AddConsoleExt(ref relPath);
+                            //AddConsoleExt(ref relPath);
                             fileData = File.ReadAllBytes(entry);
                         }
                         else
                         {
                             fileData = File.ReadAllBytes(entry);
                         }
-                        PakEntry pakEntry = new PakEntry(fileData, ConsoleType);
+                        PakEntry pakEntry = new PakEntry(fileData, ConsoleType, AssetContext);
                         
                         pakEntry.SetFullFlagPath(relPath);
                         pakEntry.SetNameNoExt(GetFileNoExt(Path.GetFileName(relPath)));
@@ -519,7 +600,7 @@ namespace GH_Toolkit_Core.PAK
                     }
                 }
 
-                PakEntries.Add(new PakEntry(ConsoleType, Game));
+                PakEntries.Add(new PakEntry(ConsoleType, Game, AssetContext));
                 pakSize += PakEntries[fileNames.Count].ByteLength;
 
                 if (ConsoleType == CONSOLE_PS2)
@@ -532,7 +613,7 @@ namespace GH_Toolkit_Core.PAK
                 }
 
                 byte[] pakData;
-                byte[] pabData;
+                byte[]? pabData;
 
                 using (MemoryStream pak = new MemoryStream())
                 using (MemoryStream pab = new MemoryStream())
@@ -565,8 +646,15 @@ namespace GH_Toolkit_Core.PAK
                     {
                         Writer.PadStreamTo(pak, 4096);
                     }
-                    pakData = pak.ToArray();
                     pabData = pab.ToArray();
+                    if (!Split)
+                    {
+                        // Add pabData to pakData and make pabData null
+                        pak.Write(pabData);
+                        pabData = null;
+                    }
+                    pakData = pak.ToArray();
+                    
                 }
                 return (pakData, pabData, ConsoleType);
 

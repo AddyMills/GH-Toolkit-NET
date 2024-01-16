@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Reflection.PortableExecutable;
+using System.Security.Policy;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -88,6 +89,16 @@ namespace GH_Toolkit_Core.Debug
         }
 
         public static Dictionary<uint, string> MakeDictFromName(string name)
+        {
+            Dictionary<uint, string> headers = CreateCustomDict(name);
+
+            if (name.StartsWith('a') || name.IndexOf("dlc") != -1)
+            {
+                headers = headers.Concat(CreateCustomDict(name.Substring(1))).ToDictionary(x => x.Key, x => x.Value);
+            }
+            return headers;
+        }
+        private static Dictionary<uint, string> CreateCustomDict(string name)
         {
             Dictionary<uint, string> headers = new Dictionary<uint, string>();
             if (string.IsNullOrEmpty(name))

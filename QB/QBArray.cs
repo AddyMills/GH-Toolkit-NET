@@ -56,6 +56,33 @@ namespace GH_Toolkit_Core.QB
                     throw new ArrayTypeMismatchException($"{value} of type {type} does not match elements in array of type {FirstItem.Type}");
                 }
             }
+            public void AddToArray(int value) // Add an integer value
+            {
+                if (FirstItem == null)
+                {
+                    SetFirstItem(INTEGER);
+                }
+                else if (FirstItem.Type != INTEGER)
+                {
+                    throw new ArrayTypeMismatchException($"{value} of type Integer does not match elements in array of type {FirstItem.Type}");
+                }
+                Items.Add(value);           
+            }
+            public void AddListToArray(List<int> list) // Add a list of integers
+            {
+                if (FirstItem == null)
+                {
+                    SetFirstItem(INTEGER);
+                }
+                else if (FirstItem.Type != INTEGER)
+                {
+                    throw new ArrayTypeMismatchException($"Type Integer does not match elements in array of type {FirstItem.Type}");
+                }
+                foreach(int value in list)
+                {
+                    Items.Add(value);
+                }
+            }
             public void AddArrayToArray(QBArrayNode value) // When parsing from text
             {
                 if (FirstItem == null)

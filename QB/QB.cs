@@ -12,6 +12,8 @@ using static GH_Toolkit_Core.QB.QBStruct;
 using static GH_Toolkit_Core.Methods.Exceptions;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Collections;
+using System.Text;
 
 namespace GH_Toolkit_Core.QB
 {
@@ -37,7 +39,16 @@ namespace GH_Toolkit_Core.QB
             public object Data { get; set; }
             public string Name { get; set; }
             public object? Children { get; set; }
+            // Blank QB Item to build one like Lego!
             public QBItem() { }
+            // QB Item where Info is inferred from the data
+            public QBItem(string name, object data) 
+            {
+                AddName(name);
+                AddData(data);
+                GetInfoFromData(data);
+            }
+            // QB Item from MemoryStream
             public QBItem(MemoryStream stream)
             {
                 Info = new QBItemInfo(stream);
@@ -71,11 +82,39 @@ namespace GH_Toolkit_Core.QB
                     Info = new QBItemInfo(type);
                 }
             }
+            public void MakeEmpty()
+            {
+                QBArrayNode emptyData = new QBArrayNode();
+                emptyData.MakeEmpty();
+                AddData(emptyData);
+                AddInfo(ARRAY);
+            }
+            public void MakeEmpty(string name)
+            {
+                AddName(name);
+                MakeEmpty();
+            }
             public void CreateQBItem(string name, string value, string type)
             {
                 AddName(name);
                 Data = ParseData(value, type);
                 AddInfo(type);
+            }
+            // Incomplete function below, only works for Arrays currently
+            private void GetInfoFromData(object data)
+            {
+                if (data == null)
+                {
+                    throw new ArgumentNullException($"Could not parse {Name} due to null data found.");
+                }
+                if (data is QBArrayNode)
+                {
+                    AddInfo(ARRAY);
+                }
+                else
+                {
+                    throw new NotImplementedException();
+                }
             }
             private string MultiFloatType()
             {
@@ -553,7 +592,7 @@ namespace GH_Toolkit_Core.QB
                 case QSKEY:
                 case POINTER:
                     data = StripQbKeyQuotes(data);
-                    if (type == POINTER)
+                    if (type == POINTER && data.StartsWith("$"))
                     {
                         data = data.Substring(1);
                     }
@@ -1344,8 +1383,10 @@ namespace GH_Toolkit_Core.QB
         }
         public static byte[] CompileQbFile(List<QBItem> qbList, string qbName, string game = "GH3", string console = "360")
         {
-            string qbHeader = "1C 08 02 04 10 04 08 0C 0C 08 02 04 14 02 04 0C 10 10 0C 00";
-
+            if (qbName.StartsWith("0x"))
+            {
+                qbName = $"{qbName.Substring(0, qbName.IndexOf("."))}";
+            }
             byte consoleByte;
             Dictionary<string, byte> QbTypeLookup = flipDict(QbType);
             Dictionary<string, byte> QbStructLookup;
@@ -1371,7 +1412,6 @@ namespace GH_Toolkit_Core.QB
                 endian = "big";
             }
             Reader = new ReadWrite(endian, game, QbTypeLookup, QbStructLookup);
-            byte[] qbHeadHex = ReadWrite.HexStringToByteArray(qbHeader);
             byte[] qbNameHex = Reader.ValueHex(qbName);
 
             int qbPos = 28;
@@ -1400,6 +1440,10 @@ namespace GH_Toolkit_Core.QB
                     }
                     Reader.PadStreamToFour(stream);
                 }
+
+                string qbHeader = GetQbHeader(game, Reader.ValueHex((int)stream.Position));
+                byte[] qbHeadHex = ReadWrite.HexStringToByteArray(qbHeader);
+
                 byte[] firstFour = Reader.ValueHex(0);
                 fullFile.Write(firstFour, 0, 4);
                 fullFile.Write(Reader.ValueHex((int)stream.Length + qbPos), 0, 4);
@@ -1410,7 +1454,28 @@ namespace GH_Toolkit_Core.QB
                 return currentContents;
             }
         }
+        public static string GetQbHeader(string game, byte[] qbSize)
+        {
+            if (game != GAME_GHWOR)
+            {
+                return "1C 08 02 04 10 04 08 0C 0C 08 02 04 14 02 04 0C 10 10 0C 00";
+            }
+            else
+            {
+                StringBuilder byteString = new StringBuilder();
 
+                for (int i = 0; i < qbSize.Length; i++)
+                {
+                    if (i > 0)
+                        byteString.Append(" "); // Add space before each byte except the first
+
+                    byteString.AppendFormat("{0:X2}", qbSize[i]);
+                }
+                string result = byteString.ToString();
+                string tempHeader = $"1C 00 00 00 00 00 00 00 {result} 00 00 00 00 00 00 00 00";
+                return tempHeader;
+            }
+        }
         public static List<QBItem> DecompileQbFromFile(string file)
         {
             string fileName = Path.GetFileName(file);
