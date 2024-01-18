@@ -46,10 +46,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FileComparer", "..\FileComp
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MIDITester", "..\MIDITester\MIDITester.csproj", "{CFE35ABD-0B5B-4C85-971C-843D5FE597B4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PAK Manipulator", "..\PAK Manipulator\PAK Manipulator.csproj", "{16E292CD-12F7-412C-B426-0D92DF7B38CD}"
-	ProjectSection(ProjectDependencies) = postProject
-		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
-	EndProjectSection
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PAK-Manipulator", "..\PAK-Manipulator\PAK-Manipulator.csproj", "{FD67DBE3-8DFD-488F-B243-1807879DBE1B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -97,10 +94,10 @@ Global
 		{CFE35ABD-0B5B-4C85-971C-843D5FE597B4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CFE35ABD-0B5B-4C85-971C-843D5FE597B4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CFE35ABD-0B5B-4C85-971C-843D5FE597B4}.Release|Any CPU.Build.0 = Release|Any CPU
-		{16E292CD-12F7-412C-B426-0D92DF7B38CD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{16E292CD-12F7-412C-B426-0D92DF7B38CD}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{16E292CD-12F7-412C-B426-0D92DF7B38CD}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{16E292CD-12F7-412C-B426-0D92DF7B38CD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FD67DBE3-8DFD-488F-B243-1807879DBE1B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FD67DBE3-8DFD-488F-B243-1807879DBE1B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FD67DBE3-8DFD-488F-B243-1807879DBE1B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FD67DBE3-8DFD-488F-B243-1807879DBE1B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

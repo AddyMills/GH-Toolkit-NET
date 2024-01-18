@@ -18,6 +18,7 @@ using static GH_Toolkit_Core.QB.QB;
 using static GH_Toolkit_Core.QB.QBConstants;
 using static GH_Toolkit_Core.Checksum.CRC;
 using static System.Net.Mime.MediaTypeNames;
+using System.Reflection.PortableExecutable;
 
 namespace GH_Toolkit_Core.PAK
 {
@@ -326,22 +327,29 @@ namespace GH_Toolkit_Core.PAK
             {
                 pakBytes = Compression.DecompressWTPak(pakBytes);
             }
+            List<PakEntry> pakList = new List<PakEntry>();
             if (pabBytes != null)
             {
                 uint pabType = CheckPabType(pakBytes, endian);
                 switch (pabType)
                 {
                     case 0:
+                        //pakList = ExtractNewPak(pakBytes, pabBytes, endian, songName);
                         throw new Exception("PAK type not yet implemented.");
                     case uint size when size >= pakBytes.Length:
                         byte[] bytes = new byte[pabType + pabBytes.Length];
                         Array.Copy(pakBytes, 0, bytes, 0, pakBytes.Length);
                         Array.Copy(pabBytes, 0, bytes, pabType, pabBytes.Length);
                         pakBytes = bytes;
+                        pakList = ExtractOldPak(pakBytes, endian, songName);
                         break;
                 }
             }
-            List<PakEntry> pakList = ExtractOldPak(pakBytes, endian, songName);
+            else
+            {
+                pakList = ExtractOldPak(pakBytes, endian, songName);
+            }
+            
 
             return pakList;
         }
@@ -370,69 +378,14 @@ namespace GH_Toolkit_Core.PAK
             Dictionary<uint, string> headers = DebugReader.MakeDictFromName(songName);
 
             bool TryGH3 = false;
+
             while (true)
             {
-                PakEntry entry = new PakEntry();
                 uint header_start = (uint)stream.Position; // To keep track of which entry since the offset in the header needs to be added to the StartOffset below
-
-                uint extension = reader.ReadUInt32(stream);
-                if (extension != 0x2cb3ef3b && extension != 0xb524565f)
-                {
-                    entry.Extension = DebugReader.DebugCheck(headers, extension);
-                }
-                else
+                PakEntry? entry = GetPakEntry(stream, reader, headers, header_start);
+                if (entry == null)
                 {
                     break;
-                }
-                if (!entry.Extension.StartsWith("."))
-                {
-                    entry.Extension = "." + entry.Extension;
-                }
-                uint offset = reader.ReadUInt32(stream);
-                entry.StartOffset = offset + header_start;
-                uint filesize = reader.ReadUInt32(stream);
-                entry.FileSize = filesize;
-                uint asset = reader.ReadUInt32(stream);
-                entry.AssetContext = DebugReader.DebugCheck(headers, asset);
-                uint fullname = reader.ReadUInt32(stream);
-                entry.FullName = DebugReader.DebugCheck(headers, fullname);
-                uint name = reader.ReadUInt32(stream);
-                entry.NameNoExt = DebugReader.DebugCheck(headers, name);
-                if (entry.FullName.StartsWith("0x"))
-                {
-                    entry.FullName = $"{entry.FullName}.{entry.NameNoExt}";
-                }
-                uint parent = reader.ReadUInt32(stream);
-                entry.Parent = parent;
-                int flags = reader.ReadInt32(stream);
-                entry.Flags = flags;
-                if ((flags & 0x20) != 0)
-                {
-                    var skipTo = stream.Position + 160;
-                    string tempString = ReadWrite.ReadUntilNullByte(stream);
-                    switch (tempString)
-                    {
-                        case string s when s.StartsWith("ones\\"):
-                            tempString = "z" + tempString;
-                            break;
-                        case string s when s.StartsWith("cripts\\"):
-                            tempString = "s" + tempString;
-                            break;
-                        case string s when s.StartsWith("kies\\"):
-                            tempString = "s" + tempString;
-                            break;
-                        case string s when s.StartsWith("ongs\\"):
-                            tempString = "s" + tempString;
-                            break;
-                        case string s when s.StartsWith("odels\\"):
-                            tempString = "m" + tempString;
-                            break;
-                        case string s when s.StartsWith("ak\\"):
-                            tempString = "p" + tempString;
-                            break;
-                    }
-                    entry.FullName = tempString;
-                    stream.Position = skipTo;
                 }
                 try
                 {
@@ -445,15 +398,7 @@ namespace GH_Toolkit_Core.PAK
                     // entry.FullName = entry.FullName.Replace(".qb", entry.Extension);
                     if (entry.FullName.IndexOf(entry.Extension, StringComparison.CurrentCultureIgnoreCase) == -1) 
                     {
-                        if (entry.Extension.IndexOf(DOT_QS) != -1)
-                        {
-                            // QS files are weird inside paks and ".qs" is found twice. Don't need it twice.
-                            entry.FullName += entry.Extension.Replace(DOT_QS, "");
-                        }
-                        else
-                        {
-                            entry.FullName += entry.Extension;
-                        }
+                        GetCorrectExtension(entry);
                     }
                     PakList.Add(entry);
                 }
@@ -471,7 +416,103 @@ namespace GH_Toolkit_Core.PAK
                     TryGH3 = true;
                 }
             }
+            stream.Close();
             return PakList;
+        }
+        public static List<PakEntry> ExtractNewPak(byte[] pakBytes, byte[] pabBytes, string endian, string songName = "")
+        {
+            ReadWrite reader = new ReadWrite(endian);
+            MemoryStream stream = new MemoryStream(pakBytes);
+            List<PakEntry> PakList = new List<PakEntry>();
+            Dictionary<uint, string> headers = DebugReader.MakeDictFromName(songName);
+
+            while (true)
+            {
+                PakEntry? entry = GetPakEntry(stream, reader, headers, 0);
+                if (entry == null)
+                {
+                    break;
+                }
+            }
+            stream.Close();
+            return PakList;
+            }
+
+        private static PakEntry? GetPakEntry(MemoryStream stream, ReadWrite reader, Dictionary<uint, string> headers, uint header_start = 0)
+        {
+            PakEntry entry = new PakEntry();
+            uint extension = reader.ReadUInt32(stream);
+            if (extension != 0x2cb3ef3b && extension != 0xb524565f)
+            {
+                entry.Extension = DebugReader.DebugCheck(headers, extension);
+            }
+            else
+            {
+                return null;
+            }
+            if (!entry.Extension.StartsWith("."))
+            {
+                entry.Extension = "." + entry.Extension;
+            }
+            uint offset = reader.ReadUInt32(stream);
+            entry.StartOffset = offset + header_start;
+            uint filesize = reader.ReadUInt32(stream);
+            entry.FileSize = filesize;
+            uint asset = reader.ReadUInt32(stream);
+            entry.AssetContext = DebugReader.DebugCheck(headers, asset);
+            uint fullname = reader.ReadUInt32(stream);
+            entry.FullName = DebugReader.DebugCheck(headers, fullname);
+            uint name = reader.ReadUInt32(stream);
+            entry.NameNoExt = DebugReader.DebugCheck(headers, name);
+            if (entry.FullName.StartsWith("0x"))
+            {
+                entry.FullName = $"{entry.FullName}.{entry.NameNoExt}";
+            }
+            uint parent = reader.ReadUInt32(stream);
+            entry.Parent = parent;
+            int flags = reader.ReadInt32(stream);
+            entry.Flags = flags;
+            if ((flags & 0x20) != 0)
+            {
+                var skipTo = stream.Position + 160;
+                string tempString = ReadWrite.ReadUntilNullByte(stream);
+                switch (tempString)
+                {
+                    case string s when s.StartsWith("ones\\"):
+                        tempString = "z" + tempString;
+                        break;
+                    case string s when s.StartsWith("cripts\\"):
+                        tempString = "s" + tempString;
+                        break;
+                    case string s when s.StartsWith("kies\\"):
+                        tempString = "s" + tempString;
+                        break;
+                    case string s when s.StartsWith("ongs\\"):
+                        tempString = "s" + tempString;
+                        break;
+                    case string s when s.StartsWith("odels\\"):
+                        tempString = "m" + tempString;
+                        break;
+                    case string s when s.StartsWith("ak\\"):
+                        tempString = "p" + tempString;
+                        break;
+                }
+                entry.FullName = tempString;
+                stream.Position = skipTo;
+            }
+            return entry;
+        }
+        private static void GetCorrectExtension(PakEntry entry)
+        {
+            if (entry.Extension.IndexOf(DOT_QS) != -1)
+            {
+                // QS files are weird inside paks and ".qs" is found twice. Don't need it twice.
+                entry.FullName += entry.Extension.Replace(DOT_QS, "");
+            }
+            else
+            {
+                entry.FullName += entry.Extension;
+            }
         }
         private static string GetEndian(string fileExt)
         {
