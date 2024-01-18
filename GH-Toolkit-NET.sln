@@ -46,7 +46,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FileComparer", "..\FileComp
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MIDITester", "..\MIDITester\MIDITester.csproj", "{CFE35ABD-0B5B-4C85-971C-843D5FE597B4}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PAK-Manipulator", "..\PAK-Manipulator\PAK-Manipulator.csproj", "{FD67DBE3-8DFD-488F-B243-1807879DBE1B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PAK Manipulator", "..\PAK-Manipulator\PAK Manipulator.csproj", "{FD67DBE3-8DFD-488F-B243-1807879DBE1B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
