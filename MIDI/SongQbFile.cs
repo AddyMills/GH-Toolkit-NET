@@ -11,6 +11,13 @@ using static GH_Toolkit_Core.QB.QBStruct;
 using static System.Net.Mime.MediaTypeNames;
 using MidiTheory = Melanchall.DryWetMidi.MusicTheory;
 
+/*
+ * This file contains all the logic for creating a QB file from a MIDI file
+ *
+ *
+ *
+ */
+
 namespace GH_Toolkit_Core.MIDI
 {
     public class SongQbFile

@@ -4,6 +4,14 @@ using GH_Toolkit_Core.Methods;
 using Ionic.Zlib;
 using static GH_Toolkit_Core.PAK.PAK;
 
+/*
+ * This file is intended to be a collection of custom methods to compress and decompress PAK files
+ * Script compression is handled in the QB namespace with the LZSS class
+ * 
+ * 
+ * 
+ */
+
 namespace GH_Toolkit_Core.PAK
 {
     public class Compression

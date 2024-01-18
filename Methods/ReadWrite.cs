@@ -12,6 +12,12 @@ using static System.Runtime.InteropServices.JavaScript.JSType;
 using static GH_Toolkit_Core.QB.QBConstants;
 using static GH_Toolkit_Core.QB.QBScript;
 
+/*
+ * * ReadWrite
+ * * Contains all functions related to reading and writing data to and from files
+ * * It is non-static so that it can be instantiated with a specific endianness and game
+ * */
+
 namespace GH_Toolkit_Core.Methods
 {
     public class ReadWrite

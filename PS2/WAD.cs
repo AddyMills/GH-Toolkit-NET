@@ -10,6 +10,12 @@ using System.Threading.Tasks;
 using static GH_Toolkit_Core.PS2.HED;
 using static GH_Toolkit_Core.PS2.WAD;
 
+/*
+ * * This file is intended to be a collection of custom methods to read and create WAD files
+ * * Used in PS2 customs only
+ * * 
+ * */
+
 namespace GH_Toolkit_Core.PS2
 {
     public class WAD

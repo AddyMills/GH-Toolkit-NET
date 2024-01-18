@@ -7,6 +7,12 @@ using System.Text;
 using System.Threading.Tasks;
 using GH_Toolkit_Core.Methods;
 
+/*
+ * * This file is intended to be a collection of custom methods to read and create HED files
+ * * Used in PS2 customs only
+ * * 
+ * */
+
 namespace GH_Toolkit_Core.PS2
 {
     public class HED

@@ -15,6 +15,11 @@ using System.Runtime.InteropServices;
 using System.Collections;
 using System.Text;
 
+/*
+ * * This file is intended to be a collection of methods to read and create QB files
+ * * This includes reading and parsing a text file to turn into a QB
+ * */
+
 namespace GH_Toolkit_Core.QB
 {
     public class QB
