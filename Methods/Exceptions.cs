@@ -4,6 +4,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+/*
+ * This file is intended to be a collection of custom exceptions for use in GH_Toolkit_Core
+ * 
+ * 
+ * Author: AddyMills
+ */
+
 namespace GH_Toolkit_Core.Methods
 {
     public class Exceptions

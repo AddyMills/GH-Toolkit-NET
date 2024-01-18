@@ -7,10 +7,10 @@ using System.Threading.Tasks;
 /*
  * CRC
  * Contains all functions related to CRC generation for Neversoft games
- * The Main function allows you to generate a QB key indefinitely until you type in -1
+ * The QBKeyGen function allows you to generate a QB key indefinitely until you type in -1
  * 
  * 
- * Coded by AddyMills
+ * Author: AddyMills
  * 
  */
 

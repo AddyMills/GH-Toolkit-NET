@@ -4,6 +4,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+/*
+ * * This file is intended to be a collection of testing methods for use in GH_Toolkit_Core
+ * * 
+ * */
+
 namespace GH_Toolkit_Core.Methods
 {
     public class FileTesting

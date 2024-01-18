@@ -4,6 +4,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+/*
+ * * This file is intended to be a collection of custom methods to read and create sections to be used in custom songs
+ * * 
+ * */
+
 namespace GH_Toolkit_Core.MIDI
 {
     public class SectionNames

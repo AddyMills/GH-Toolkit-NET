@@ -20,6 +20,13 @@ using static GH_Toolkit_Core.Checksum.CRC;
 using static System.Net.Mime.MediaTypeNames;
 using System.Reflection.PortableExecutable;
 
+/*
+ * * This file is intended to be a collection of custom methods to read and create PAK files
+ * * 
+ * * 
+ * * 
+ * */
+
 namespace GH_Toolkit_Core.PAK
 {
     public class PAK

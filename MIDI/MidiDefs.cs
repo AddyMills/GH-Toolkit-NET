@@ -7,6 +7,13 @@ using System.Text;
 using System.Threading.Tasks;
 using MidiTheory = Melanchall.DryWetMidi.MusicTheory;
 
+/*
+ * * This file is intended to be a collection of constants and helper functions for use in creating songs from a MIDI file
+ * 
+ * 
+ * Author: AddyMills
+ * */
+
 namespace GH_Toolkit_Core.MIDI
 {
     public class MidiDefs
