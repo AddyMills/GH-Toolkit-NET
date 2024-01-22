@@ -163,6 +163,45 @@ namespace GH_Toolkit_Core.QB
                 var item = new QBStructItem(key, value);
                 Items.Add(item);
             }
+            // Params for SetBlendTime scripts
+            public void MakeLightBlendParams(string eventData)
+            {
+                if (int.TryParse(eventData, out int blendTime))
+                {
+                    AddToStruct(TIME, blendTime);
+                }
+                else
+                {
+                    AddVarToStruct(TIME, eventData, FLOAT);
+                }
+            }
+            // Params for 2-parameter song scripts
+            public void MakeTwoParams(string actor, string eventData, string paramType)
+            {
+                AddVarToStruct(NAME, actor, QBKEY);
+                AddVarToStruct(paramType, eventData, QBKEY);
+            }
+            // Method to add all items from a string to the struct as flags
+            public void AddFlags(string flags)
+            {
+                string[] flagArray = flags.Split(' ');
+                // Return if there are no flags
+                if (flagArray.Length == 0)
+                {
+                    return;
+                }
+                foreach (string flag in flagArray)
+                {
+                    if (int.TryParse(flag, out int repeat))
+                    {
+                        AddToStruct(REPEAT_COUNT, repeat);
+                    }
+                    else
+                    {
+                        AddVarToStruct(FLAG, flag, QBKEY);
+                    }
+                }
+            }
             public void StructToText(StreamWriter writer, int level = 1)
             {
                 string indent = new string('\t', level);

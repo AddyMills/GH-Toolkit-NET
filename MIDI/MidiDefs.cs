@@ -26,6 +26,13 @@ namespace GH_Toolkit_Core.MIDI
         public const string RHYTHMCOOP_NAME = "_rhythmcoop";
         public const string AUX_NAME = "_aux";
         public const string DRUMS_NAME = "_drum";
+        public const string VOCALS_NAME = "vocals";
+
+        public const string GUITARIST = "guitarist";
+        public const string BASSIST = "bassist";
+        public const string DRUMMER = "drummer";
+        public const string VOCALIST = "vocalist";
+        public const string RHYTHM = "rhythm";
 
         // Rock Band crowd names
         public const string INTENSE = "intense";
@@ -45,7 +52,6 @@ namespace GH_Toolkit_Core.MIDI
         public const string SURGE_MEDIUM = "surge_medium";
         public const string SURGE_SLOW_BIG = "surge_slow_big";
 
-
         // Guitar Hero 3 crowd names
         public const string SURGE_FAST = "surge_fast";
         public const string SURGE_SLOW = "surge_slow";
@@ -56,6 +62,43 @@ namespace GH_Toolkit_Core.MIDI
         public const string MUSIC_START = "music_start";
         public const string CODA = "coda";
         public const string THE_END = "end";
+
+        // Script Names
+        public const string BAND_PLAYANIM = "band_playanim";
+        public const string BAND_CHANGESTANCE = "band_changestance";
+        public const string BAND_WALKTONODE = "band_walktonode";
+
+        public const string CROWD_STARTLIGHTERS = "crowd_startlighters";
+        public const string CROWD_STOPLIGHTERS = "crowd_stoplighters";
+        public const string CROWD_STAGEDIVER_JUMP = "crowd_stagediverjump";
+
+        public const string BAND_PLAYFACIALANIM = "band_playfacialanim";
+        public const string LIGHTSHOW_SETTIME = "lightshow_settime";
+        public const string SETBLENDTIME = "setblendtime";
+
+
+        // Guitar Hero 3 Stance Names
+        // Stance A and B work on the singer as well, stance C is guitarist only, stance D is GHA only
+        public const string STANCE = "stance";
+        public const string STANCE_A = "stance_a";
+        public const string STANCE_B = "stance_b";
+        public const string STANCE_C = "stance_c";
+        public const string STANCE_D = "stance_d";
+
+        // Guitar Hero 3 Song Anims
+        public const string SPECIAL = "special";
+        public const string JUMP = "jump";
+        public const string KICK = "kick";
+        public const string RELEASE = "release";
+        public const string LONG_NOTE = "long_note";
+        public const string SOLO = "solo";
+        public const string HANDSOFF = "handsoff";
+        public const string ENDSTRUM = "endstrum";
+
+        // Guitar Hero 3 Song Anim Flags
+        public const string NO_WAIT = "no_wait";
+        public const string CYCLE = "cycle";
+
 
         public static Dictionary<MidiTheory.NoteName, int> Gh3Notes = new Dictionary<MidiTheory.NoteName, int>()
         {
@@ -167,6 +210,16 @@ namespace GH_Toolkit_Core.MIDI
             {RHYTHM_NAME, leftHandBass_gh3},
             {RHYTHMCOOP_NAME, leftHandBass_gh3},
             {AUX_NAME, leftHandRhythm}
+        };
+
+        public static Dictionary <string, string> ActorNameFromTrack = new Dictionary<string, string>
+        {
+            {GUITAR_NAME, GUITARIST},
+            {RHYTHM_NAME, BASSIST},
+            {RHYTHMCOOP_NAME, BASSIST},
+            {DRUMS_NAME, DRUMMER},
+            {VOCALS_NAME, VOCALIST},
+            {AUX_NAME, RHYTHM}
         };
 
         public static Dictionary<int, int> leftHandGtr_wt = new Dictionary<int, int>

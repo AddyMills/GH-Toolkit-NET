@@ -49,8 +49,8 @@ namespace GH_Toolkit_Core.QB
             // QB Item where Info is inferred from the data
             public QBItem(string name, object data) 
             {
-                AddName(name);
-                AddData(data);
+                SetName(name);
+                SetData(data);
                 GetInfoFromData(data);
             }
             // QB Item from MemoryStream
@@ -68,15 +68,42 @@ namespace GH_Toolkit_Core.QB
                 }
                 Name = Props.ID;
             }
-            public void AddName(string name)
+            public void SetName(string name)
             {
                 Name = name;
             }
-            public void AddData(object data)
+            public void SetData(object data)
             {
                 Data = data;
             }
-            public void AddInfo(string type)
+            public void AddDataAndSort(QBArrayNode data)
+            {
+                if (data.Items.Count == 0)
+                {
+                    return;
+                }
+                if (Data is QBArrayNode arrayNode)
+                {
+                    arrayNode.Items.AddRange(data.Items);
+
+                }
+                else
+                {
+                    throw new ArgumentException("Data is not an array or struct");
+                }
+            }
+            public void AddDataAndSort(QBStructData data)
+            {
+                if (Data is QBStructData structData)
+                {
+                    structData.Items.AddRange(data.Items);
+                }
+                else
+                {
+                    throw new ArgumentException("Data is not an array or struct");
+                }
+            }
+            public void SetInfo(string type)
             {
                 if (type == MULTIFLOAT)
                 {
@@ -91,19 +118,19 @@ namespace GH_Toolkit_Core.QB
             {
                 QBArrayNode emptyData = new QBArrayNode();
                 emptyData.MakeEmpty();
-                AddData(emptyData);
-                AddInfo(ARRAY);
+                SetData(emptyData);
+                SetInfo(ARRAY);
             }
             public void MakeEmpty(string name)
             {
-                AddName(name);
+                SetName(name);
                 MakeEmpty();
             }
             public void CreateQBItem(string name, string value, string type)
             {
-                AddName(name);
+                SetName(name);
                 Data = ParseData(value, type);
-                AddInfo(type);
+                SetInfo(type);
             }
             // Incomplete function below, only works for Arrays currently
             private void GetInfoFromData(object data)
@@ -114,11 +141,11 @@ namespace GH_Toolkit_Core.QB
                 }
                 if (data is QBArrayNode)
                 {
-                    AddInfo(ARRAY);
+                    SetInfo(ARRAY);
                 }
                 else
                 {
-                    throw new NotImplementedException();
+                    throw new NotImplementedException("This data type is not yet implemented");
                 }
             }
             private string MultiFloatType()
@@ -1287,7 +1314,7 @@ namespace GH_Toolkit_Core.QB
             string tmpString = tmpKey;
             if (currLevel.LevelType == ROOT)
             {
-                currItem.AddName(tmpKey);
+                currItem.SetName(tmpKey);
             }
             tmpKey = "";
             ParseLevel newLevel = new ParseLevel(currLevel, state, levelType);
@@ -1305,8 +1332,8 @@ namespace GH_Toolkit_Core.QB
             }
             if (currLevel.Parent.LevelType == ROOT)
             {
-                currItem.AddData(currLevel.Array);
-                currItem.AddInfo(ARRAY);
+                currItem.SetData(currLevel.Array);
+                currItem.SetInfo(ARRAY);
                 qbFile.AddQbChild(currItem);
                 currItem = new QBItem();
             }
@@ -1329,8 +1356,8 @@ namespace GH_Toolkit_Core.QB
         {
             if (currLevel.Parent.LevelType == ROOT)
             {
-                currItem.AddData(currLevel.Struct);
-                currItem.AddInfo(STRUCT);
+                currItem.SetData(currLevel.Struct);
+                currItem.SetInfo(STRUCT);
                 qbFile.AddQbChild(currItem);
                 currItem = new QBItem();
             }
@@ -1355,8 +1382,8 @@ namespace GH_Toolkit_Core.QB
         }
         private static void CloseScript(ref ParseLevel currLevel, ref QBItem currItem, ref QB qbFile)
         {
-            currItem.AddData(currLevel.Script);
-            currItem.AddInfo(SCRIPT);
+            currItem.SetData(currLevel.Script);
+            currItem.SetInfo(SCRIPT);
             qbFile.AddQbChild(currItem);
             currItem = new QBItem();
             currLevel = currLevel.Parent;

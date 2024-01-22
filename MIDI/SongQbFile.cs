@@ -8,7 +8,6 @@ using static GH_Toolkit_Core.QB.QB;
 using static GH_Toolkit_Core.QB.QBArray;
 using static GH_Toolkit_Core.QB.QBConstants;
 using static GH_Toolkit_Core.QB.QBStruct;
-using static System.Net.Mime.MediaTypeNames;
 using MidiTheory = Melanchall.DryWetMidi.MusicTheory;
 
 /*
@@ -40,17 +39,12 @@ namespace GH_Toolkit_Core.MIDI
         private const string GAME_GHWOR = "GHWOR";
 
         private const string EMPTYSTRING = "";
-        private const string SECTION_OLD = "[section ";
-        private const string SECTION_NEW = "[prc_";
-        private const string CROWD_CHECK = "[crowd";
+        private const string SECTION_OLD = "section ";
+        private const string SECTION_NEW = "prc_";
+        private const string CROWD_CHECK = "crowd";
         private const string SECTION_EVENT = "section";
         private const string CROWD_EVENT = "crowd_";
-        private const string MUSIC_START = "[music_start]";
-        private const string MUSIC_END = "[music_end]";
-        private const string THE_END = "[end]";
 
-        private const string SETBLENDTIME = "setblendtime";
-        private const string LIGHTSHOW_SETTIME = "lightshow_settime";
         private const string SCR = "scr";
         private const string TIME = "time";
 
@@ -62,6 +56,8 @@ namespace GH_Toolkit_Core.MIDI
         private const string STAR = "Star";
         private const string STAR_BM = "StarBattleMode";
 
+        private const string LYRIC = "lyric";
+
         private const int AccentVelocity = 127;
         private const int GhostVelocity = 1;
         private const int AllAccents = 0b11111;
@@ -72,11 +68,12 @@ namespace GH_Toolkit_Core.MIDI
         public List<int> Fretbars = new List<int>();
         public List<TimeSig> TimeSigs = new List<TimeSig>();
         public Instrument Guitar { get; set; } = new Instrument(GUITAR_NAME);
-        public Instrument? Rhythm { get; set; } = new Instrument(RHYTHM_NAME);
-        public Instrument? Drums { get; set; } = new Instrument(DRUMS_NAME);
-        public Instrument? Aux { get; set; } = new Instrument(AUX_NAME);
-        public Instrument? GuitarCoop { get; set; } = new Instrument(GUITARCOOP_NAME);
-        public Instrument? RhythmCoop { get; set; } = new Instrument(RHYTHMCOOP_NAME);
+        public Instrument Rhythm { get; set; } = new Instrument(RHYTHM_NAME);
+        public Instrument Drums { get; set; } = new Instrument(DRUMS_NAME);
+        public Instrument Aux { get; set; } = new Instrument(AUX_NAME);
+        public Instrument GuitarCoop { get; set; } = new Instrument(GUITARCOOP_NAME);
+        public Instrument RhythmCoop { get; set; } = new Instrument(RHYTHMCOOP_NAME);
+        public VocalsInstrument Vocals { get; set; } = new VocalsInstrument();
         public List<AnimNote>? ScriptNotes { get; set; }
         public List<AnimNote>? AnimNotes { get; set; }
         public List<AnimNote>? TriggersNotes { get; set; }
@@ -138,6 +135,9 @@ namespace GH_Toolkit_Core.MIDI
                     case PARTAUX:
                         Aux.MakeInstrument(trackChunk, this);
                         break;
+                    case PARTVOCALS:
+                        Vocals.MakeInstrument(trackChunk, this);
+                        break;
                     case CAMERAS:
                         ProcessCameras(trackChunk);
                         break;
@@ -185,7 +185,7 @@ namespace GH_Toolkit_Core.MIDI
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_lightshow", LightshowScripts));
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_crowd", CrowdScripts));
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_drums", DrumsScripts));
-                gameQb.Add(ScriptArrayQbItem($"{SongName}_performance", PerformanceScripts));
+                gameQb.Add(CombinePerformanceScripts_GH3($"{SongName}_performance"));
             }
             string songMid = $"songs\\{SongName}.mid.qb";
             byte[] bytes = CompileQbFile(gameQb, songMid, Game);
@@ -289,8 +289,7 @@ namespace GH_Toolkit_Core.MIDI
         {
             if (Markers == null)
             {
-                Markers = new List<Marker>();
-                Markers.Add(new Marker(0, "start"));
+                Markers = [new Marker(0, "start")];
             }
             QBArrayNode markerArray = new QBArrayNode();
             foreach (Marker marker in Markers)
@@ -366,6 +365,98 @@ namespace GH_Toolkit_Core.MIDI
             }
             CamerasNotes = cameraAnimNotes;
         }
+        public QBItem CombinePerformanceScripts_GH3(string songName)
+        {
+            var perfScripts = new List<(int, QBStructData)>();
+            //QBItem perfScripts = new QBItem(songName, Guitar.PerformanceScript);
+            perfScripts.AddRange(Guitar.PerformanceScript);
+            perfScripts.AddRange(Rhythm.PerformanceScript);
+            if (Game == GAME_GHA)
+            {
+                perfScripts.AddRange(Aux.PerformanceScript);
+            }
+            perfScripts.AddRange(Vocals.PerformanceScript);
+            perfScripts.Sort((x, y) => x.Item1.CompareTo(y.Item1));
+            PerformanceScripts = new QBArrayNode();
+            foreach (var script in perfScripts)
+            {
+                PerformanceScripts.AddStructToArray(script.Item2);
+            }
+            QBItem PerfScriptQb = new QBItem(songName, PerformanceScripts);
+            return PerfScriptQb;
+        }
+        // Method to generate the scripts for the instrument
+        public List<(int, QBStructData)> InstrumentScripts(List<TimedEvent> events, string actor)
+        {
+            bool isOldGame = Game == GAME_GH3 || Game == GAME_GHA;
+            bool isGtrOrSinger = actor == GUITARIST || actor == VOCALIST;
+            var scriptArray = new List<(int, QBStructData)>();
+            foreach (var timedEvent in events)
+            {
+                string eventText;
+                if (timedEvent.Event is TextEvent textEvent)
+                {
+                    eventText = textEvent.Text;
+                    var (eventType, eventData) = GetEventData(eventText);
+                    int eventTime = GameMilliseconds(timedEvent.Time);
+                    switch (eventType)
+                    {
+                        case STANCE_A:
+                        case STANCE_B:
+                        case STANCE_C:
+                        case STANCE_D:
+                            if (!isOldGame)
+                            {
+                                continue;
+                            }
+                            scriptArray.Add((eventTime, MakeNewStanceScript(eventTime, actor, eventType, eventData)));
+                            break;
+                        case BAND_PLAYFACIALANIM:
+                            if (isOldGame && !isGtrOrSinger)
+                            {
+                                continue;
+                            }
+                            scriptArray.Add((eventTime, MakeNewLipsyncScript(eventTime, actor, eventData)));
+                            break;
+                        case JUMP:
+                        case SPECIAL:
+                        case KICK:
+                            if (!isOldGame)
+                            {
+                                continue;
+                            }
+                            else if (actor == DRUMMER)
+                            {
+                                continue;
+                            }
+                            scriptArray.Add((eventTime, MakeNewAnimScript(eventTime, actor, eventType, eventData)));
+                            break;
+                        // Singer exclusive events
+                        case RELEASE:
+                        case LONG_NOTE:
+                            if (!isOldGame || actor != VOCALIST)
+                            {
+                                continue;
+                            }
+                            scriptArray.Add((eventTime, MakeNewAnimScript(eventTime, actor, eventType, eventData)));
+                            break;
+                        // Guitarist exclusive events
+                        case SOLO:
+                        case HANDSOFF:
+                        case ENDSTRUM:
+                            if (!isOldGame || (actor != GUITARIST && actor != BASSIST))
+                            {
+                                continue;
+                            }
+                            scriptArray.Add((eventTime, MakeNewAnimScript(eventTime, actor, eventType, eventData)));
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+            return scriptArray;
+        }
         public void ProcessLights(TrackChunk trackChunk)
         {
             var lightNotes = trackChunk.GetNotes().ToList();
@@ -407,12 +498,12 @@ namespace GH_Toolkit_Core.MIDI
                 lightAnimNotes.Add(new AnimNote(startTime, noteVal, length, velocity));
             }
             LightshowNotes = lightAnimNotes;
-            
+
             if (lightArray.Items.Count > 0)
             {
                 LightshowScripts = lightArray;
             }
-            
+
         }
         private QBArrayNode Gh3LightsNote107(List<Note> notes)
         {
@@ -492,7 +583,7 @@ namespace GH_Toolkit_Core.MIDI
                         {
                             notes.Add(new Note((SevenBitNumber)blendNote, defaultTick, blendNoteTime));
                             prevLen = blendNote;
-                        } 
+                        }
                     }
                 }
             }
@@ -517,16 +608,42 @@ namespace GH_Toolkit_Core.MIDI
         private QBStructData MakeNewLightScript(int eventTime, string eventData)
         {
             QBStructData lightParams = new QBStructData();
-            if (int.TryParse(eventData, out int blendTime))
-            {
-                lightParams.AddToStruct(TIME, blendTime);
-            }
-            else
-            {
-                lightParams.AddVarToStruct(TIME, eventData, FLOAT);
-            }
+            lightParams.MakeLightBlendParams(eventData);
             ScriptStruct lightScript = new ScriptStruct(eventTime, LIGHTSHOW_SETTIME, lightParams);
             return lightScript.ToStruct();
+        }
+        private QBStructData MakeNewStanceScript(int eventTime, string actor, string eventData, string flagParams)
+        {
+            QBStructData? animParams = new QBStructData();
+            animParams.MakeTwoParams(actor, eventData, STANCE);
+            if (flagParams != EMPTYSTRING)
+            {
+                animParams.AddFlags(flagParams);
+            }
+            ScriptStruct animScript = new ScriptStruct(eventTime, BAND_CHANGESTANCE, animParams);
+            return animScript.ToStruct();
+        }
+        private QBStructData MakeNewLipsyncScript(int eventTime, string actor, string eventData)
+        {
+            QBStructData? animParams = new QBStructData();
+            animParams.MakeTwoParams(actor, eventData, ANIM);
+            ScriptStruct animScript = new ScriptStruct(eventTime, BAND_PLAYFACIALANIM, animParams);
+            return animScript.ToStruct();
+        }
+        private QBStructData MakeNewAnimScript(int eventTime, string actor, string eventType, string flagParams)
+        {
+            QBStructData? animParams = new QBStructData();
+            animParams.MakeTwoParams(actor, eventType, ANIM);
+            if (eventType == HANDSOFF)
+            {
+                flagParams = $"disable_auto_arms {flagParams}";
+            }
+            if (flagParams != EMPTYSTRING)
+            {
+                animParams.AddFlags(flagParams);
+            }
+            ScriptStruct animScript = new ScriptStruct(eventTime, BAND_PLAYANIM, animParams);
+            return animScript.ToStruct();
         }
         public void ProcessEvents(TrackChunk trackChunk)
         {
@@ -584,21 +701,32 @@ namespace GH_Toolkit_Core.MIDI
         private (string eventType, string eventData) GetEventData(string eventText)
         {
             string eventType;
+            eventText = eventText.ToLower();
+            if (!eventText.StartsWith("[") && !eventText.EndsWith("]"))
+            {
+                eventType = LYRIC;
+                return (eventType, eventText);
+            }
+            else
+            {
+                eventText = eventText.Substring(1, eventText.Length - 2);
+            }
+
+            string[] flagArray = eventText.Split(' ');
 
             if (eventText.StartsWith(SECTION_OLD))
             {
                 eventType = SECTION_EVENT;
-                eventText = eventText.Substring(0, eventText.Length - 1).Replace(SECTION_OLD, EMPTYSTRING);
+                eventText = eventText.Replace(SECTION_OLD, EMPTYSTRING);
             }
             else if (eventText.StartsWith(SECTION_NEW))
             {
                 eventType = SECTION_EVENT;
-                eventText = eventText.Substring(1, eventText.Length - 2);
             }
             else if (eventText.StartsWith(CROWD_CHECK))
             {
                 eventType = CROWD_EVENT;
-                eventText = eventText.Substring(1, eventText.Length - 2).Replace(CROWD_EVENT, EMPTYSTRING);
+                eventText = eventText.Replace(CROWD_EVENT, EMPTYSTRING);
             }
             else if (eventText.ToLower().StartsWith(SETBLENDTIME) || eventText.ToLower().StartsWith(LIGHTSHOW_SETTIME))
             {
@@ -626,9 +754,65 @@ namespace GH_Toolkit_Core.MIDI
                 eventType = CROWD_EVENT;
                 eventText = CODA;
             }
+            else if (eventText.StartsWith(STANCE))
+            {
+                if (Game == GAME_GH3 || Game == GAME_GHA)
+                {
+                    switch (flagArray[0])
+                    {
+                        case STANCE_A:
+                        case STANCE_B:
+                        case STANCE_C:
+                            eventType = flagArray[0];
+                            break;
+                        case STANCE_D:
+                            if (Game != GAME_GHA)
+                            {
+                                eventType = STANCE_A; // Fallback since Stance D is not in GH3
+                            }
+                            else
+                            {
+                                eventType = flagArray[0];
+                            }
+                            break;
+                        default:
+                            eventType = EMPTYSTRING;
+                            break;
+                    }
+                    eventText = eventText.Replace(flagArray[0], EMPTYSTRING).TrimStart();
+                }
+                else
+                {
+                    eventType = EMPTYSTRING;
+                }
+            }
+            else if (eventText.StartsWith(BAND_PLAYFACIALANIM))
+            {
+                eventType = BAND_PLAYFACIALANIM;
+                eventText = eventText.Replace(BAND_PLAYFACIALANIM, EMPTYSTRING).TrimStart();
+            }
             else
             {
-                eventType = EMPTYSTRING;
+                switch (flagArray[0])
+                {
+                    case JUMP:
+                    case SPECIAL:
+                    case KICK:
+                    // Singer events
+                    case RELEASE:
+                    case LONG_NOTE:
+                    // Guitarist events
+                    case SOLO:
+                    case HANDSOFF:
+                    case ENDSTRUM:
+                        eventType = flagArray[0];
+                        eventText = eventText.Replace(flagArray[0], EMPTYSTRING).TrimStart();
+                        break;
+                    default:
+                        eventType = EMPTYSTRING;
+                        break;
+                }
+
             }
             return (eventType, eventText);
         }
@@ -668,7 +852,7 @@ namespace GH_Toolkit_Core.MIDI
             public QBArrayNode FaceOffP1 { get; set; }
             public QBArrayNode FaceOffP2 { get; set; }
             public List<AnimNote> AnimNotes { get; set; } = new List<AnimNote>();
-            public object PerformanceScript { get; set; }
+            public List<(int, QBStructData)> PerformanceScript { get; set; } = new List<(int, QBStructData)>();
             internal List<Note> StarPowerPhrases { get; set; }
             internal List<Note> BattleStarPhrases { get; set; }
             internal List<Note> FaceOffStarPhrases { get; set; }
@@ -731,6 +915,16 @@ namespace GH_Toolkit_Core.MIDI
                 FaceOffP1 = ProcessFaceOffSections(faceOffP1Notes, songQb);
                 var faceOffP2Notes = allNotes.Where(x => x.NoteNumber == FaceOffP2Note).ToList();
                 FaceOffP2 = ProcessFaceOffSections(faceOffP2Notes, songQb);
+
+                // Create performance scripts for the instrument
+                var timedEvents = trackChunk.GetTimedEvents().ToList();
+                var textEvents = timedEvents.Where(e => e.Event is TextEvent).ToList();
+
+                // Create performance scripts for the instrument, excludes the drummer if GH3 or GHA
+                if (((Game == GAME_GH3 || Game == GAME_GHA) && TrackName != DRUMS_NAME) || (Game != GAME_GH3 && Game != GAME_GHA))
+                {
+                    PerformanceScript = songQb.InstrumentScripts(textEvents, ActorNameFromTrack[TrackName]);
+                }
 
                 // Extract Star Power, BM Star, and FO Star
                 StarPowerPhrases = allNotes.Where(x => x.NoteNumber == StarPowerNote).ToList();
@@ -917,6 +1111,25 @@ namespace GH_Toolkit_Core.MIDI
                 return faceOffs;
             }
         }
+        public class VocalsInstrument
+        {
+            public List<(int, QBStructData)> PerformanceScript { get; set; } = new List<(int, QBStructData)>();
+            // GHWT stuff to come later
+            public VocalsInstrument()
+            {
+
+            }
+            public void MakeInstrument(TrackChunk trackChunk, SongQbFile songQb)
+            {
+                if (trackChunk == null || songQb == null)
+                {
+                    throw new ArgumentNullException("trackChunk or songQb is null");
+                }
+                var timedEvents = trackChunk.GetTimedEvents().ToList();
+                var textEvents = timedEvents.Where(e => e.Event is TextEvent).ToList();
+                PerformanceScript = songQb.InstrumentScripts(textEvents, VOCALIST);
+            }
+        }
         public List<PlayNote> MakeGuitar(List<Chord> chords, List<Note> forceOn, List<Note> forceOff, Dictionary<MidiTheory.NoteName, int> noteDict)
         {
             List<PlayNote> noteList = new List<PlayNote>();
@@ -1055,7 +1268,7 @@ namespace GH_Toolkit_Core.MIDI
         [DebuggerDisplay("{PlayNotes.Count} Notes")]
         public class Difficulty
         {
-            
+
             public string diffName { get; set; }
             public List<PlayNote>? PlayNotes { get; set; }
             public List<StarPower>? StarEntries { get; set; }
@@ -1116,16 +1329,16 @@ namespace GH_Toolkit_Core.MIDI
             {
                 string fullName = $"{songName}_{diffName}";
                 QBItem currItem = new QBItem();
-                currItem.AddName(fullName);
-                currItem.AddInfo(ARRAY);
+                currItem.SetName(fullName);
+                currItem.SetInfo(ARRAY);
                 return currItem;
             }
             public QBItem CreateStarBase(string songName, string starType)
             {
                 string fullName = $"{songName}_{diffName}_{starType}";
                 QBItem currItem = new QBItem();
-                currItem.AddName(fullName);
-                currItem.AddInfo(ARRAY);
+                currItem.SetName(fullName);
+                currItem.SetInfo(ARRAY);
                 return currItem;
             }
             public QBItem CreateGH3Notes(string songName) // Combine this with SP
@@ -1147,7 +1360,7 @@ namespace GH_Toolkit_Core.MIDI
                     }
                     notes.AddToArray(playNote.Note);
                 }
-                currItem.AddData(notes);
+                currItem.SetData(notes);
                 return currItem;
             }
             public QBItem CreateGH3StarPower(string songName)
@@ -1158,7 +1371,7 @@ namespace GH_Toolkit_Core.MIDI
                     star.MakeEmpty();
                     return star;
                 }
-                star.AddData(MakeStarArray(StarEntries));
+                star.SetData(MakeStarArray(StarEntries));
 
                 return star;
             }
@@ -1174,11 +1387,11 @@ namespace GH_Toolkit_Core.MIDI
                 {
                     QBArrayNode starData = new QBArrayNode();
                     starData.MakeEmpty();
-                    starBM.AddData(starData);
+                    starBM.SetData(starData);
                 }
                 else
                 {
-                    starBM.AddData(MakeStarArray(BattleStarEntries));
+                    starBM.SetData(MakeStarArray(BattleStarEntries));
                 }
 
 

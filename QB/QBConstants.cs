@@ -133,6 +133,12 @@ namespace GH_Toolkit_Core.QB
 
         public const string ALLARGS_REGEX = @"^<\.{1,2}$";
 
+        // Script Constants
+        public const string TIME = "time";
+        public const string NAME = "name";
+        public const string ANIM = "anim";
+        public const string REPEAT_COUNT = "repeat_count";
+
         // Byte Constants
         public const byte NEWLINE_BYTE = 0x01;
         public const byte LEFTBRACE_BYTE = 0x03;
