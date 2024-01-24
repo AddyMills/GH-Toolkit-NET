@@ -33,11 +33,6 @@ namespace GH_Toolkit_Core.MIDI
         private const string CAMERAS = "CAMERAS";
         private const string LIGHTSHOW = "LIGHTSHOW";
 
-        private const string GAME_GH3 = "GH3";
-        private const string GAME_GHA = "GHA";
-        private const string GAME_GHWT = "GHWT";
-        private const string GAME_GHWOR = "GHWOR";
-
         private const string EMPTYSTRING = "";
         private const string SECTION_OLD = "section ";
         private const string SECTION_NEW = "prc_";

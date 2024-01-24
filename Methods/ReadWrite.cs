@@ -170,11 +170,11 @@ namespace GH_Toolkit_Core.Methods
             }
             return buffer;
         }
-        public uint ReadUInt8(MemoryStream stream)
+        public byte ReadUInt8(MemoryStream stream)
         {
             return ReadAndMaybeFlipBytes(stream, 1)[0];
         }
-        public uint ReadUInt16(MemoryStream stream)
+        public ushort ReadUInt16(MemoryStream stream)
         {
             return BitConverter.ToUInt16(ReadAndMaybeFlipBytes(stream, 2), 0);
         }
