@@ -200,6 +200,11 @@ namespace GH_Toolkit_Core.Methods
             s.Write(stringLen);
             s.Write(data);
         }
+        public void WriteFloat(MemoryStream s, float data)
+        {
+            byte[] floatBytes = GetFloatBytes(data);
+            WriteAndMaybeFlipBytes(s, floatBytes);
+        }
         public void WriteAndMaybeFlipBytes(MemoryStream s, byte[] data)
         {
             if (_flipBytes)
@@ -215,6 +220,26 @@ namespace GH_Toolkit_Core.Methods
         public byte[] GetFloatBytes(float f)
         {
             return BitConverter.GetBytes(f);
+        }
+        public static void MoveToModX(MemoryStream stream, int modulo)
+        {
+            long currentPosition = stream.Position;
+            long remainder = currentPosition % modulo;
+
+            if (remainder == 0)
+            {
+                // The current position is already divisible by modulo
+                return;
+            }
+
+            // Calculate the next nearest position divisible by modulo
+            long newPosition = currentPosition + (modulo - remainder);
+
+            // Ensure the new position does not exceed the length of the stream.
+            newPosition = Math.Min(newPosition, stream.Length);
+
+            // Set the new position
+            stream.Position = newPosition;
         }
         public static void MoveToModFour(MemoryStream stream)
         {
@@ -292,6 +317,11 @@ namespace GH_Toolkit_Core.Methods
             return ProcessBytes(bytes);
         }
         public byte[] ValueHex(short value)
+        {
+            byte[] bytes = BitConverter.GetBytes(value);
+            return ProcessBytes(bytes);
+        }
+        public byte[] ValueHex(ushort value)
         {
             byte[] bytes = BitConverter.GetBytes(value);
             return ProcessBytes(bytes);
@@ -678,7 +708,7 @@ namespace GH_Toolkit_Core.Methods
         {
             return (int)Math.Ceiling(num / 4.0) * 4;
         }
-        static void AppendStream(MemoryStream target, MemoryStream source)
+        public static void AppendStream(MemoryStream target, MemoryStream source)
         {
             // Check for null streams
             if (target == null || source == null)

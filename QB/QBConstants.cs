@@ -40,6 +40,16 @@ namespace GH_Toolkit_Core.QB
         public const string GAME_GHWT = "GHWT";
         public const string GAME_GHWOR = "GHWoR";
 
+        public const string SKELETON_GH3_SINGER = "gh3_singer";
+        public const string SKELETON_GH3_GUITARIST = "gh3_guitarist";
+        public const string SKELETON_GHA_SINGER = "gha_singer";
+        public const string SKELETON_DMC_SINGER = "dmc_singer";
+        public const string SKELETON_WT_ROCKER = "wt_rocker";
+        public const string SKELETON_STEVE = "steve";
+        public const string SKELETON_CAMERA = "camera";
+        public const string SKELETON_OTHER = "other";
+
+
         public const string DOTNGC = ".ngc";
         public const string DOTPS2 = ".ps2";
         public const string DOTPS3 = ".ps3";

@@ -98,6 +98,9 @@ namespace GH_Toolkit_Core.MIDI
             SongName = songName;
             HopoThreshold = hopoThreshold;
             SetMidiInfo(midiPath);
+        }
+        public byte[] ParseMidiToQb()
+        {
             // Getting the tempo map to convert ticks to time
             SongTempoMap = SongMidiFile.GetTempoMap();
             var trackChunks = SongMidiFile.GetTrackChunks();
@@ -147,7 +150,7 @@ namespace GH_Toolkit_Core.MIDI
                 }
             }
             List<QBItem> gameQb = new List<QBItem>();
-            if (game == GAME_GH3 || game == GAME_GHA)
+            if (Game == GAME_GH3 || Game == GAME_GHA)
             {
                 if (Guitar == null)
                 {
@@ -157,7 +160,7 @@ namespace GH_Toolkit_Core.MIDI
                 gameQb.AddRange(Rhythm.ProcessQbEntriesGH3(SongName));
                 gameQb.AddRange(GuitarCoop.ProcessQbEntriesGH3(SongName));
                 gameQb.AddRange(RhythmCoop.ProcessQbEntriesGH3(SongName));
-                if (game == GAME_GHA)
+                if (Game == GAME_GHA)
                 {
                     gameQb.AddRange(Aux.ProcessQbEntriesGH3(SongName));
                 }
@@ -184,6 +187,7 @@ namespace GH_Toolkit_Core.MIDI
             }
             string songMid = $"songs\\{SongName}.mid.qb";
             byte[] bytes = CompileQbFile(gameQb, songMid, Game);
+            return bytes;
         }
         public List<QBItem> MakeBossBattleQb()
         {
