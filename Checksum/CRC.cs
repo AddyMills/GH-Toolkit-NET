@@ -127,6 +127,20 @@ namespace GH_Toolkit_Core.Checksum
             result = "0x" + result;
             return result;
         }
+        
+        public static uint QBKeyUInt(string textBytes)
+        {
+            return ConvertHexToUInt(QBKey(textBytes));
+        }
+        private static uint ConvertHexToUInt(string hexString)
+        {
+            // Ensure the string starts with '0x' and is not longer than 10 characters.
+            if (hexString.StartsWith("0x") && hexString.Length <= 10)
+            {
+                return Convert.ToUInt32(hexString, 16);
+            }
+            throw new ArgumentException("Invalid hex string: " + hexString);
+        }
 
         internal static void DebugTest()
         {
