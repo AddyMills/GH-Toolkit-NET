@@ -443,6 +443,10 @@ namespace GH_Toolkit_Core.Methods
             {
                 using (MemoryStream stream = new MemoryStream())
                 {
+                    if (arrayVal.Items.Count == 0)
+                    {
+                        arrayVal.MakeEmpty();
+                    }
                     // Write the header
                     byte[] arrayHeader = new byte[] { 0x00, 0x01, _qbtype[arrayVal.FirstItem.Type], 0x00 };
                     stream.Write(arrayHeader, 0, arrayHeader.Length);

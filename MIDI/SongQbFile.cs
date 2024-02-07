@@ -227,7 +227,11 @@ namespace GH_Toolkit_Core.MIDI
         public QBItem MakeGtrAnimNotes()
         {
             AnimNotes = Guitar.AnimNotes;
-            if (Rhythm != null)
+            if (RhythmCoop.AnimNotes.Count != 0)
+            {
+                AnimNotes.AddRange(RhythmCoop.AnimNotes);
+            }
+            else
             {
                 AnimNotes.AddRange(Rhythm.AnimNotes);
             }
@@ -635,7 +639,7 @@ namespace GH_Toolkit_Core.MIDI
             animParams.MakeTwoParams(actor, eventType, ANIM);
             if (eventType == HANDSOFF)
             {
-                flagParams = $"disable_auto_arms {flagParams}";
+                flagParams = $"disable_auto_arms {flagParams}".TrimEnd();
             }
             if (flagParams != EMPTYSTRING)
             {
@@ -922,7 +926,14 @@ namespace GH_Toolkit_Core.MIDI
                 // Create performance scripts for the instrument, excludes the drummer if GH3 or GHA
                 if (((Game == GAME_GH3 || Game == GAME_GHA) && TrackName != DRUMS_NAME) || (Game != GAME_GH3 && Game != GAME_GHA))
                 {
-                    PerformanceScript = songQb.InstrumentScripts(textEvents, ActorNameFromTrack[TrackName]);
+                    try 
+                    { 
+                        PerformanceScript = songQb.InstrumentScripts(textEvents, ActorNameFromTrack[TrackName]); 
+                    }
+                    catch
+                    {
+                        // Nothing to do here
+                    }
                 }
 
                 // Extract Star Power, BM Star, and FO Star

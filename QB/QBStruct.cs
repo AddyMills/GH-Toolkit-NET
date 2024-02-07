@@ -198,7 +198,7 @@ namespace GH_Toolkit_Core.QB
                     }
                     else
                     {
-                        AddVarToStruct(FLAG, flag, QBKEY);
+                        AddVarToStruct(FLAGBYTE, flag, QBKEY);
                     }
                 }
             }

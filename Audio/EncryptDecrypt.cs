@@ -10,7 +10,8 @@ namespace GH_Toolkit_Core.Audio
     public class EncryptDecrypt
     {
         // All of the following keys are used for the XOR operation with GH3 and GHA files.
-        private static byte[] Fsb3Key = System.Text.Encoding.UTF8.GetBytes("5atu6w4zaw");
+        private static readonly byte[] Fsb3Key = Encoding.UTF8.GetBytes("5atu6w4zaw");
+
         private static readonly byte[] FSB3 = { (byte)'F', (byte)'S', (byte)'B', (byte)'3' };
         private static readonly byte[] FSB4 = { (byte)'F', (byte)'S', (byte)'B', (byte)'4' };
 

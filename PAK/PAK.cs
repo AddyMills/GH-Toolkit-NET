@@ -546,7 +546,7 @@ namespace GH_Toolkit_Core.PAK
                 IsQb = isQb; // Meaning qb.pak, really only used for PS2 to differentiate .qb files from .mqb files
                 Split = split;
             }
-            public PakCompiler(string game, string console, string? assetContext, bool isQb = false, bool split = false)
+            public PakCompiler(string game, string console, string? assetContext = null, bool isQb = false, bool split = false)
             {
                 Game = game;
                 IsQb = isQb; // Meaning qb.pak, really only used for PS2 to differentiate .qb files from .mqb files
