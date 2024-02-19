@@ -205,7 +205,7 @@ namespace GH_Toolkit_Core.Methods
             byte[] floatBytes = GetFloatBytes(data);
             WriteAndMaybeFlipBytes(s, floatBytes);
         }
-        public void WriteAndMaybeFlipBytes(MemoryStream s, byte[] data)
+        public void WriteAndMaybeFlipBytes(Stream s, byte[] data)
         {
             if (_flipBytes)
             {

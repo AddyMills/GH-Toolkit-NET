@@ -128,6 +128,31 @@ namespace GH_Toolkit_Core.SKA
             {119, "bone_mic_stand"},
             {120, "bone_mic_microphone"}
         };
+        public static readonly Dictionary<int, string> GH3_SINGER_PS2_NUM = new Dictionary<int, string>
+        {
+            {43, "bone_jaw"},
+            {44, "bone_eyelid_upper_l"},
+            {45, "bone_eyelid_upper_r"},
+            {46, "bone_mouth_l"},
+            {47, "bone_mouth_r"},
+            {48, "bone_lip_lower_mid"},
+            {49, "bone_lip_upper_mid"},
+            {50, "bone_brow_l"},
+            {51, "bone_brow_r"},
+            {52, "bone_brow_mid"},
+            {53, "bone_lip_lower_corner_l"},
+            {54, "bone_lip_lower_corner_r"},
+            {55, "bone_lip_lower_l"},
+            {56, "bone_lip_lower_r"},
+            {57, "bone_lip_upper_corner_l"},
+            {58, "bone_lip_upper_corner_r"},
+            {59, "bone_lip_upper_l"},
+            {60, "bone_lip_upper_r"},
+            {61, "bone_tongue"},
+            {62, "bone_acc_01"},
+            {63, "bone_acc_02"},
+            {64, "bone_acc_12"},
+        };
         public static readonly Dictionary<int, string> GH3_GUITARIST_NUM = new Dictionary<int, string>
         {
             {0, "control_root"},
@@ -770,6 +795,7 @@ namespace GH_Toolkit_Core.SKA
         };
 
         public static readonly Dictionary<string, int> GH3_SINGER_NAME = GH3_SINGER_NUM.ToDictionary(kv => kv.Value, kv => kv.Key);
+        public static readonly Dictionary<string, int> GH3_SINGER_PS2_NAME = GH3_SINGER_PS2_NUM.ToDictionary(kv => kv.Value, kv => kv.Key);
         public static readonly Dictionary<string, int> GH3_GUITARIST_NAME = GH3_GUITARIST_NUM.ToDictionary(kv => kv.Value, kv => kv.Key);
         public static readonly Dictionary<string, int> GHA_SINGER_NAME = GHA_SINGER_NUM.ToDictionary(kv => kv.Value, kv => kv.Key);
         public static readonly Dictionary<string, int> STEVE_NAME = STEVE_NUM.ToDictionary(kv => kv.Value, kv => kv.Key);
@@ -777,6 +803,7 @@ namespace GH_Toolkit_Core.SKA
         public static readonly Dictionary<string, int> WT_NAME = WT_NUM.ToDictionary(kv => kv.Value, kv => kv.Key);
 
         public static readonly (Dictionary<int, string> bonesNum, Dictionary<string, int> bonesName) GH3_SINGER_DATA = (GH3_SINGER_NUM, GH3_SINGER_NAME);
+        public static readonly (Dictionary<int, string> bonesNum, Dictionary<string, int> bonesName) GH3_SINGER_PS2_DATA = (GH3_SINGER_PS2_NUM, GH3_SINGER_PS2_NAME);
         public static readonly (Dictionary<int, string> bonesNum, Dictionary<string, int> bonesName) GH3_GUITARIST_DATA = (GH3_GUITARIST_NUM, GH3_GUITARIST_NAME);
         public static readonly (Dictionary<int, string> bonesNum, Dictionary<string, int> bonesName) GHA_SINGER_DATA = (GHA_SINGER_NUM, GHA_SINGER_NAME);
         public static readonly (Dictionary<int, string> bonesNum, Dictionary<string, int> bonesName) STEVE_DATA = (STEVE_NUM, STEVE_NAME);
@@ -786,6 +813,7 @@ namespace GH_Toolkit_Core.SKA
         public static readonly Dictionary<string, (Dictionary<int, string> bonesNum, Dictionary<string, int> bonesName)> ALL_DATA = new Dictionary<string, (Dictionary<int, string> bonesNum, Dictionary<string, int> bonesName)>
         {
             {SKELETON_GH3_SINGER, GH3_SINGER_DATA},
+            {SKELETON_GH3_SINGER_PS2, GH3_SINGER_PS2_DATA},
             {SKELETON_GH3_GUITARIST, GH3_GUITARIST_DATA},
             {SKELETON_GHA_SINGER, GHA_SINGER_DATA},
             {SKELETON_STEVE, STEVE_DATA},

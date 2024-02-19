@@ -41,6 +41,7 @@ namespace GH_Toolkit_Core.QB
         public const string GAME_GHWOR = "GHWoR";
 
         public const string SKELETON_GH3_SINGER = "gh3_singer";
+        public const string SKELETON_GH3_SINGER_PS2 = "gh3_singer_ps2";
         public const string SKELETON_GH3_GUITARIST = "gh3_guitarist";
         public const string SKELETON_GHA_SINGER = "gha_singer";
         public const string SKELETON_DMC_SINGER = "dmc_singer";
@@ -60,6 +61,7 @@ namespace GH_Toolkit_Core.QB
         public const string DOT_MQB = ".mqb";
         public const string DOT_SQB = ".sqb";
         public const string DOT_QS = ".qs";
+        public const string DOT_MID_QB = ".mid.qb";
         public const string DOT_MID_QS = ".mid.qs";
         public const string DOT_SKA = ".ska";
 

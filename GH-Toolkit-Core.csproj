@@ -8,7 +8,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+
   <ItemGroup>
+    <PackageReference Include="CSCore" Version="1.2.1.2" />
     <PackageReference Include="DotNetZip" Version="1.16.0" />
     <PackageReference Include="Melanchall.DryWetMidi" Version="7.0.2" />
   </ItemGroup>
@@ -23,6 +25,13 @@
     <None Update="QBDebug\keys.dbg">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Update="QBDebug\PS2Pak.dbg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Audio\MSV C Code\" />
   </ItemGroup>
 
 </Project>

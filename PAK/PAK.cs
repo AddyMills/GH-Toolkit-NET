@@ -94,6 +94,10 @@ namespace GH_Toolkit_Core.PAK
             public void SetNameNoExt(string nameNoExt)
             {
                 NameNoExt = nameNoExt;
+                if (nameNoExt.IndexOf(".") != -1)
+                {
+                    NameNoExt = nameNoExt.Substring(0, nameNoExt.IndexOf("."));
+                }
             }
             public void SetFullFlagPath(string fullFlagPath)
             {
@@ -109,13 +113,21 @@ namespace GH_Toolkit_Core.PAK
                 {
                     if ((Flags & 0x20) != 0)
                     {
+                        if (FullFlagPath!.ToLower().IndexOf(DOTPS2) == -1)
+                        {
+                            FullFlagPath += DOTPS2;
+                        }
                         AssetContext = FullFlagPath;
                         FullFlagPath = FullFlagPath.PadRight(160, '\0');
                         ByteLength += 160;
                     }
                     if (!isQb && FullFlagPath.EndsWith(DOTPS2))
                     {
-                        AssetContext = AssetContext.Substring(0, AssetContext.Length - 4);
+                        AssetContext = AssetContext.Substring(0, AssetContext.IndexOf(DOTPS2));
+                        if (AssetContext.IndexOf(DOT_MID_QB) != -1)
+                        {
+                            AssetContext = AssetContext.Substring(0, AssetContext.IndexOf(DOT_QB));
+                        }
                     }
                     FullName = FLAGBYTE;
                 }
@@ -504,7 +516,7 @@ namespace GH_Toolkit_Core.PAK
                         tempString = "p" + tempString;
                         break;
                 }
-                entry.FullName = tempString;
+                entry.FullName = tempString.Replace(DOTPS2, "", StringComparison.InvariantCultureIgnoreCase);
                 stream.Position = skipTo;
             }
             return entry;
@@ -515,6 +527,14 @@ namespace GH_Toolkit_Core.PAK
             {
                 // QS files are weird inside paks and ".qs" is found twice. Don't need it twice.
                 entry.FullName += entry.Extension.Replace(DOT_QS, "");
+            }
+            else if (entry.Extension.IndexOf(DOT_SQB) != -1 || entry.Extension.IndexOf(DOT_MQB) != -1)
+            {
+                if (entry.FullName.IndexOf(DOT_QB) == -1)
+                {
+                    entry.FullName += DOT_QB;
+                }
+                entry.SetExtension(DOT_QB);
             }
             else
             {
@@ -580,7 +600,7 @@ namespace GH_Toolkit_Core.PAK
                     Writer = new ReadWrite("big");
                 }
             }
-            public (byte[]? itemData, byte[]? otherData, string console) CompilePAK(string folderPath)
+            public (byte[]? itemData, byte[]? otherData, string console) CompilePAK(string folderPath, string console = "")
             {
                 if (!Directory.Exists(folderPath))
                 {
@@ -591,16 +611,27 @@ namespace GH_Toolkit_Core.PAK
 
                 if (ConsoleType == null)
                 {
-                    for (int i = 0; i < entries.Length; i++)
+                    if (console == CONSOLE_PS2)
                     {
-                        if (File.Exists(entries[i]))
+                        SetConsole(DOTPS2);
+                    }
+                    else if (console == CONSOLE_XBOX)
+                    {
+                        SetConsole(DOTXEN);
+                    }
+                    else
+                    {
+                        for (int i = 0; i < entries.Length; i++)
                         {
-                            SetConsole(entries[i]);
-                            break;
+                            if (File.Exists(entries[i]))
+                            {
+                                SetConsole(entries[i]);
+                                break;
+                            }
                         }
                     }
                 }
-
+                bool isPs2 = ConsoleType == CONSOLE_PS2;
                 List<PakEntry> PakEntries = new List<PakEntry>();
                 List<string> fileNames = new List<string>();
                 int pakSize = 0;
@@ -611,11 +642,13 @@ namespace GH_Toolkit_Core.PAK
                     {
                         byte[] fileData;
                         string relPath = GetRelPath(folderPath, entry);
+                        string qbName;
                         if (Path.GetExtension(entry) == DOT_Q)
                         {
                             List<QBItem> qBItems = ParseQFile(entry);
                             relPath += "b";
-                            fileData = CompileQbFile(qBItems, relPath, game: Game);
+                            qbName = isPs2 ? DebugReader.Ps2PakString(relPath) : relPath;
+                            fileData = CompileQbFile(qBItems, qbName, game: Game, console: ConsoleType!);
                             //AddConsoleExt(ref relPath);
                         }
                         else if ((Path.GetExtension(entry) == DOT_QB))

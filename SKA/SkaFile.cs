@@ -34,6 +34,7 @@ namespace GH_Toolkit_Core.SKA
         private const ushort DEADDEAD = 0xDEAD;
         private const byte TRANS_FLAGTIME_MAX = 0x40;
         private const byte POINTER_BLOCK_AMOUNT = 20;
+        private const int VERSION_PS2 = 0x28;
         private const int VERSION_OLD = 0x48;
         private const int SKA_BOUNDARY = 0x80;
         private const int ANIM_BOUNDARY = 0x4;
@@ -81,6 +82,7 @@ namespace GH_Toolkit_Core.SKA
         public List<int> AnimFlags { get; set; } = new List<int>(); // List of bones that have animation data
         internal int FloatPairs { get; set; } // Number of float value pairs
         internal ReadWrite _rw;
+        internal ReadWrite _rwPs2 = new ReadWrite("little");
         internal ushort TimeMask { get; set; }
         internal bool LargeTime { get; set; }
         internal bool HasTransFloatTime { get; set; }
@@ -142,6 +144,22 @@ namespace GH_Toolkit_Core.SKA
             public float TransY { get; set; }
             public float TransZ { get; set; }
             public BoneFrameTrans(ushort frameTime, float transX, float transY, float transZ)
+            {
+                FrameTime = frameTime;
+                TransX = transX;
+                TransY = transY;
+                TransZ = transZ;
+            }
+        }
+        [DebuggerDisplay("Frame {FrameTime}: X: {TransX} Y: {TransY} Z: {TransZ}")]
+        public class BoneFrameTransCompressed
+        {
+            public ushort FrameTime { get; set; }
+            public float RealTime { get { return FrameTime / 60; } }
+            public short TransX { get; set; }
+            public short TransY { get; set; }
+            public short TransZ { get; set; }
+            public BoneFrameTransCompressed(ushort frameTime, short transX, short transY, short transZ)
             {
                 FrameTime = frameTime;
                 TransX = transX;
@@ -731,7 +749,8 @@ namespace GH_Toolkit_Core.SKA
         {
             List<BoneFrameQuat> newData = new List<BoneFrameQuat>();
             BoneFrameQuat previousFrame = null;
-            int count = 0;
+            BoneFrameQuat previousAdded = null;
+            int count = 1;
 
             foreach (var frame in oldData)
             {
@@ -748,20 +767,28 @@ namespace GH_Toolkit_Core.SKA
 
                 if (!sameAsPrev || count < 2)
                 {
+                    if (frameTime != 0 && previousAdded.FrameTime < previousFrame.FrameTime)
+                    {
+                        newData.Add(previousFrame);
+                    }
                     newData.Add(currentFrame);
+                    previousAdded = currentFrame;
                 }
 
-                if (sameAsPrev)
+                if (sameAsPrev || frameTime == 0)
                 {
                     count++;
                 }
                 else
                 {
-                    count = 1;
-                    previousFrame = currentFrame;
+                    count = 1; 
                 }
+                previousFrame = currentFrame;
             }
-
+            if (previousAdded.FrameTime < previousFrame.FrameTime)
+            {
+                newData.Add(previousFrame);
+            }
             return newData;
         }
         /*
@@ -789,11 +816,13 @@ namespace GH_Toolkit_Core.SKA
         {
             List<BoneFrameTrans> newData = new List<BoneFrameTrans>();
             BoneFrameTrans previousFrame = null;
-            int count = 0;
+            BoneFrameTrans previousAdded = null;
+            int count = 1;
 
             foreach (var frame in oldData)
             {
                 ushort frameTime = frame.FrameTime;
+
                 float transX = frame.TransX;
                 float transY = frame.TransY;
                 float transZ = frame.TransZ;
@@ -807,19 +836,54 @@ namespace GH_Toolkit_Core.SKA
                 if (!sameAsPrev || count < 2)
                 {
                     newData.Add(currentFrame);
+                    previousAdded = currentFrame;
                 }
 
-                if (sameAsPrev)
+                if (sameAsPrev || frameTime == 0)
                 {
                     count++;
                 }
                 else
                 {
                     count = 1;
-                    previousFrame = currentFrame;
                 }
+                previousFrame = currentFrame;
             }
+            if (previousAdded.FrameTime < previousFrame.FrameTime)
+            {
+                newData.Add(previousFrame);
+            }
+            return newData;
+        }
+        private short GetPs2TransData(float transValue)
+        {
+            if (transValue < 0)
+            {
+                return (short)Math.Ceiling(transValue * 256);
+            }
+            else
+            {
+                return (short)Math.Floor(transValue * 256);
+            }
+        }
+        private List<BoneFrameTransCompressed> WriteCompressedTransDataPs2(List<BoneFrameTrans> oldData)
+        {
+            List<BoneFrameTransCompressed> newData = new List<BoneFrameTransCompressed>();
+            BoneFrameTransCompressed previousFrame = null;
+            int count = 0;
 
+            foreach (var frame in oldData)
+            {
+                ushort frameTime = frame.FrameTime;
+
+                short transX = GetPs2TransData(frame.TransX);
+                short transY = GetPs2TransData(frame.TransY);
+                short transZ = GetPs2TransData(frame.TransZ);
+
+                BoneFrameTransCompressed currentFrame = new BoneFrameTransCompressed(frameTime, transX, transY, transZ);
+
+                newData.Add(currentFrame);
+            }
             return newData;
         }
         private void WriteCompressedTrans(MemoryStream stream, BoneFrameTrans frame, ref bool firstFrame)
@@ -859,7 +923,34 @@ namespace GH_Toolkit_Core.SKA
             _rw.WriteFloat(stream, transY);
             _rw.WriteFloat(stream, transZ);
         }
+        private void WriteCompressedTransPs2(MemoryStream stream, BoneFrameTransCompressed frame)
+        {
+            ushort frameTime = frame.FrameTime;
+            short transX = frame.TransX;
+            short transY = frame.TransY;
+            short transZ = frame.TransZ;
 
+            byte[] compTime;
+            byte[] realTime;
+            byte[] zero = [0];
+
+            if (frameTime < TRANS_FLAGTIME_MAX)
+            {
+                compTime = [(byte)(frameTime + TRANS_FLAGTIME_MAX)];
+                _rwPs2.WriteAndMaybeFlipBytes(stream, compTime);
+            }
+            else
+            {
+                compTime = [0];
+                realTime = BitConverter.GetBytes(frameTime);
+                _rwPs2.WriteAndMaybeFlipBytes(stream, compTime);
+                _rwPs2.WriteAndMaybeFlipBytes(stream, realTime);
+            }
+
+            _rwPs2.WriteAndMaybeFlipBytes(stream, _rwPs2.ValueHex(transX));
+            _rwPs2.WriteAndMaybeFlipBytes(stream, _rwPs2.ValueHex(transY));
+            _rwPs2.WriteAndMaybeFlipBytes(stream, _rwPs2.ValueHex(transZ));
+        }
         private void WriteCompressedQuat(MemoryStream stream, BoneFrameQuat frame)
         {
             ushort frameTime = frame.FrameTime;
@@ -911,7 +1002,69 @@ namespace GH_Toolkit_Core.SKA
 
             _rw.PadStreamTo(stream, 2);
         }
+        private void WritePs2Quat(MemoryStream stream, BoneFrameQuat frame, int bone)
+        {
+            ushort frameTime = frame.FrameTime;
+            ushort compFlags = 0;
+            short quatX;
+            short quatY;
+            short quatZ;
+            if (bone > 45)
+            {
+                quatX = frame.QuatX;
+                quatY = frame.QuatY;
+                quatZ = frame.QuatZ;
+            }
+            else
+            {
+                quatX = 0;
+                quatY = 0;
+                quatZ = frame.QuatZ;
+            }
 
+
+
+            byte[] xBytes;
+            byte[] yBytes;
+            byte[] zBytes;
+
+            xBytes = CompressComponent(quatX, ref compFlags, COMP_X);
+            yBytes = CompressComponent(quatY, ref compFlags, COMP_Y);
+            zBytes = CompressComponent(quatZ, ref compFlags, COMP_Z);
+
+            bool allZero = quatX == 0 && quatY == 0 && quatZ == 0;
+
+            if (allZero)
+            {
+                compFlags = COMP_FLAG;
+            }
+            else if (compFlags != 0)
+            {
+                compFlags += COMP_FLAG;
+            }
+            if (HasBigTime)
+            {
+                _rwPs2.WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes(frameTime));
+                _rwPs2.WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes(compFlags));
+            }
+            else
+            {
+                frameTime += compFlags;
+                _rwPs2.WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes(frameTime));
+            }
+
+            if (allZero)
+            {
+                _rwPs2.WriteAndMaybeFlipBytes(stream, xBytes); // Not specifically x, but if all three flags are 0, there is just one 0 value
+            }
+            else
+            {
+                _rwPs2.WriteAndMaybeFlipBytes(stream, xBytes);
+                _rwPs2.WriteAndMaybeFlipBytes(stream, yBytes);
+                _rwPs2.WriteAndMaybeFlipBytes(stream, zBytes);
+            }
+            
+        }
         private byte[] CompressComponent(short value, ref ushort compFlags, ushort flag)
         {
             if (value >= 0 && value <= 0xff)
@@ -924,8 +1077,36 @@ namespace GH_Toolkit_Core.SKA
                 return BitConverter.GetBytes(value);
             }
         }
+        private void QuatDataToBytesPs2(MemoryStream quatStream, MemoryStream boneCountStream, Dictionary<int, List<BoneFrameQuat>> quatData, List<int> newAnimBones)
+        {
+            var newQuatSizes = CreateBlankBoneDict(NewBones);
 
-        private void QuatDataToBytes(MemoryStream quatStream, MemoryStream boneCountStream, Dictionary<int, List<BoneFrameQuat>> quatData, List<int> newAnimBones, bool compressedData)
+            foreach (var bone in newAnimBones)
+            {
+                long boneStart = quatStream.Length;
+                foreach (var frame in quatData[bone])
+                {
+                    WritePs2Quat(quatStream, frame, bone);
+                }
+                long boneLength = quatStream.Length - boneStart;
+                if (boneLength > ushort.MaxValue)
+                {
+                    throw new Exception("Bone length is greater than ushort max value.");
+                }
+                newQuatSizes[bone] = (ushort)boneLength;
+            }
+            for (int i = 0; i < NewBones; i++)
+            {
+                _rwPs2.WriteAndMaybeFlipBytes(boneCountStream, BitConverter.GetBytes(newQuatSizes[i]));
+            }
+
+            // Check if length of quatStream equals sum of the values of newQuatSizes
+            if (newQuatSizes.Values.Sum(x => Convert.ToInt32(x)) != quatStream.Length)
+            {
+                throw new Exception("Length of Quaternion Stream does not equal sum of the values of newQuatSizes.");
+            }
+        }
+        private void QuatDataToBytes(MemoryStream quatStream, MemoryStream boneCountStream, Dictionary<int, List<BoneFrameQuat>> quatData, List<int> newAnimBones, bool compressedData = true)
         {
             var newQuatSizes = CreateBlankBoneDict(NewBones);
 
@@ -964,7 +1145,36 @@ namespace GH_Toolkit_Core.SKA
             _rw.PadStreamTo(quatStream, SKA_BOUNDARY);
             _rw.PadStreamTo(boneCountStream, SKA_BOUNDARY);
         }
+        private void TransDataToBytesPs2(MemoryStream transStream, MemoryStream boneCountStream, Dictionary<int, List<BoneFrameTransCompressed>> transData, List<int> newAnimBones)
+        {
+            var newTransSizes = CreateBlankBoneDict(NewBones);
 
+            foreach (var bone in newAnimBones)
+            {
+                long boneStart = transStream.Length;
+                foreach (var frame in transData[bone])
+                {
+                    WriteCompressedTransPs2(transStream, frame);
+                }
+                long boneLength = transStream.Length - boneStart;
+                if (boneLength > ushort.MaxValue)
+                {
+                    throw new Exception("Bone length is greater than ushort max value.");
+                }
+                newTransSizes[bone] = (ushort)boneLength;
+            }
+            for (int i = 0; i < NewBones; i++)
+            {
+                _rwPs2.WriteAndMaybeFlipBytes(boneCountStream, BitConverter.GetBytes(newTransSizes[i]));
+            }
+
+            if (newTransSizes.Values.Sum(x => Convert.ToInt32(x)) != transStream.Length)
+            {
+                throw new Exception("Length of Quaternion Stream does not equal sum of the values of newTransSizes.");
+            }
+
+            _rwPs2.PadStreamTo(transStream, ANIM_BOUNDARY);
+        }
         private void TransDataToBytes(MemoryStream transStream, MemoryStream boneCountStream, Dictionary<int, List<BoneFrameTrans>> transData, List<int> newAnimBones, bool compressedData)
         {
             var newTransSizes = CreateBlankBoneDict(NewBones);
@@ -1003,7 +1213,25 @@ namespace GH_Toolkit_Core.SKA
             _rw.PadStreamTo(transStream, SKA_BOUNDARY);
             _rw.PadStreamTo(boneCountStream, ANIM_BOUNDARY);
         }
-
+        public void MakePartialAnimPs2(MemoryStream stream, List<int> newAnimBones)
+        {
+            var newPartialAnim = CreateBlankBoneDict(NewBones, 96);
+            _rwPs2.WriteNoFlipBytes(stream, _rwPs2.ValueHex(NewBones));
+            foreach (var bone in newAnimBones)
+            {
+                newPartialAnim[bone] = 1;
+            }
+            for (int i = 0; i < BONE_INTS; i++)
+            {
+                int boneFlag = 0;
+                for (int j = 0; j < 32; j++)
+                {
+                    int boneIndex = (i * 32) + j;
+                    boneFlag += newPartialAnim[boneIndex] << j;
+                }
+                _rwPs2.WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes(boneFlag));
+            }
+        }
         public void MakePartialAnim(MemoryStream stream, List<int> newAnimBones)
         {
             var newPartialAnim = CreateBlankBoneDict(NewBones, 128);
@@ -1023,10 +1251,79 @@ namespace GH_Toolkit_Core.SKA
                 _rw.WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes(boneFlag));
             }
         }
-
-        public byte[]? WriteOldSka(string convertTo, float quatMultiplier = 1) // For GH3 and GHA
+        public byte[]? WritePs2StyleSka(float quatMultiplier = 1) // For GH3 PS2
         {
-            var newSka = new SkaFile();
+            var oldBones = ALL_DATA[SkeletonType];
+            var newBones = ALL_DATA[SKELETON_GH3_SINGER_PS2];
+            NewBones = 67;
+
+            var newAnimFlags = new List<int>();
+            var newQuatData = new Dictionary<int, List<BoneFrameQuat>>();
+            var newTransData = new Dictionary<int, List<BoneFrameTransCompressed>>();
+            foreach (var bone in AnimFlags)
+            {
+                string boneName = oldBones.bonesNum[bone];
+                int newBone;
+                try
+                {
+                   newBone = newBones.bonesName[boneName];
+                }
+                catch
+                {
+                    continue;
+                }
+                newAnimFlags.Add(newBone);
+                newQuatData[newBone] = WriteNewQuatData(QuatData[bone], quatMultiplier);
+                newTransData[newBone] = WriteCompressedTransDataPs2(WriteNewTransData(TransData[bone]));
+            }
+            var quatFrames = newQuatData.Values.Sum(x => Convert.ToInt32(x.Count));
+            var transFrames = newTransData.Values.Sum(x => Convert.ToInt32(x.Count));
+            var customKeys = CustomKeys.Count;
+
+            NewFlags = 0x068B5000;
+            if (Duration > 34.11 || HasBigTime)
+            {
+                HasBigTime = true;
+                NewFlags += BIG_TIME;
+            }
+
+            using (var totalFile = new MemoryStream())
+            using (var quatBytes = new MemoryStream())
+            using (var quatBoneCountBytes = new MemoryStream())
+            using (var transBytes = new MemoryStream())
+            using (var transBoneCountBytes = new MemoryStream())
+            using (var partialAnimBytes = new MemoryStream()) // No camera support yet, so it's always assumed to have one
+            {
+                QuatDataToBytesPs2(quatBytes, quatBoneCountBytes, newQuatData, newAnimFlags);
+                TransDataToBytesPs2(transBytes, transBoneCountBytes, newTransData, newAnimFlags);
+                MakePartialAnimPs2(partialAnimBytes, newAnimFlags);
+                _rwPs2.WriteNoFlipBytes(totalFile, _rwPs2.ValueHex(VERSION_PS2)); // Should be int
+                _rwPs2.WriteNoFlipBytes(totalFile, _rwPs2.ValueHex(NewFlags));
+                _rwPs2.WriteNoFlipBytes(totalFile, _rwPs2.ValueHex(Duration));
+                byte[] boneCountBytes= { 0x00, (byte)NewBones};
+                _rwPs2.WriteNoFlipBytes(totalFile, boneCountBytes);
+                _rwPs2.WriteNoFlipBytes(totalFile, _rwPs2.ValueHex((ushort)quatFrames));
+                _rwPs2.WriteNoFlipBytes(totalFile, _rwPs2.ValueHex((ushort)transFrames));
+                _rwPs2.WriteNoFlipBytes(totalFile, _rwPs2.ValueHex((ushort)customKeys));
+                byte[] allNegOne = { 0xFF, 0xFF, 0xFF, 0xFF };
+                for (int i = 0; i < 5; i++)
+                {
+                    _rwPs2.WriteNoFlipBytes(totalFile, allNegOne);
+                }
+                _rwPs2.WriteNoFlipBytes(totalFile, _rwPs2.ValueHex((int)quatBytes.Length));
+                _rwPs2.WriteNoFlipBytes(totalFile, _rwPs2.ValueHex((int)transBytes.Length));
+                ReadWrite.AppendStream(totalFile, quatBoneCountBytes);
+                ReadWrite.AppendStream(totalFile, transBoneCountBytes);
+                ReadWrite.AppendStream(totalFile, partialAnimBytes);
+                ReadWrite.AppendStream(totalFile, quatBytes);
+                ReadWrite.AppendStream(totalFile, transBytes);
+                return totalFile.ToArray();
+            }
+
+             
+        }
+        public byte[]? WriteGh3StyleSka(string convertTo, float quatMultiplier = 1) // For GH3 and GHA
+        {
             var oldBones = ALL_DATA[SkeletonType];
             var newBones = ALL_DATA[convertTo];
             NewBones = newBones.bonesNum.Count;

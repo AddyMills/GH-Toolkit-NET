@@ -92,10 +92,12 @@ namespace GH_Toolkit_Core.MIDI
         private int HopoThreshold { get; set; }
         public static string? Game { get; set; }
         public static string? SongName { get; set; }
-        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, int hopoThreshold = 170)
+        public static string? Console { get; set; }
+        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170)
         {
             Game = game;
             SongName = songName;
+            Console = console;
             HopoThreshold = hopoThreshold;
             SetMidiInfo(midiPath);
         }
@@ -185,8 +187,16 @@ namespace GH_Toolkit_Core.MIDI
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_drums", DrumsScripts));
                 gameQb.Add(CombinePerformanceScripts_GH3($"{SongName}_performance"));
             }
-            string songMid = $"songs\\{SongName}.mid.qb";
-            byte[] bytes = CompileQbFile(gameQb, songMid, Game);
+            string songMid;
+            if (Console == CONSOLE_PS2)
+            {
+                songMid = $"data\\songs\\{SongName}.mid.qb";
+            }
+            else
+            {
+                songMid = $"songs\\{SongName}.mid.qb";
+            }
+            byte[] bytes = CompileQbFile(gameQb, songMid, Game, Console);
             return bytes;
         }
         public List<QBItem> MakeBossBattleQb()
@@ -297,7 +307,7 @@ namespace GH_Toolkit_Core.MIDI
             QBArrayNode markerArray = new QBArrayNode();
             foreach (Marker marker in Markers)
             {
-                QBStructData markerEntry = marker.ToStruct();
+                QBStructData markerEntry = marker.ToStruct(Console);
                 markerArray.AddStructToArray(markerEntry);
             }
             string markerName;
@@ -393,6 +403,7 @@ namespace GH_Toolkit_Core.MIDI
         {
             bool isOldGame = Game == GAME_GH3 || Game == GAME_GHA;
             bool isGtrOrSinger = actor == GUITARIST || actor == VOCALIST;
+            bool isGtrAndPs2 = actor == GUITARIST && Console == CONSOLE_PS2;
             var scriptArray = new List<(int, QBStructData)>();
             foreach (var timedEvent in events)
             {
@@ -416,6 +427,10 @@ namespace GH_Toolkit_Core.MIDI
                             break;
                         case BAND_PLAYFACIALANIM:
                             if (isOldGame && !isGtrOrSinger)
+                            {
+                                continue;
+                            }
+                            else if (isGtrAndPs2)
                             {
                                 continue;
                             }
@@ -1263,6 +1278,18 @@ namespace GH_Toolkit_Core.MIDI
 
             return noteList;
         }
+        public byte[] MakePs2SkaScript(string gender = "Male")
+        {
+            string qbName = $"data\\songs\\{SongName}_song_scripts.qb";
+            string skaScript = $"""
+                script {SongName}_song_startup
+                    animload_Singer_{gender}_{SongName} <...>
+                endscript
+                """;
+            var skaScriptList = ParseQFile(skaScript);
+            var scriptCompiled = CompileQbFile(skaScriptList, qbName, game:GAME_GH3, console:CONSOLE_PS2);
+            return scriptCompiled;
+        }
         public class TimeSig
         {
             public int Time { get; set; }
@@ -1431,11 +1458,12 @@ namespace GH_Toolkit_Core.MIDI
                 Time = time;
                 Text = text;
             }
-            public QBStructData ToStruct()
+            public QBStructData ToStruct(string console = CONSOLE_XBOX)
             {
+                string markerType = console == CONSOLE_XBOX ? WIDESTRING : STRING;
                 QBStructData marker = new QBStructData();
                 marker.AddToStruct("Time", Time);
-                marker.AddVarToStruct("Marker", Text, WIDESTRING);
+                marker.AddVarToStruct("Marker", Text, markerType);
                 return marker;
             }
         }

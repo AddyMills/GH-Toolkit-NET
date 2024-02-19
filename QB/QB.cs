@@ -1415,7 +1415,7 @@ namespace GH_Toolkit_Core.QB
         }
         public static byte[] CompileQbFile(List<QBItem> qbList, string qbName, string game = "GH3", string console = "360")
         {
-            if (qbName.StartsWith("0x"))
+            if (qbName.StartsWith("0x") && qbName.IndexOf(".") != -1)
             {
                 qbName = $"{qbName.Substring(0, qbName.IndexOf("."))}";
             }
@@ -1453,6 +1453,7 @@ namespace GH_Toolkit_Core.QB
             {
                 foreach (QBItem item in qbList)
                 {
+
                     byte[] parentNode = new byte[] { 0x00, consoleByte, QbTypeLookup[item.Info.Type], 0x00 };
                     stream.Write(parentNode, 0, parentNode.Length);
                     byte[] qbID = Reader.ValueHex(item.Name);

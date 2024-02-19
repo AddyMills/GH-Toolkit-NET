@@ -13,10 +13,55 @@ namespace GH_Toolkit_Core.Debug
     public class DebugReader
     {
         public static Dictionary<uint, string> ChecksumDbg { get; private set; }
+        public static Dictionary<string, uint>Ps2PakDbg { get; private set; }
 
         static DebugReader()
         {
             ChecksumDbg = ReadQBDebug();
+            Ps2PakDbg = ReadPs2PakDbg();
+        }
+        static Dictionary<string, uint> ReadPs2PakDbg()
+        {
+            var funcDict = new Dictionary<string, uint>();
+            var rootFolder = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            var compressedPath = Path.Combine(rootFolder, "QBDebug", "PS2Pak.dbg");
+            var dbgPath = Path.Combine(rootFolder, "QBDebug", "ps2pak.txt");
+            if (Path.Exists(compressedPath))
+            {
+                DecompressToFile(compressedPath, dbgPath);
+            }
+
+            try
+            {
+                var textLines = File.ReadAllLines(dbgPath);
+
+                foreach (var line in textLines)
+                {
+                    var newLine = line.TrimEnd('\n').Split(new[] { '\t' }, 2);
+
+                    if (newLine.Length != 2) continue;
+
+                    try
+                    {
+                        var key = newLine[1];//.Replace("\"", "");
+                        var value = Convert.ToUInt32(newLine[0], 16);
+                        funcDict[key] = value;
+                    }
+                    catch
+                    {
+                        // If an exception occurs, ignore and continue processing the next line.
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error reading or processing the file: {ex.Message}");
+            }
+            if (Path.Exists(dbgPath))
+            {
+                File.Delete(dbgPath);
+            }
+            return funcDict;
         }
         static Dictionary<uint, string> ReadQBDebug()
         {
@@ -75,6 +120,17 @@ namespace GH_Toolkit_Core.Debug
             else
             {
                 return "0x" + toCheck.ToString("x8");
+            }
+        }
+        public static string Ps2PakString(string toCheck)
+        {
+            if (Ps2PakDbg.TryGetValue(toCheck, out var checksum))
+            {
+                return "0x" + checksum.ToString("x8");
+            }
+            else
+            {
+                return toCheck;
             }
         }
         public static void DecompressToFile(string compressedFilePath, string outputFilePath)
