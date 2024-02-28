@@ -91,16 +91,18 @@ namespace GH_Toolkit_Core.MIDI
         private int TPB { get; set; }
         private int HopoThreshold { get; set; }
         public static string? PerfOverride { get; set; }
+        public static string? SongScriptOverride { get; set; }
         public static string? Game { get; set; }
         public static string? SongName { get; set; }
         public static string? Console { get; set; }
-        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "")
+        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "")
         {
             Game = game;
             SongName = songName;
             Console = console;
             HopoThreshold = hopoThreshold;
             PerfOverride = perfOverride;
+            SongScriptOverride = songScriptOverride;
             SetMidiInfo(midiPath);
         }
         public List<QBItem> ParseMidi()

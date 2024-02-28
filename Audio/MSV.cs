@@ -1,7 +1,4 @@
-﻿using CSCore;
-using CSCore.Codecs.RAW;
-using CSCore.Codecs.WAV;
-using CSCore.DSP;
+﻿using NAudio.Wave;
 using GH_Toolkit_Core.Methods;
 using System.Text;
 
@@ -66,22 +63,20 @@ namespace GH_Toolkit_Core.Audio
                 {
                     throw new Exception("Input file does not have 1 or 2 channels");
                 }
-                var audioSampleRate = waveFormat.SampleRate;
-                var bitsPerSample = waveFormat.BitsPerSample;
-                var wavFormat = waveFormat.WaveFormatTag;
+
+                IWaveProvider waveProvider = wavReader;
                 // Check if the WAV file does not meet the expected format, sample rate, and bit depth
-                if (waveFormat.WaveFormatTag != AudioEncoding.Pcm || waveFormat.SampleRate != sampleRate || waveFormat.BitsPerSample != 16 || waveFormat.Channels != 2)
+                if (wavReader.WaveFormat.SampleRate != sampleRate || wavReader.WaveFormat.BitsPerSample != 16 || wavReader.WaveFormat.Channels != 2)
                 {
-                    // Resample the audio stream to the target format
-                    using (var resampler = new DmoResampler(wavReader, targetFormat))
+                    // Resample the audio stream to the target format using MediaFoundationResampler
+                    waveProvider = new MediaFoundationResampler(wavReader, targetFormat)
                     {
-                        resampler.WriteToStream(resampledStream);
-                    }
+                        ResamplerQuality = 60 // Set the resampler quality (optional)
+                    };
                 }
-                else
-                {
-                    wavReader.WriteToStream(resampledStream);
-                }
+
+                // Directly write from waveProvider to MemoryStream
+                WaveFileWriter.WriteWavFileToStream(resampledStream, waveProvider);
                 resampledStream.Position = 0; // Reset the stream position to the beginning
                 string folderPath = Path.GetDirectoryName(filePath);
                 string fileNoExt = Path.GetFileNameWithoutExtension(filePath);
@@ -89,8 +84,6 @@ namespace GH_Toolkit_Core.Audio
                 string[] streams = SplitStereoToMono(resampledStream, fullPath);
                 return streams;
             }
-
-
         }
         public void makeMSV(string filePath, string songName = "")
         {
@@ -109,11 +102,12 @@ namespace GH_Toolkit_Core.Audio
             string fileNoExt = Path.GetFileNameWithoutExtension(filePath);
 
             using (var rawStream = new MemoryStream(File.ReadAllBytes(filePath)))
-            using (var wavStream = new RawDataReader(rawStream, msvTarget))
+            using (var wavStream = new RawSourceWaveStream(rawStream, msvTarget))
             using (var msvStream = new MemoryStream())
             {
-
-                var sampleLen = (int)(wavStream.Length / wavStream.WaveFormat.BytesPerSample);
+                int bytesPerSample = wavStream.WaveFormat.BitsPerSample / 8;
+                // Check the above code is good (since it'll be a while since we tested this next time this is run)
+                var sampleLen = (int)(wavStream.Length / bytesPerSample);
                 var size = (int)(sampleLen / 28);
                 if (sampleLen % 28 != 0)
                 {
@@ -349,7 +343,7 @@ namespace GH_Toolkit_Core.Audio
             return false;
         }
 
-        public void makePs2Audio(string filePath, string songName = "sacreligiousscorn") // Always assumes 16-bit PCM. The file should be sent to the check method first before this one.
+        public void makePs2Audio(string filePath, string songName = "") // Always assumes 16-bit PCM. The file should be sent to the check method first before this one.
         {
             string extension = Path.GetExtension(filePath);
             string[] streams;

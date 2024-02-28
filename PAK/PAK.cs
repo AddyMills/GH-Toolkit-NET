@@ -13,6 +13,7 @@ using System.Reflection.PortableExecutable;
 using GH_Toolkit_Core.MIDI;
 using GH_Toolkit_Core.SKA;
 using System.Text.RegularExpressions;
+using System.Security.Policy;
 
 /*
  * * This file is intended to be a collection of custom methods to read and create PAK files
@@ -800,24 +801,26 @@ namespace GH_Toolkit_Core.PAK
                 return relPath; 
             }
         }
-        public static void CreateSongPackage(string midiPath, string songName, string game, string gameConsole, int hopoThreshold = 170, string skaPath = "", string perfOverride = "", string songScripts = "")
+        public static string CreateSongPackageGh3(string midiPath, string savePath, string songName, string game, string gameConsole, int hopoThreshold = 170, string skaPath = "", string perfOverride = "", string songScripts = "", string skaSource = "GHWT")
         {
-            var midiFile = new SongQbFile(midiPath, songName: songName, game: game, console: gameConsole, hopoThreshold: hopoThreshold);
-            var midQb = midiFile.ParseMidi();
+            var midiFile = new SongQbFile(midiPath, songName: songName, game: game, console: gameConsole, hopoThreshold: hopoThreshold, perfOverride: perfOverride, songScriptOverride: songScripts);
+            var midQb = midiFile.ParseMidiToQb();
 
-            var folderName = Path.GetDirectoryName(midiPath);
-            var saveName = Path.Combine(folderName, $"{songName}_{gameConsole}");
+            var saveName = Path.Combine(savePath, $"{songName}_{gameConsole}");
             string pakFolder = gameConsole == CONSOLE_PS2 ? "data\\songs" : "songs";
             var songFolder = Path.Combine(saveName, pakFolder);
             string consoleExt = gameConsole == CONSOLE_PS2 ? DOTPS2 : DOTXEN;
             var qbSave = Path.Combine(songFolder, songName + $".mid.qb{consoleExt}");
             Directory.CreateDirectory(songFolder);
+            File.WriteAllBytes(qbSave, midQb);
+
 
             bool ps2SkaProcessed = false;
             byte[]? skaScripts = null;
             if (Directory.Exists(skaPath))
             {
-                var skaFiles = Directory.GetFiles(Path.Combine(folderName, "SKA Files"));
+                float skaMultiplier = skaSource == "GH3" ? (float)1.0 : (float)0.5;
+                var skaFiles = Directory.GetFiles(skaPath);
                 string skaEndian = gameConsole == CONSOLE_XBOX ? "big" : "little";
                 foreach (var skaFile in skaFiles)
                 {
@@ -832,32 +835,32 @@ namespace GH_Toolkit_Core.PAK
                     }
                     else if (Regex.IsMatch(skaFile, skaPatternSing))
                     {
-                        skaType = gameConsole == CONSOLE_XBOX ? SKELETON_GH3_SINGER : SKELETON_GH3_SINGER_PS2;
+                        skaType = gameConsole == CONSOLE_PS2 ? SKELETON_GH3_SINGER_PS2 : SKELETON_GH3_SINGER;
                     }
                     else
                     {
                         continue;
                     }
-                    byte[] testSka;
+                    byte[] convertedSka;
                     string skaSave;
-                    if (gameConsole == CONSOLE_XBOX)
-                    {
-                        testSka = skaTest.WriteGh3StyleSka(skaType, (float)0.5);
-                        skaSave = Path.Combine(saveName, Path.GetFileName(skaFile));
-                    }
-                    else
+                    if (gameConsole == CONSOLE_PS2)
                     {
                         if (!ps2SkaProcessed)
                         {
                             skaScripts = midiFile.MakePs2SkaScript();
                             ps2SkaProcessed = true;
                         }
-                        testSka = skaTest.WritePs2StyleSka();
-                        string skaFolderPs2 = Path.Combine(folderName, "PS2 SKA Files");
+                        convertedSka = skaTest.WritePs2StyleSka();
+                        string skaFolderPs2 = Path.Combine(savePath, "PS2 SKA Files");
                         skaSave = Path.Combine(skaFolderPs2, Path.GetFileName(skaFile).Replace(DOTXEN, DOTPS2));
                         Directory.CreateDirectory(skaFolderPs2);
                     }
-                    File.WriteAllBytes(skaSave, testSka);
+                    else
+                    {
+                        convertedSka = skaTest.WriteGh3StyleSka(skaType, skaMultiplier);
+                        skaSave = Path.Combine(saveName, Path.GetFileName(skaFile));
+                    }
+                    File.WriteAllBytes(skaSave, convertedSka);
                 }
 
                 if (skaScripts != null)
@@ -866,6 +869,12 @@ namespace GH_Toolkit_Core.PAK
                     File.WriteAllBytes(ps2SkaScriptSave, skaScripts);
                 }
             }
+            var pakCompiler = new PAK.PakCompiler(game: game, console: gameConsole);
+            var (pakData, pabData, otherData) = pakCompiler.CompilePAK(saveName);
+            string songPrefix = gameConsole == CONSOLE_PS2 ? "" : "_song";
+            var pakSave = Path.Combine(savePath, songName + $"{songPrefix}.pak{consoleExt}");
+            File.WriteAllBytes(pakSave, pakData);
+            return saveName;
         }
     }
 }
