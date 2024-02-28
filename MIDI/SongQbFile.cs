@@ -90,18 +90,20 @@ namespace GH_Toolkit_Core.MIDI
         internal TempoMap SongTempoMap { get; set; }
         private int TPB { get; set; }
         private int HopoThreshold { get; set; }
+        public static string? PerfOverride { get; set; }
         public static string? Game { get; set; }
         public static string? SongName { get; set; }
         public static string? Console { get; set; }
-        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170)
+        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "")
         {
             Game = game;
             SongName = songName;
             Console = console;
             HopoThreshold = hopoThreshold;
+            PerfOverride = perfOverride;
             SetMidiInfo(midiPath);
         }
-        public byte[] ParseMidiToQb()
+        public List<QBItem> ParseMidi()
         {
             // Getting the tempo map to convert ticks to time
             SongTempoMap = SongMidiFile.GetTempoMap();
@@ -187,6 +189,11 @@ namespace GH_Toolkit_Core.MIDI
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_drums", DrumsScripts));
                 gameQb.Add(CombinePerformanceScripts_GH3($"{SongName}_performance"));
             }
+            return gameQb;
+        }
+        public byte[] ParseMidiToQb()
+        {
+            var gameQb = ParseMidi();
             string songMid;
             if (Console == CONSOLE_PS2)
             {
@@ -389,6 +396,7 @@ namespace GH_Toolkit_Core.MIDI
                 perfScripts.AddRange(Aux.PerformanceScript);
             }
             perfScripts.AddRange(Vocals.PerformanceScript);
+            // Add Perf override function here
             perfScripts.Sort((x, y) => x.Item1.CompareTo(y.Item1));
             PerformanceScripts = new QBArrayNode();
             foreach (var script in perfScripts)

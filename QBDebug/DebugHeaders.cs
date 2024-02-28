@@ -21,6 +21,8 @@ namespace GH_Toolkit_Core.Debug
         private static readonly string[] qsExtensions = { ".qs.de", ".qs.en", ".qs.es", ".qs.fr", ".qs.it" };
         private static readonly string[] animsPre = { "car_female_anim_struct_", "car_male_anim_struct_", "car_female_alt_anim_struct_", "car_male_alt_anim_struct_" };
 
+        private static readonly string[] dlcDownloadFolder = { "download_song", "songlist" };
+        private static readonly string[] dlcSongsFolder = { ".mid_text.qb" };
 
         public static Dictionary<uint, string> CreateHeaderDict(string filename)
         {
@@ -93,6 +95,29 @@ namespace GH_Toolkit_Core.Debug
             foreach (var x in animsPre)
             {
                 headers.Add($"{x}{filename}");
+            }
+
+            foreach (var x in headers)
+            {
+                string hexVal = CRC.QBKey(x);
+                headerDict[Convert.ToUInt32(hexVal, 16)] = x;
+
+            }
+
+            return headerDict;
+        }
+        public static Dictionary<uint, string> CreateDlcDict(string filename)
+        {
+            List<string> headers = new List<string>();
+            Dictionary<uint, string> headerDict = new Dictionary<uint, string>();
+
+            foreach (var x in dlcDownloadFolder)
+            {
+                headers.Add($"download\\{x}{filename}.qb");
+            }
+            foreach (var x in dlcSongsFolder)
+            {
+                headers.Add($"songs\\{x}{filename}.qb");
             }
 
             foreach (var x in headers)

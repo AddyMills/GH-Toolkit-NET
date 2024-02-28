@@ -337,20 +337,7 @@ namespace GH_Toolkit_Core.QB
                     throw new Exception($"{itemType} is not supported!");
             }
         }
-        public static bool IsSimpleValue(string info)
-        {
-            switch (info)
-            {
-                case FLOAT:
-                case INTEGER:
-                case POINTER:
-                case QBKEY:
-                case QSKEY:
-                    return true;
-            }
 
-            return false;
-        }
         private static readonly Dictionary<byte, string> QbType = new Dictionary<byte, string>()
         {
             {0x00, "Flag" }, // Should only be used in structs
@@ -367,12 +354,12 @@ namespace GH_Toolkit_Core.QB
             {0x1A, "Pointer" },
             {0x1C, "QsKey" }, // AKA localized string
 
-            /*Values found in WoR in-pack scripts
-            {0x24, "WoRInteger" },
-            {0x25, "WoRFloat" },
-            {0x26, "WoRQbKey" },
-            {0x2C, "WoRArray" }
-            */
+            // Values found in WoR in-pack scripts
+            {0x24, WORINTEGER },
+            {0x25, WORFLOAT },
+            {0x26, WORQBKEY },
+            {0x2C, WORARRAY }
+            
         };
 
         private static readonly Dictionary<byte, string> QbTypeGh3Ps2Struct = new Dictionary<byte, string>()
@@ -486,6 +473,18 @@ namespace GH_Toolkit_Core.QB
                         test = $"${test}";
                     }
                     break;
+                case WORINTEGER:
+                    test = $"!i{itemString}";
+                    break;
+                case WORFLOAT:
+                    test = $"!f{itemString}";
+                    break;
+                case WORQBKEY:
+                    test = $"!q{itemString}";
+                    break;
+                case WORARRAY:
+                    test = $"!a{itemString}";
+                    break;
                 default:
                     throw new ArgumentException("Invalid string found.");
             }
@@ -586,26 +585,23 @@ namespace GH_Toolkit_Core.QB
         }
         public static string GetParseType(string data)
         {
-            if (data.StartsWith("$"))
+            return data switch
             {
-                return POINTER;
-            }
-            else if (data.StartsWith("0x"))
-            {
-                return QBKEY;
-            }
-            else if (data.Contains('.') && float.TryParse(data, NumberStyles.Any, CultureInfo.InvariantCulture, out float floatValue))
-            {
-                return FLOAT;
-            }
-            else if (int.TryParse(data, out int intValue))
-            {
-                return INTEGER;
-            }
-            else
-            {
-                return QBKEY;
-            }
+                var d when d.StartsWith("$") => POINTER,
+                var d when d.StartsWith("0x") => QBKEY,
+                var d when d == "!=" => QBKEY, // Explicitly handle "!=" case here.
+                var d when d.Contains('.') && float.TryParse(d, NumberStyles.Any, CultureInfo.InvariantCulture, out _) => FLOAT,
+                var d when int.TryParse(d, out _) => INTEGER,
+                var d when d.StartsWith("!") => d.Substring(0, 2) switch
+                {
+                    "!i" => WORINTEGER,
+                    "!f" => WORFLOAT,
+                    "!q" => WORQBKEY,
+                    "!a" => WORARRAY,
+                    _ => throw new ArgumentException("Invalid reference string found.")
+                },
+                _ => QBKEY,
+            };
         }
         public static object ParseData(string data, string type)
         {
@@ -629,6 +625,11 @@ namespace GH_Toolkit_Core.QB
                         data = data.Substring(1);
                     }
                     return CRC.QBKey(data);
+                case WORINTEGER:
+                case WORFLOAT:
+                case WORQBKEY:
+                case WORARRAY:
+                    return int.Parse(data.Substring(2));
                 default:
                     throw new NotImplementedException("Not yet implemented");
             }
@@ -1307,6 +1308,7 @@ namespace GH_Toolkit_Core.QB
                 currLevel.State = ParseState.inMultiFloat;
                 return true;
             }
+
             return false;
         }
         private static void AddLevel(ref ParseLevel currLevel, ref QBItem currItem, ParseState state, string levelType, ref string tmpKey)

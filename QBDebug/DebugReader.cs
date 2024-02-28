@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection.PortableExecutable;
 using System.Security.Policy;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace GH_Toolkit_Core.Debug
@@ -146,12 +147,34 @@ namespace GH_Toolkit_Core.Debug
 
         public static Dictionary<uint, string> MakeDictFromName(string name)
         {
-            Dictionary<uint, string> headers = CreateCustomDict(name);
+            Dictionary<uint, string> headers;
 
-            if (name.StartsWith('a') || name.IndexOf("dlc") != -1)
+            // Check if name contains "dlc"
+            if (name.Contains("dlc"))
             {
-                headers = headers.Concat(CreateCustomDict(name.Substring(1))).ToDictionary(x => x.Key, x => x.Value);
+                // Check if name starts with "adlc", "bdlc", or "cdlc" and remove the first letter if it does
+                if (name.StartsWith("adlc") || name.StartsWith("bdlc") || name.StartsWith("cdlc"))
+                {
+                    headers = CreateCustomDict(name.Substring(1));
+                }
+                else
+                {
+                    // If name contains "dlc" but does not start with "adlc", "bdlc", or "cdlc", use name directly
+                    headers = CreateCustomDict(name);
+                }
             }
+            // Check if name contains "dlx" where x is a number from 0 to 0xffffffff
+            else if (Regex.IsMatch(name, @"dl(\d{1,10})") && long.TryParse(Regex.Match(name, @"dl(\d{1,10})").Groups[1].Value, out long number) && number <= 0xffffffff)
+            {
+                // Use just the number part in "name" for CreateCustomDict
+                headers = CreateCustomDlcDict(number.ToString());
+            }
+            else
+            {
+                // If name does not contain "dlc", just use the original logic or handle accordingly
+                headers = CreateCustomDict(name);
+            }
+
             return headers;
         }
         private static Dictionary<uint, string> CreateCustomDict(string name)
@@ -164,6 +187,19 @@ namespace GH_Toolkit_Core.Debug
             else
             {
                 headers = DebugHeaders.CreateHeaderDict(name);
+            }
+            return headers;
+        }
+        private static Dictionary<uint, string> CreateCustomDlcDict(string name)
+        {
+            Dictionary<uint, string> headers = new Dictionary<uint, string>();
+            if (string.IsNullOrEmpty(name))
+            {
+                headers.Clear();
+            }
+            else
+            {
+                headers = DebugHeaders.CreateDlcDict(name);
             }
             return headers;
         }

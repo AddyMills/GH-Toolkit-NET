@@ -1002,27 +1002,17 @@ namespace GH_Toolkit_Core.SKA
 
             _rw.PadStreamTo(stream, 2);
         }
-        private void WritePs2Quat(MemoryStream stream, BoneFrameQuat frame, int bone)
+        private void WritePs2Quat(MemoryStream stream, BoneFrameQuat frame)
         {
             ushort frameTime = frame.FrameTime;
             ushort compFlags = 0;
             short quatX;
             short quatY;
             short quatZ;
-            if (bone > 45)
-            {
-                quatX = frame.QuatX;
-                quatY = frame.QuatY;
-                quatZ = frame.QuatZ;
-            }
-            else
-            {
-                quatX = 0;
-                quatY = 0;
-                quatZ = frame.QuatZ;
-            }
 
-
+            quatX = frame.QuatX;
+            quatY = frame.QuatY;
+            quatZ = frame.QuatZ;
 
             byte[] xBytes;
             byte[] yBytes;
@@ -1086,7 +1076,7 @@ namespace GH_Toolkit_Core.SKA
                 long boneStart = quatStream.Length;
                 foreach (var frame in quatData[bone])
                 {
-                    WritePs2Quat(quatStream, frame, bone);
+                    WritePs2Quat(quatStream, frame);
                 }
                 long boneLength = quatStream.Length - boneStart;
                 if (boneLength > ushort.MaxValue)

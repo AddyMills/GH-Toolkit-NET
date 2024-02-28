@@ -745,6 +745,10 @@ namespace GH_Toolkit_Core.Methods
                 case POINTER:
                 case QBKEY:
                 case QSKEY:
+                case WORINTEGER:
+                case WORFLOAT:
+                case WORQBKEY:
+                case WORARRAY:
                     return true;
             }
 

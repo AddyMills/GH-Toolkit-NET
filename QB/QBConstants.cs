@@ -28,6 +28,11 @@ namespace GH_Toolkit_Core.QB
         public const string ROOT = "Root";
         public const string MULTIFLOAT = "MultiFloat";
 
+        public const string WORINTEGER = "WoRInteger";
+        public const string WORFLOAT = "WoRFloat";
+        public const string WORQBKEY = "WoRQbKey";
+        public const string WORARRAY = "WoRArray";
+
         public const string SCRIPTKEY = "script";
 
         public const string CONSOLE_PS2 = "PS2";
