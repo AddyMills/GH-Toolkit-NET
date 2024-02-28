@@ -366,3 +366,5 @@ FodyWeavers.xsd
 /QBDebug/debug_old.txt
 *.xlsx
 /Audio/MSV C Code
+/Audio/Blank Audio
+/Other/To Implement.txt
