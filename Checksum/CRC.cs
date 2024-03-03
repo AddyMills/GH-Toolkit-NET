@@ -95,20 +95,43 @@ namespace GH_Toolkit_Core.Checksum
 
             return GenQBKey(textBytes);
         }
-
+        private static byte[] QBKeyBytes(string text)
+        {
+            text = text.ToLower().Replace("/", "\\");
+            return Encoding.UTF8.GetBytes(text);
+        }
         public static string QBKey(string text)
         {
             if (text.StartsWith("0x") && text.Length <= 10)
             {
                 return text;
             }
-            text = text.ToLower().Replace("/", "\\");
-            byte[] textBytes = Encoding.UTF8.GetBytes(text);
+            byte[] textBytes = QBKeyBytes(text);
 
             return GenQBKey(textBytes);
         }
 
         public static string GenQBKey(byte[] textBytes)
+        {
+            /*uint crc = 0xffffffff;
+
+            foreach (var b in textBytes)
+            {
+                uint numA = (crc ^ b) & 0xFF;
+                crc = CRC32Table[numA] ^ crc >> 8 & 0x00ffffff;
+            }
+
+            uint finalCRC = ~crc;
+            long value = -finalCRC - 1;*/
+            string result = (GenQBKeyUInt(textBytes)).ToString("x8");
+
+            // Pad to 8 characters
+            result = result.PadLeft(8, '0');
+            result = "0x" + result;
+            return result;
+        }
+        
+        public static uint GenQBKeyUInt(byte[] textBytes)
         {
             uint crc = 0xffffffff;
 
@@ -120,17 +143,12 @@ namespace GH_Toolkit_Core.Checksum
 
             uint finalCRC = ~crc;
             long value = -finalCRC - 1;
-            string result = (value & 0xffffffff).ToString("x8");
-
-            // Pad to 8 characters
-            result = result.PadLeft(8, '0');
-            result = "0x" + result;
-            return result;
+            return (uint)value & 0xffffffff;
         }
-        
+
         public static uint QBKeyUInt(string textBytes)
         {
-            return ConvertHexToUInt(QBKey(textBytes));
+            return GenQBKeyUInt(QBKeyBytes(textBytes));
         }
         private static uint ConvertHexToUInt(string hexString)
         {
