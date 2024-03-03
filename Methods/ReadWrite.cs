@@ -194,13 +194,13 @@ namespace GH_Toolkit_Core.Methods
         {
             return unchecked((int)ReadUInt32(stream));
         }
-        public void WriteStringBytes(MemoryStream s, byte[] data)
+        public void WriteStringBytes(Stream s, byte[] data)
         {
             byte[] stringLen = ValueHex((int)data.Length);
             s.Write(stringLen);
             s.Write(data);
         }
-        public void WriteFloat(MemoryStream s, float data)
+        public void WriteFloat(Stream s, float data)
         {
             byte[] floatBytes = GetFloatBytes(data);
             WriteAndMaybeFlipBytes(s, floatBytes);
@@ -213,7 +213,7 @@ namespace GH_Toolkit_Core.Methods
             }
             s.Write(data);
         }
-        public void WriteNoFlipBytes(MemoryStream s, byte[] data)
+        public void WriteNoFlipBytes(Stream s, byte[] data)
         {
             s.Write(data);
         }
@@ -754,7 +754,23 @@ namespace GH_Toolkit_Core.Methods
 
             return false;
         }
-        public void WriteUInt32(MemoryStream stream, uint data)
+        public void WriteUInt32(Stream stream, uint data)
+        {
+            WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes(data));
+        }
+        public void WriteUInt16(Stream stream, ushort data)
+        {
+            WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes(data));
+        }
+        public void WriteUInt8(Stream stream, byte data)
+        {
+            stream.WriteByte(data);
+        }
+        public void WriteInt32(Stream stream, int data)
+        {
+            WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes(data));
+        }
+        public void WriteInt16(Stream stream, short data)
         {
             WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes(data));
         }
