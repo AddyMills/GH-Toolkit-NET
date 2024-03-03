@@ -194,6 +194,18 @@ namespace GH_Toolkit_Core.Audio
         }
 
         /// <summary>
+        /// Encrypts the given FSB3 audio using the default FSB3 key.
+        /// </summary>
+        /// <param name="audio">The audio to encrypt.</param>
+        /// <returns>The encrypted audio.</returns>
+        public static byte[] EncryptFSB3(byte[] audio)
+        {
+            audio = FlipBits(audio);
+            audio = XorProcess(audio, Fsb3Key);
+            return audio;
+        }
+
+        /// <summary>
         /// Decrypts the audio file from the specified file path.
         /// </summary>
         /// <param name="filePath">The path of the audio file.</param>
