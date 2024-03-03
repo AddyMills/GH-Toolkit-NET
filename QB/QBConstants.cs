@@ -68,7 +68,10 @@ namespace GH_Toolkit_Core.QB
         public const string DOT_QS = ".qs";
         public const string DOT_MID_QB = ".mid.qb";
         public const string DOT_MID_QS = ".mid.qs";
+        public const string DOT_PAB_XEN = ".pab.xen";
+        public const string DOT_PAK_XEN = ".pak.xen";
         public const string DOT_SKA = ".ska";
+
 
         public const string _GFX = "_gfx";
         public const string _SFX = "_sfx";
