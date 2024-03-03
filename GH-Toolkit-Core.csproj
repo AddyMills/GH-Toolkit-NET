@@ -17,6 +17,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="Audio\Blank Audio\48k128kbps.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="MIDI\Sections.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -34,5 +37,8 @@
   <ItemGroup>
     <Folder Include="Audio\MSV C Code\" />
   </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\FFMpegCore\FFMpegCore\FFMpegCore.csproj" />
+	</ItemGroup>
 
 </Project>

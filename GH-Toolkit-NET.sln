@@ -4,6 +4,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 17.5.33424.131
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GH-Toolkit-Core", "GH-Toolkit-Core.csproj", "{C2E443D5-E121-4CD5-99B9-003838FA85E5}"
+	ProjectSection(ProjectDependencies) = postProject
+		{C78B3E4F-6B8B-4781-BF1F-56BCA14EDD9F} = {C78B3E4F-6B8B-4781-BF1F-56BCA14EDD9F}
+	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "QBKey-Gen", "..\QBKey-Gen\QBKey-Gen.csproj", "{131287E0-34CD-4968-9AC4-9D49E456B8B7}"
 EndProject
@@ -52,6 +55,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GH-Toolkit-GUI", "..\GH-Too
 	ProjectSection(ProjectDependencies) = postProject
 		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
 	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FFMpegCore", "..\FFMpegCore\FFMpegCore\FFMpegCore.csproj", "{C78B3E4F-6B8B-4781-BF1F-56BCA14EDD9F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -107,6 +112,10 @@ Global
 		{2519DE8E-8CCB-4988-91B4-B9357C599BBC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2519DE8E-8CCB-4988-91B4-B9357C599BBC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2519DE8E-8CCB-4988-91B4-B9357C599BBC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C78B3E4F-6B8B-4781-BF1F-56BCA14EDD9F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C78B3E4F-6B8B-4781-BF1F-56BCA14EDD9F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C78B3E4F-6B8B-4781-BF1F-56BCA14EDD9F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C78B3E4F-6B8B-4781-BF1F-56BCA14EDD9F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
