@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using static GH_Toolkit_Core.QB.QB;
 using static GH_Toolkit_Core.QB.QBConstants;
 using static GH_Toolkit_Core.QB.QBScript;
+using static GH_Toolkit_Core.QB.QBStruct;
 
 namespace GH_Toolkit_Core.QB
 {
@@ -278,6 +279,15 @@ namespace GH_Toolkit_Core.QB
                         }
                         string data = node.NodeToText(ref isArgument);
                         currentLine.Append(data);
+                    }
+                    else if (item is ScriptNodeStruct nodeStruct)
+                    {
+                        string currString = currentLine.ToString();
+                        if (currString.EndsWith("\t") && currString != stringIndent)
+                        {
+                            DeleteTabs(currentLine);
+                        }
+                        currentLine.Append($"\\{{{nodeStruct.Data.StructToScript()}}}");
                     }
                     else if (item is Conditional conditional)
                     {
@@ -1402,7 +1412,7 @@ namespace GH_Toolkit_Core.QB
                     stream.Position += 2;
                     break;
                 case 0x4A:
-                    list.Add(new ScriptNode(STRUCT, new ScriptNodeStruct(stream)));
+                    list.Add(new ScriptNodeStruct(stream));
                     ReadWrite.MoveToModFour(stream);
                     break;
                 case 0x4B: // This byte makes the next QbKey a Pointer instead

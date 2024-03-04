@@ -510,32 +510,49 @@ namespace GH_Toolkit_Core.Methods
         }
         public byte[] ScriptParsedToBytes(List<object> scriptData)
         {
-            Lzss lzss = new Lzss();
             using (MemoryStream mainStream = new MemoryStream())
+            {
+                var (uncompressedScript, noCrcStreamArray) = ProcessScriptData(scriptData);
+                WriteCrc(mainStream, noCrcStreamArray);
+                WriteLength(mainStream, uncompressedScript.Length);
+                byte[] scriptToWrite = DetermineCompression(uncompressedScript);
+                WriteLength(mainStream, scriptToWrite.Length);
+                WriteScriptData(mainStream, scriptToWrite);
+                PadStreamToFour(mainStream);
+                return mainStream.ToArray();
+            }
+        }
+        private (byte[], byte[]) ProcessScriptData(List<object> scriptData)
+        {
             using (MemoryStream noCrcStream = new MemoryStream())
             using (MemoryStream scriptStream = new MemoryStream())
             {
                 int loopStart = 0;
                 ScriptLoop(scriptData, ref loopStart, noCrcStream, scriptStream);
-
-                string scriptCrc = CRC.GenQBKey(noCrcStream.ToArray());
-                mainStream.Write(ValueHex(scriptCrc), 0, 4);
-                byte[] uncompressedScript = scriptStream.ToArray();
-                int decompLen = (int)scriptStream.Length;
-                mainStream.Write(ValueHex(decompLen), 0, 4);
-                byte[] compressedScript = lzss.Compress(scriptStream.ToArray());
-                if (compressedScript.Length >= decompLen)
-                {
-                    compressedScript = uncompressedScript;
-                }
-                int compLen = (int)compressedScript.Length;
-                mainStream.Write(ValueHex(compLen), 0, 4);
-                mainStream.Write(compressedScript, 0, compLen);
-                PadStreamToFour(mainStream);
-                byte[] currentContents = mainStream.ToArray();
-                return currentContents;
+                return (scriptStream.ToArray(), noCrcStream.ToArray());
             }
-            throw new NotImplementedException();
+        }
+        private void WriteCrc(MemoryStream stream, byte[] noCrcStreamArray)
+        {
+            string scriptCrc = CRC.GenQBKey(noCrcStreamArray);
+            stream.Write(ValueHex(scriptCrc), 0, 4);
+        }
+
+        private void WriteLength(MemoryStream stream, int length)
+        {
+            stream.Write(ValueHex(length), 0, 4);
+        }
+
+        private byte[] DetermineCompression(byte[] uncompressedScript)
+        {
+            Lzss lzss = new Lzss();
+            byte[] compressedScript = lzss.Compress(uncompressedScript);
+            return compressedScript.Length >= uncompressedScript.Length ? uncompressedScript : compressedScript;
+        }
+
+        private void WriteScriptData(MemoryStream stream, byte[] scriptData)
+        {
+            stream.Write(scriptData, 0, scriptData.Length);
         }
         public bool CompareScriptParsed(List<object> scriptData1, List<object> scriptData2)
         {
