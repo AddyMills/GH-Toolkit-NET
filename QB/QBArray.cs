@@ -40,6 +40,10 @@ namespace GH_Toolkit_Core.QB
             {
                 FirstItem = new QBItemInfo(type);
             }
+            private bool IsEmptyOrNull()
+            {
+                return (FirstItem == null || FirstItem.Type == EMPTY);
+            }
             public void AddParseToArray(string value, string type)
             {
                 Items.Add(ParseData(value, type));
@@ -47,7 +51,7 @@ namespace GH_Toolkit_Core.QB
                 {
                     type = ParseMultiFloatType(value);
                 }
-                if (FirstItem == null)
+                if (IsEmptyOrNull())
                 {
                     SetFirstItem(type);
                 }
@@ -58,7 +62,7 @@ namespace GH_Toolkit_Core.QB
             }
             public void AddToArray(int value) // Add an integer value
             {
-                if (FirstItem == null)
+                if (IsEmptyOrNull())
                 {
                     SetFirstItem(INTEGER);
                 }
@@ -70,7 +74,7 @@ namespace GH_Toolkit_Core.QB
             }
             public void AddListToArray(List<int> list) // Add a list of integers
             {
-                if (FirstItem == null)
+                if (IsEmptyOrNull())
                 {
                     SetFirstItem(INTEGER);
                 }
@@ -85,7 +89,7 @@ namespace GH_Toolkit_Core.QB
             }
             public void AddArrayToArray(QBArrayNode value) // When parsing from text
             {
-                if (FirstItem == null)
+                if (IsEmptyOrNull())
                 {
                     SetFirstItem(ARRAY);
                 }
@@ -97,7 +101,7 @@ namespace GH_Toolkit_Core.QB
             }
             public void AddStructToArray(QBStructData value) // When parsing from text
             {
-                if (FirstItem == null)
+                if (IsEmptyOrNull())
                 {
                     SetFirstItem(STRUCT);
                 }
@@ -130,8 +134,8 @@ namespace GH_Toolkit_Core.QB
                 }
                 else
                 {
-                    FirstItem.Type = "Empty";
-                    stream.Position += 8; // Empty Array, why both reading the values?
+                    FirstItem.Type = EMPTY;
+                    stream.Position += 8; // Empty Array, why bother reading the values?
                     return;
                 }
                 if (simpleArray)

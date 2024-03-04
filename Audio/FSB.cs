@@ -91,6 +91,17 @@ namespace GH_Toolkit_Core.Audio
                 // Assemble the full FFmpeg command
                 var ffmpegArgs = $"-filter_complex \"{mixFilter}\" -map \"[final]\"";
 
+                /*var strTest = FFMpegArguments
+                        .FromFileInput(paths, true)
+                        .OutputToFile(outputPath, true, options => options
+                            .WithCustomArgument(ffmpegArgs)
+                            .WithAudioCodec(AudioCodec.LibMp3Lame) // Set the audio codec to MP3
+                            .WithAudioBitrate(128) // Set the bitrate to 128kbps
+                            .WithAudioSamplingRate(48000) // Set the sample rate to 48kHz
+                            .WithoutMetadata() // Remove metadata
+                            .WithCustomArgument("-ac 2 -write_xing 0 -id3v2_version 0") // Force 2 Channels
+                            ).Arguments;*/
+
                 try
                 {
                     // Execute the FFmpeg command

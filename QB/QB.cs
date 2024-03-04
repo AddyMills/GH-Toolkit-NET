@@ -14,6 +14,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Collections;
 using System.Text;
+using static GH_Toolkit_Core.PAK.PAK;
 
 /*
  * * This file is intended to be a collection of methods to read and create QB files
@@ -376,7 +377,7 @@ namespace GH_Toolkit_Core.QB
             {0x1B, "QbKey" },
             {0x35, "Pointer" },
         };
-        private static Dictionary<string, byte> flipDict(Dictionary<byte, string> originalDict)
+        private static Dictionary<string, byte> FlipDict(Dictionary<byte, string> originalDict)
         {
             Dictionary<string, byte> flippedDict = new Dictionary<string, byte>();
             foreach (KeyValuePair<byte, string> item in originalDict)
@@ -384,6 +385,10 @@ namespace GH_Toolkit_Core.QB
                 flippedDict.Add(item.Value, item.Key);
             }
             return flippedDict;
+        }
+        public static Dictionary<string, byte> GetTempFlippedDict()
+        {
+            return FlipDict(QbType);
         }
         public static Dictionary<byte, string> StructType { get; private set; }
 
@@ -398,6 +403,21 @@ namespace GH_Toolkit_Core.QB
                 StructType = QbTypeGh3Ps2Struct;
             }
 
+        }
+        public static Dictionary<string, QBItem> QbEntryDict(List<QBItem> qbList)
+        {
+            var qbDict = new Dictionary<string, QBItem>();
+            foreach (QBItem item in qbList)
+            {
+                qbDict.Add(item.Name, item);
+            }
+            return qbDict;
+        }
+        public static Dictionary<string, QBItem> QbEntryDictFromBytes(byte[] qbBytes, string endian = "", string songName = "")
+        {
+            var qbList = DecompileQb(qbBytes, endian, songName);
+
+            return QbEntryDict(qbList);
         }
 
         public static List<QBItem> DecompileQb(byte[] qbBytes, string endian = "big", string songName = "")
@@ -1422,7 +1442,7 @@ namespace GH_Toolkit_Core.QB
                 qbName = $"{qbName.Substring(0, qbName.IndexOf("."))}";
             }
             byte consoleByte;
-            Dictionary<string, byte> QbTypeLookup = flipDict(QbType);
+            Dictionary<string, byte> QbTypeLookup = FlipDict(QbType);
             Dictionary<string, byte> QbStructLookup;
             string endian;
 
@@ -1431,7 +1451,7 @@ namespace GH_Toolkit_Core.QB
                 consoleByte = 0x04;
                 if (game == "GH3")
                 {
-                    QbStructLookup = flipDict(QbTypeGh3Ps2Struct);
+                    QbStructLookup = FlipDict(QbTypeGh3Ps2Struct);
                 }
                 else
                 {

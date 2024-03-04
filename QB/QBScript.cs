@@ -543,6 +543,7 @@ namespace GH_Toolkit_Core.QB
             {
                 Type = nodeType;
                 Data = data;
+                //DataQb = ParseData(data.ToString(), Type);
             }
             public ScriptNode(string nodeType, string data)
             {

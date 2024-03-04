@@ -185,13 +185,22 @@ namespace GH_Toolkit_Core.PAK
                 }
             }
         }
-
-        public static void ProcessPAKFromFile(string file, bool convertQ = true)
+        public static Dictionary<string, PakEntry> PakEntryDictFromFile(string file)
+        {
+            var pakEntries = PakEntriesFromFilepath(file);
+            Dictionary<string, PakEntry> pakDict = new Dictionary<string, PakEntry>();
+            foreach (var entry in pakEntries)
+            {
+                pakDict.Add(entry.FullName, entry);
+            }
+            return pakDict;
+        }
+        public static List<PakEntry>? PakEntriesFromFilepath(string file)
         {
             string fileName = Path.GetFileName(file);
             if (fileName.IndexOf(".pab", 0, fileName.Length, StringComparison.CurrentCultureIgnoreCase) != -1)
             {
-                return;
+                return null;
             }
             if (fileName.IndexOf(".pak", 0, fileName.Length, StringComparison.CurrentCultureIgnoreCase) == -1)
             {
@@ -205,8 +214,6 @@ namespace GH_Toolkit_Core.PAK
             string songCheck = "_song";
             string songName = "";
             List<PakEntry> pakEntries;
-            bool debugFile = fileName.Contains("dbg.pak");
-            string masterFilePath = Path.Combine(NewFolderPath, "master.txt");
             if (fileName.Contains(songCheck))
             {
                 songName = fileName.Substring(0, fileName.IndexOf(songCheck));
@@ -245,6 +252,19 @@ namespace GH_Toolkit_Core.PAK
                 }
                 pakEntries = ExtractPAK(test_pak, test_pab, endian: endian, songName: songName);
             }
+            return pakEntries;
+        }
+        public static void ProcessPAKFromFile(string file, bool convertQ = true)
+        {
+            string fileName = Path.GetFileName(file);
+            string fileNoExt = fileName.Substring(0, fileName.ToLower().IndexOf(".pak"));
+            string fileExt = Path.GetExtension(file);
+            string folderPath = Path.GetDirectoryName(file);
+            string NewFolderPath = Path.Combine(folderPath, fileNoExt);
+            bool debugFile = fileName.Contains("dbg.pak");
+            string masterFilePath = Path.Combine(NewFolderPath, "master.txt");
+
+            var pakEntries = PakEntriesFromFilepath(file);
 
             foreach (PakEntry entry in pakEntries)
             {
@@ -259,7 +279,6 @@ namespace GH_Toolkit_Core.PAK
                 {
                     pakFileName += fileExt;
                 }
-
 
                 string saveName = Path.Combine(NewFolderPath, pakFileName);
 

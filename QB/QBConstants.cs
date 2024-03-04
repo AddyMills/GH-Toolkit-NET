@@ -25,6 +25,7 @@ namespace GH_Toolkit_Core.QB
         public const string POINTER = "Pointer";
         public const string QSKEY = "QsKey";
         public const string EMPTY = "Flag"; // Used for arrays and structs
+        public const string EMPTYARRAY = "Empty"; 
         public const string ROOT = "Root";
         public const string MULTIFLOAT = "MultiFloat";
 

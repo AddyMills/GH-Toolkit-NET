@@ -501,38 +501,47 @@ namespace GH_Toolkit_Core.Methods
             }
             else if (value is QBScript.QBScriptData scriptVal)
             {
-                
-                Lzss lzss = new Lzss();
-                using (MemoryStream mainStream = new MemoryStream())
-                using (MemoryStream noCrcStream = new MemoryStream())
-                using (MemoryStream scriptStream = new MemoryStream())
-                {
-                    int loopStart = 0;
-                    ScriptLoop(scriptVal.ScriptParsed, ref loopStart, noCrcStream, scriptStream);
-
-                    string scriptCrc = CRC.GenQBKey(noCrcStream.ToArray());
-                    mainStream.Write(ValueHex(scriptCrc), 0, 4);
-                    byte[] uncompressedScript = scriptStream.ToArray();
-                    int decompLen = (int)scriptStream.Length;
-                    mainStream.Write(ValueHex(decompLen), 0, 4);
-                    byte[] compressedScript = lzss.Compress(scriptStream.ToArray());
-                    if (compressedScript.Length >= decompLen)
-                    {
-                        compressedScript = uncompressedScript;
-                    }
-                    int compLen = (int)compressedScript.Length;
-                    mainStream.Write(ValueHex(compLen), 0, 4);
-                    mainStream.Write(compressedScript, 0, compLen);
-                    PadStreamToFour(mainStream);
-                    byte[] currentContents = mainStream.ToArray();
-                    return currentContents;
-                }
-                throw new NotImplementedException();
+                return ScriptParsedToBytes(scriptVal.ScriptParsed);
             }
             else 
             {
                 throw new NotSupportedException(); 
             }
+        }
+        public byte[] ScriptParsedToBytes(List<object> scriptData)
+        {
+            Lzss lzss = new Lzss();
+            using (MemoryStream mainStream = new MemoryStream())
+            using (MemoryStream noCrcStream = new MemoryStream())
+            using (MemoryStream scriptStream = new MemoryStream())
+            {
+                int loopStart = 0;
+                ScriptLoop(scriptData, ref loopStart, noCrcStream, scriptStream);
+
+                string scriptCrc = CRC.GenQBKey(noCrcStream.ToArray());
+                mainStream.Write(ValueHex(scriptCrc), 0, 4);
+                byte[] uncompressedScript = scriptStream.ToArray();
+                int decompLen = (int)scriptStream.Length;
+                mainStream.Write(ValueHex(decompLen), 0, 4);
+                byte[] compressedScript = lzss.Compress(scriptStream.ToArray());
+                if (compressedScript.Length >= decompLen)
+                {
+                    compressedScript = uncompressedScript;
+                }
+                int compLen = (int)compressedScript.Length;
+                mainStream.Write(ValueHex(compLen), 0, 4);
+                mainStream.Write(compressedScript, 0, compLen);
+                PadStreamToFour(mainStream);
+                byte[] currentContents = mainStream.ToArray();
+                return currentContents;
+            }
+            throw new NotImplementedException();
+        }
+        public bool CompareScriptParsed(List<object> scriptData1, List<object> scriptData2)
+        {
+            byte[] scriptBytes1 = ScriptParsedToBytes(scriptData1);
+            byte[] scriptBytes2 = ScriptParsedToBytes(scriptData2);
+            return scriptBytes1.SequenceEqual(scriptBytes2);
         }
         public void ScriptLoop(List<object> script, ref int scriptPos, MemoryStream noCrcStream, MemoryStream scriptStream)
         {
