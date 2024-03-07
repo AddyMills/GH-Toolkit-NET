@@ -197,7 +197,7 @@ namespace GH_Toolkit_Core.QB
             }
             public static bool isArgument = false;
             public static string stringIndent = "\t";
-            public void StringParser(object item, ref int level, StringBuilder builder, StringBuilder currentLine)
+            public void StringParser(string item, ref int level, StringBuilder builder, StringBuilder currentLine)
             {
                 switch (item)
                 {
@@ -266,9 +266,30 @@ namespace GH_Toolkit_Core.QB
                 foreach (object item in list)
                 {
                     stringIndent = GetIndent(level);
-                    if (item is string)
+                    if (item is string stringItem)
                     {
-                        StringParser(item, ref level, builder, currentLine);
+                        switch (stringItem)
+                        {
+                            case IF:
+                            case FASTIF:
+                                level++;
+                                currentLine.Append("if ");
+                                break;
+                            case ELSEIF:
+                                currentLine.Clear(); // Clear the current line buffer
+                                currentLine.Append(GetIndent(level - 1)); // Update the indent
+                                currentLine.Append("elseif ");
+                                break;
+                            case ELSE:
+                            case FASTELSE:
+                                currentLine.Clear(); // Clear the current line buffer
+                                currentLine.Append(GetIndent(level - 1)); // Update the indent
+                                currentLine.Append("else ");
+                                break;
+                            default:
+                                StringParser(stringItem, ref level, builder, currentLine);
+                                break;
+                        }
                     }
                     else if (item is ScriptNode node)
                     {
@@ -287,7 +308,7 @@ namespace GH_Toolkit_Core.QB
                         {
                             DeleteTabs(currentLine);
                         }
-                        currentLine.Append($"\\{{{nodeStruct.Data.StructToScript()}}}");
+                        currentLine.Append($"\\{{{nodeStruct.Data.StructToScript(level)}}}");
                     }
                     else if (item is Conditional conditional)
                     {
@@ -320,6 +341,10 @@ namespace GH_Toolkit_Core.QB
                     else if (item is ScriptRandom random)
                     {
                         currentLine.Append($"{random.Name} (");
+                        if (random.PreRandomEntries.Count > 0)
+                        {
+                            currentLine.Append(ScriptToText(random.PreRandomEntries, level + 1));
+                        }
                         foreach (RandomEntry randomEntry in random.RandomEntries)
                         {
                             currentLine.Append(randomEntry.WeightString());
@@ -553,7 +578,7 @@ namespace GH_Toolkit_Core.QB
             {
                 Type = nodeType;
                 Data = data;
-                //DataQb = ParseData(data.ToString(), Type);
+                DataQb = ParseData(data.ToString(), Type);
             }
             public ScriptNode(string nodeType, string data)
             {
@@ -566,7 +591,7 @@ namespace GH_Toolkit_Core.QB
                 string dataString;
                 if (Data is ScriptNodeStruct structData)
                 {
-                    dataString = $"\\{{{structData.Data.StructToScript()}}}";
+                    dataString = $"\\{{{structData.Data.StructToScript(1)}}}";
                 }
                 else
                 {
@@ -876,12 +901,25 @@ namespace GH_Toolkit_Core.QB
                     RandomEntries.Add(entry);
                 }
 
-                stream.Position += (Entries * 4); // Skip offsets
+                var dataStart = ScriptReader.ReadUInt32(stream);
+                var preDataStart = stream.Position;
+                var startCheck = preDataStart + dataStart;
+
+                stream.Position += ((Entries - 1) * 4); // Skip offsets
 
                 uint entriesCountdown = Entries;
                 uint randEnd = 0xffffffff;
                 bool nextGlobal = false;
                 bool nextArg = false;
+
+                // Sometimes there are events before the random entries
+                // These need to be added to the pre-random entries list
+                while (stream.Position < startCheck)
+                {
+                    AddToList(stream, PreRandomEntries, ref nextGlobal, ref nextArg);
+                }
+
+                
                 for (int i = 0; i < Entries; i++)
                 {
                     object currItem = 0;
@@ -902,6 +940,7 @@ namespace GH_Toolkit_Core.QB
                         currItem = newItemCheck;
                         if (currItem is ScriptLongJump longJump)
                         {
+                            entry.Actions.RemoveAt(entry.Actions.Count - 1); // We don't actually want this in the list
                             randEnd = (uint)stream.Position + longJump.Jump;
                             entriesCountdown--;
                             break;
@@ -1402,10 +1441,14 @@ namespace GH_Toolkit_Core.QB
                     list.Add(COLON);
                     break;
                 case 0x47:
-                    list.Add(new Conditional(FASTIF, ScriptReader.ReadUInt16(stream)));
+                    list.Add(IF);
+                    stream.Position += 2;
+                    //list.Add(new Conditional(FASTIF, ScriptReader.ReadUInt16(stream)));
                     break;
                 case 0x48:
-                    list.Add(new Conditional(FASTELSE, ScriptReader.ReadUInt16(stream)));
+                    list.Add(ELSE);
+                    stream.Position += 2;
+                    //list.Add(new Conditional(FASTELSE, ScriptReader.ReadUInt16(stream)));
                     break;
                 case 0x49:
                     // Short Jump

@@ -341,7 +341,7 @@ namespace GH_Toolkit_Core.QB
 
         private static readonly Dictionary<byte, string> QbType = new Dictionary<byte, string>()
         {
-            {0x00, "Flag" }, // Should only be used in structs
+            {0x00, STRUCTFLAG }, // Should only be used in structs
             {0x01, "Integer" },
             {0x02, "Float" },
             {0x03, "String" },
@@ -365,7 +365,7 @@ namespace GH_Toolkit_Core.QB
 
         private static readonly Dictionary<byte, string> QbTypeGh3Ps2Struct = new Dictionary<byte, string>()
         {
-            {0x00, "Flag" },
+            {0x00, STRUCTFLAG },
             {0x03, "Integer" },
             {0x05, "Float" },
             {0x07, "String" },
@@ -409,7 +409,7 @@ namespace GH_Toolkit_Core.QB
             var qbDict = new Dictionary<string, QBItem>();
             foreach (QBItem item in qbList)
             {
-                qbDict.Add(item.Name, item);
+                qbDict.Add(item.Name.ToLower(), item);
             }
             return qbDict;
         }

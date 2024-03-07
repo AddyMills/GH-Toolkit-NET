@@ -10,8 +10,8 @@ namespace GH_Toolkit_Core.QB
     {
         public const string SECTION = "Section";
 
-        public const string FLAG = "Flag";
-        public const string FLAGBYTE = "0x0";
+        public const string STRUCTFLAG = "StructFlag";
+        public const string FLAGBYTE = "0x00000000";
         public const string INTEGER = "Integer";
         public const string FLOAT = "Float";
         public const string STRING = "String";
@@ -24,7 +24,7 @@ namespace GH_Toolkit_Core.QB
         public const string QBKEY = "QbKey";
         public const string POINTER = "Pointer";
         public const string QSKEY = "QsKey";
-        public const string EMPTY = "Flag"; // Used for arrays and structs
+        public const string EMPTY = "StructFlag"; // Used for arrays and structs
         public const string EMPTYARRAY = "Empty"; 
         public const string ROOT = "Root";
         public const string MULTIFLOAT = "MultiFloat";

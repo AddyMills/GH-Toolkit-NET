@@ -407,6 +407,10 @@ namespace GH_Toolkit_Core.Methods
                         {
                             byte[] entryHeader = StructHeader(currItem.Info.Type);
                             stream.Write(entryHeader, 0, 4);
+                            /*if (currItem.Props.ID == FLAGBYTE)
+                            {
+                                currItem.Props.ID = FLAG;
+                            }*/
                             byte[] id = ValueHex(currItem.Props.ID);
                             stream.Write(id, 0, 4);
                             //streamPos += 8;
@@ -554,11 +558,10 @@ namespace GH_Toolkit_Core.Methods
         {
             stream.Write(scriptData, 0, scriptData.Length);
         }
-        public bool CompareScriptParsed(List<object> scriptData1, List<object> scriptData2)
+        public byte[] SingleScript(List<object> scriptData)
         {
-            byte[] scriptBytes1 = ScriptParsedToBytes(scriptData1);
-            byte[] scriptBytes2 = ScriptParsedToBytes(scriptData2);
-            return scriptBytes1.SequenceEqual(scriptBytes2);
+            (var scriptBytes, var _) = ProcessScriptData(scriptData);
+            return scriptBytes;
         }
         public void ScriptLoop(List<object> script, ref int scriptPos, MemoryStream noCrcStream, MemoryStream scriptStream)
         {
@@ -577,7 +580,28 @@ namespace GH_Toolkit_Core.Methods
             else if (o is ScriptNode scriptNode)
             {
                 byte scriptType = _scriptbytes[scriptNode.Type];
-                AddScriptToStream(scriptType, noCrcStream, scriptStream);
+                
+                if (scriptNode.Type != POINTER)
+                {
+                    AddScriptToStream(scriptType, noCrcStream, scriptStream);
+                }
+                else
+                {
+                    byte lastByte = GetLastByte(scriptStream);
+                    bool lastArgument = lastByte == ARGUMENT_BYTE;
+                    if (lastArgument)
+                    {
+                        scriptStream.Seek(-1, SeekOrigin.End);
+                        noCrcStream.Seek(-1, SeekOrigin.End);
+                    }
+                    AddScriptToStream(scriptType, noCrcStream, scriptStream);
+                    if (lastArgument)
+                    {
+                        AddScriptToStream(_scriptbytes[ARGUMENT], noCrcStream, scriptStream);
+                    }
+                    AddScriptToStream(_scriptbytes[QBKEY], noCrcStream, scriptStream);
+                    
+                }
                 byte[] scriptBytes = _scriptwriter.GetScriptBytes(scriptNode.Type, scriptNode.DataQb);
                 _scriptwriter.AddArrayToStream(scriptBytes, scriptType, noCrcStream, scriptStream);
             }
@@ -612,6 +636,10 @@ namespace GH_Toolkit_Core.Methods
             {
                 switchNode.WriteToStream(script, noCrcStream, scriptStream, this);
             }
+            else if (o is ScriptRandom scriptRandom)
+            {
+                scriptRandom.WriteToStream(noCrcStream, scriptStream, this);
+            }
             else
             {
                 throw new NotImplementedException();
@@ -633,6 +661,11 @@ namespace GH_Toolkit_Core.Methods
                     scriptPos -= 1;
                     break;
                 case IF:
+                case FASTIF:
+                    if (scriptString == FASTIF)
+                    {
+                        scriptString = IF;
+                    }
                     scriptPos += 1;
                     ConditionalCollection conditional = new ConditionalCollection(script, ref scriptPos);
                     conditional.WriteToStream(crcStream, scriptStream, this);
@@ -648,6 +681,10 @@ namespace GH_Toolkit_Core.Methods
                     scriptPos -= 1;
                     break;
                 default:
+                    if (scriptString == FASTELSE)
+                    {
+
+                    }
                     AddScriptToStream(_scriptbytes[scriptString], crcStream, scriptStream);
                     break;
             }
@@ -809,6 +846,27 @@ namespace GH_Toolkit_Core.Methods
         public string Endian()
         {
             return _endian;
+        }
+        private static byte GetLastByte(Stream stream)
+        {
+            if (stream.CanSeek)
+            {
+                // Seek to the last byte in the stream.
+                stream.Seek(-1, SeekOrigin.End);
+
+                // Read the last byte.
+                int lastByte = stream.ReadByte();
+                if (lastByte != -1)
+                {
+                    return (byte)lastByte;
+                }
+
+                throw new InvalidOperationException("Unable to read the last byte.");
+            }
+            else
+            {
+                throw new NotSupportedException("The stream does not support seeking.");
+            }
         }
     }
 }

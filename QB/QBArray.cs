@@ -174,7 +174,7 @@ namespace GH_Toolkit_Core.QB
 
                 }
             }
-            public void ArrayToText(StreamWriter writer, int level = 1)
+            public void ArrayToText(TextWriter writer, int level = 1)
             {
                 string indent = new string('\t', level);
                 switch (FirstItem.Type)
@@ -210,7 +210,7 @@ namespace GH_Toolkit_Core.QB
                         break;
                 }
             }
-            public string ArrayToScript()
+            public string ArrayToScript(int level)
             {
                 string data = "";
                 switch (FirstItem.Type)
@@ -218,13 +218,13 @@ namespace GH_Toolkit_Core.QB
                     case ARRAY:
                         foreach (QBArrayNode item in Items)
                         {
-                            data += item.ArrayToScript();
+                            data += item.ArrayToScript(level + 1);
                         }
                         break;
                     case STRUCT:
                         foreach (QBStructData item in Items)
                         {
-                            data += $"{{{item.StructToScript()}}}";
+                            data += $"{{{item.StructToScript(level + 1)}}}";
                         }
                         break;
                     case VECTOR:

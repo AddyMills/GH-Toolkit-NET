@@ -34,10 +34,10 @@ namespace GH_Toolkit_Core.QB
             public QBStructProps(MemoryStream stream, string itemType) 
             {
                 ID = ReadQBKey(stream);
-                if (ID == "0x00000000")
+                /*if (ID == "0x00000000")
                 {
-                    ID = "Flag";
-                }
+                    ID = FLAGBYTE;
+                }*/
                 DataValue = ReadQBValue(stream, itemType);
                 NextItem = Reader.ReadUInt32(stream);
             }
@@ -202,13 +202,13 @@ namespace GH_Toolkit_Core.QB
                     }
                 }
             }
-            public void StructToText(StreamWriter writer, int level = 1)
+            public void StructToText(TextWriter writer, int level = 1)
             {
                 string indent = new string('\t', level);
                 string key;
                 foreach (QBStructItem item in Items)
                 {
-                    key = item.Props.ID == FLAG ? "" : $"{item.Props.ID} = ";
+                    key = item.Props.ID == FLAGBYTE ? "" : $"{item.Props.ID} = ";
                     if (item.Data is QBArrayNode arrayNode)
                     {
                         writer.WriteLine(indent + $"{key}[");
@@ -235,9 +235,8 @@ namespace GH_Toolkit_Core.QB
                     }
                 }
             }
-            public string StructToScript()
+            public string SingleLineStruct(int level)
             {
-
                 string returnString = "";
                 foreach (QBStructItem item in Items)
                 {
@@ -245,11 +244,11 @@ namespace GH_Toolkit_Core.QB
                     string name = item.Props.ID;
                     if (item.Data is QBArrayNode arrayNode)
                     {
-                        data += arrayNode.ArrayToScript();
+                        data += arrayNode.ArrayToScript(level + 1);
                     }
                     else if (item.Data is QBStructData structNode)
                     {
-                        data += $"{{{structNode.StructToScript()}}}";
+                        data += $"{{{structNode.StructToScript(level + 1)}}}";
                     }
                     else if (item.Data is List<float> floats)
                     {
@@ -259,7 +258,7 @@ namespace GH_Toolkit_Core.QB
                     {
                         data = QbItemText(item.Info.Type, item.Data.ToString());
                     }
-                    if (name != FLAG)
+                    if (name != FLAGBYTE)
                     {
                         returnString += $"{name} = {data} ";
                     }
@@ -269,6 +268,25 @@ namespace GH_Toolkit_Core.QB
                     }
                 }
                 return returnString.Trim();
+            }
+            public string StructToScript(int level)
+            {
+                if (Items.Count == 0)
+                {
+                    return "";
+                }
+                else if (Items.Count <= 3)
+                {
+                    return SingleLineStruct(level);
+                }
+                else
+                {
+                    using (var writer = new StringWriter())
+                    {
+                        StructToText(writer, level+1);
+                        return writer.ToString().Trim();
+                    }
+                }                
             }
         }
     }
