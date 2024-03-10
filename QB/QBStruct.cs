@@ -87,6 +87,12 @@ namespace GH_Toolkit_Core.QB
                 Data = Props.DataValue;
                 Info = new QBStructInfo(INTEGER);
             }
+            public QBStructItem(string key, float value) // Construct a float item
+            {
+                Props = new QBStructProps(key, value);
+                Data = Props.DataValue;
+                Info = new QBStructInfo(FLOAT);
+            }
             public QBStructItem(string key, QBArrayNode value) // Array
             {
                 Info = new QBStructInfo(ARRAY);
@@ -119,6 +125,67 @@ namespace GH_Toolkit_Core.QB
             public uint HeaderMarker { get; set; }
             public uint ItemOffset { get; set; } // Can be first or next
             public List<object> Items { get; set; }
+            public Dictionary<string, object> StructDict
+            {
+                get
+                {
+                    var dict = new Dictionary<string, object>();
+                    foreach (QBStructItem item in Items)
+                    {
+                        if (item.Props.ID == FLAGBYTE)
+                        {
+                            continue;
+                        }
+                        dict.Add(item.Props.ID, item.Data);
+                    }
+                    return dict;
+                }
+            }
+            public List<string> FlagList
+            {
+                get
+                {
+                    var flags = new List<string>();
+                    foreach (QBStructItem item in Items)
+                    {
+                        if (item.Props.ID == FLAGBYTE)
+                        {
+                            flags.Add(item.Data.ToString());
+                        }
+                    }
+                    return flags;
+                }
+            }
+            public object this[string key]
+            {
+                get
+                {
+                    // Attempt to get the value from StructDict
+                    if (StructDict.TryGetValue(key, out object value))
+                    {
+                        return value;
+                    }
+                    else
+                    {
+                        throw new KeyNotFoundException($"The key '{key}' was not found in the struct.");
+                    } 
+                }
+                set
+                {
+                    // Find if the item exists and update it. If it doesn't exist, add it.
+                    var existingItem = Items.FirstOrDefault(item => item is QBStructItem si && si.Props.ID == key) as QBStructItem;
+                    if (existingItem != null)
+                    {
+                        // Update the existing item's data
+                        existingItem.Data = value;
+                    }
+                    else
+                    {
+                        // Cannot add a new item to the struct using this method
+                        throw new ArgumentException("Cannot add a new item to the struct using this method.");
+                    }
+                }
+            }
             private int ItemCount { get; set; } // Debug only
             public QBStructData()
             {
@@ -143,14 +210,14 @@ namespace GH_Toolkit_Core.QB
                 }
                 ItemCount = Items.Count;
             }
-            public void AddToStruct(string key, int value) // Integer item
+            public void AddIntToStruct(string key, int value) // Integer item
             {
                 var item = new QBStructItem(key, value);
                 Items.Add(item);
             }
-            public void AddVarToStruct(string key, string value, string type)
+            public void AddFloatToStruct(string key, float value) // float item
             {
-                var item = new QBStructItem(key, value, type);
+                var item = new QBStructItem(key, value);
                 Items.Add(item);
             }
             public void AddArrayToStruct(string key, QBArrayNode value)
@@ -163,12 +230,42 @@ namespace GH_Toolkit_Core.QB
                 var item = new QBStructItem(key, value);
                 Items.Add(item);
             }
+            public void AddFlagToStruct(string flag, string type)
+            {
+                var item = new QBStructItem(FLAGBYTE, flag, type);
+                Items.Add(item);
+            }
+            public void AddVarToStruct(string key, string value, string type)
+            {
+                var item = new QBStructItem(key, value, type);
+                Items.Add(item);
+            }
+            public void DeleteItem(string key)
+            {
+                var item = Items.FirstOrDefault(item => item is QBStructItem si && si.Props.ID == key) as QBStructItem;
+                if (item != null)
+                {
+                    Items.Remove(item);
+                }
+            }
+            public void ClearStruct()
+            {
+                Items.Clear();
+            }
+            public void DeleteFlag(string flag)
+            {
+                var item = Items.FirstOrDefault(item => item is QBStructItem si && si.Props.ID == FLAGBYTE && si.Data.ToString() == flag) as QBStructItem;
+                if (item != null)
+                {
+                    Items.Remove(item);
+                }
+            }
             // Params for SetBlendTime scripts
             public void MakeLightBlendParams(string eventData)
             {
                 if (int.TryParse(eventData, out int blendTime))
                 {
-                    AddToStruct(TIME, blendTime);
+                    AddIntToStruct(TIME, blendTime);
                 }
                 else
                 {
@@ -194,7 +291,7 @@ namespace GH_Toolkit_Core.QB
                 {
                     if (int.TryParse(flag, out int repeat))
                     {
-                        AddToStruct(REPEAT_COUNT, repeat);
+                        AddIntToStruct(REPEAT_COUNT, repeat);
                     }
                     else
                     {

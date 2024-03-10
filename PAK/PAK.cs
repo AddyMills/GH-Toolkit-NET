@@ -26,7 +26,7 @@ namespace GH_Toolkit_Core.PAK
 {
     public class PAK
     {
-        [DebuggerDisplay("Entry: {FullName}")]
+        [DebuggerDisplay("Entry: {PakName}")]
         public class PakEntry
         {
             public string? Extension { get; set; }
@@ -41,7 +41,13 @@ namespace GH_Toolkit_Core.PAK
             public byte[]? EntryData { get; set; }
             public byte[]? ExtraData { get; set; }
             public string ConsoleType {  get; set; }
-            public int ByteLength { get; set; }
+            public int ByteLength { get; set; } = 32;
+            private string PakName { 
+                get
+                { 
+                    return FullName == FLAGBYTE ? AssetContext! : FullName!;
+                } 
+            }
             public PakEntry()
             {
 
@@ -63,14 +69,12 @@ namespace GH_Toolkit_Core.PAK
                 EntryData = bytes;
                 FileSize = (uint)EntryData.Length;
                 ConsoleType = console;
-                ByteLength = 32;
                 AssetContext = assetContext;
             }
             public void MakeLastEntry(string lastType)
             {
                 EntryData = [0xAB, 0xAB, 0xAB, 0xAB];
                 FileSize = (uint)EntryData.Length;
-                ByteLength = 32;
                 SetExtension(lastType);
                 SetNameNoExt("0x0");
                 SetFullName("0x0");
@@ -184,6 +188,11 @@ namespace GH_Toolkit_Core.PAK
                     Flags = 0;
                 }
             }
+            public void OverwriteData(byte[] data)
+            {
+                EntryData = data;
+                FileSize = (uint)EntryData.Length;
+            }
         }
         public static Dictionary<string, PakEntry> PakEntryDictFromFile(string file)
         {
@@ -254,10 +263,19 @@ namespace GH_Toolkit_Core.PAK
             }
             return pakEntries;
         }
+        
         public static void ProcessPAKFromFile(string file, bool convertQ = true)
         {
             string fileName = Path.GetFileName(file);
-            string fileNoExt = fileName.Substring(0, fileName.ToLower().IndexOf(".pak"));
+            string fileNoExt;
+            try
+            {
+                fileNoExt = fileName.Substring(0, fileName.ToLower().IndexOf(".pak"));
+            }
+            catch
+            {
+                return;
+            }
             string fileExt = Path.GetExtension(file);
             string folderPath = Path.GetDirectoryName(file);
             string NewFolderPath = Path.Combine(folderPath, fileNoExt);
@@ -507,6 +525,7 @@ namespace GH_Toolkit_Core.PAK
             entry.Flags = flags;
             if ((flags & 0x20) != 0)
             {
+                entry.ByteLength += 160;
                 var skipTo = stream.Position + 160;
                 string tempString = ReadWrite.ReadUntilNullByte(stream);
                 switch (tempString)
@@ -648,7 +667,7 @@ namespace GH_Toolkit_Core.PAK
                 bool isPs2 = ConsoleType == CONSOLE_PS2;
                 List<PakEntry> PakEntries = new List<PakEntry>();
                 List<string> fileNames = new List<string>();
-                int pakSize = 0;
+                
 
                 foreach (string entry in entries)
                 {
@@ -691,28 +710,33 @@ namespace GH_Toolkit_Core.PAK
 
                         }
                         PakEntries.Add(pakEntry);
-                        pakSize += pakEntry.ByteLength;
+
                     }
                 }
+                
+                var (pakData, pabData) = CompilePakEntries(PakEntries);
+                
+                return (pakData, pabData, ConsoleType);
 
-                PakEntries.Add(new PakEntry(ConsoleType, Game, AssetContext));
-                pakSize += PakEntries[fileNames.Count].ByteLength;
-
-                if (ConsoleType == CONSOLE_PS2)
-                {
-                    pakSize += 16;
-                }
-                else
-                {
-                    pakSize += (4096 - pakSize % 4096);
-                }
-
+            }
+            public (byte[], byte[]?) CompilePakEntries(List<PakEntry> PakEntries)
+            {
+                PakEntries.Add(new PakEntry(ConsoleType, Game, AssetContext)); // Last entry
                 byte[] pakData;
                 byte[]? pabData;
-
                 using (MemoryStream pak = new MemoryStream())
                 using (MemoryStream pab = new MemoryStream())
                 {
+
+                    int pakSize = PakEntries.Sum(item => item.ByteLength);
+                    if (ConsoleType == CONSOLE_PS2)
+                    {
+                        pakSize += 16;
+                    }
+                    else
+                    {
+                        pakSize += (4096 - pakSize % 4096);
+                    }
                     int bytesPassed = 0;
                     foreach (PakEntry entry in PakEntries)
                     {
@@ -749,12 +773,20 @@ namespace GH_Toolkit_Core.PAK
                         pabData = null;
                     }
                     pakData = pak.ToArray();
-                    
+
                 }
-                return (pakData, pabData, ConsoleType);
-
+                return (pakData, pabData);
             }
-
+            public (byte[], byte[]?) CompilePakFromDictionary(Dictionary<string, PakEntry> pakDict)
+            {
+                List<PakEntry> pakEntries = new List<PakEntry>();
+                foreach (var entry in pakDict)
+                {
+                    pakEntries.Add(entry.Value);
+                }
+                var (pakData, pabData) = CompilePakEntries(pakEntries);
+                return (pakData, pabData);
+            }
             private void AddConsoleExt(ref string filePath)
             {
                 if (ConsoleType == CONSOLE_PS2)

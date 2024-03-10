@@ -44,6 +44,41 @@ namespace GH_Toolkit_Core.QB
             {
                 return (FirstItem == null || FirstItem.Type == EMPTY);
             }
+            /// <summary>
+            /// Check if the item is already in the array
+            /// This does not work for complex structures like arrays and structs
+            /// </summary>
+            /// <param name="item"></param>
+            /// <param name="type"></param>
+            /// <returns>True if the item is in the array, false if not</returns>
+            public bool IsInArray(string item, string type)
+            {
+                return Items.Contains(ParseData(item, type)) || Items.Contains(item);
+            }
+            /// <summary>
+            /// Get the index of the item in the array
+            /// This does not work for complex structures like arrays and structs
+            /// </summary>
+            /// <param name="item"></param>
+            /// <param name="type"></param>
+            /// <returns>The index of the item if found, -1 otherwise</returns>
+            public int GetItemIndex(string item, string type)
+            {
+                var parsedItem = ParseData(item, type);
+
+                // Try to find the parsed item first
+                int index = Items.FindIndex(x => x.Equals(parsedItem));
+                if (index != -1)
+                {
+                    return index;
+                }
+
+                // If the parsed item is not found, try to find the item directly
+                index = Items.IndexOf(item);
+
+                // If the item is not found in either form, return -1
+                return index;
+            }
             public void AddParseToArray(string value, string type)
             {
                 Items.Add(ParseData(value, type));
@@ -60,7 +95,7 @@ namespace GH_Toolkit_Core.QB
                     throw new ArrayTypeMismatchException($"{value} of type {type} does not match elements in array of type {FirstItem.Type}");
                 }
             }
-            public void AddToArray(int value) // Add an integer value
+            public void AddIntToArray(int value) // Add an integer value
             {
                 if (IsEmptyOrNull())
                 {
@@ -71,6 +106,30 @@ namespace GH_Toolkit_Core.QB
                     throw new ArrayTypeMismatchException($"{value} of type Integer does not match elements in array of type {FirstItem.Type}");
                 }
                 Items.Add(value);           
+            }
+            public void AddFloatToArray(float value) // Add a float value
+            {
+                if (IsEmptyOrNull())
+                {
+                    SetFirstItem(FLOAT);
+                }
+                else if (FirstItem.Type != FLOAT)
+                {
+                    throw new ArrayTypeMismatchException($"{value} of type Float does not match elements in array of type {FirstItem.Type}");
+                }
+                Items.Add(value);
+            }
+            public void AddQbkeyToArray(string value) // Add a qbkey value
+            {
+                if (IsEmptyOrNull())
+                {
+                    SetFirstItem(QBKEY);
+                }
+                else if (FirstItem.Type != QBKEY)
+                {
+                    throw new ArrayTypeMismatchException($"{value} of type Qbkey does not match elements in array of type {FirstItem.Type}");
+                }
+                Items.Add(value);
             }
             public void AddListToArray(List<int> list) // Add a list of integers
             {

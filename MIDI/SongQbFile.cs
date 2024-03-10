@@ -229,9 +229,9 @@ namespace GH_Toolkit_Core.MIDI
             foreach (TimeSig ts in TimeSigs)
             {
                 QBArrayNode tsEntry = new QBArrayNode();
-                tsEntry.AddToArray(ts.Time);
-                tsEntry.AddToArray(ts.Numerator);
-                tsEntry.AddToArray(ts.Denominator);
+                tsEntry.AddIntToArray(ts.Time);
+                tsEntry.AddIntToArray(ts.Numerator);
+                tsEntry.AddIntToArray(ts.Denominator);
                 timeSigArray.AddArrayToArray(tsEntry);
             }
             qbItems.Add(new QBItem(tsName, timeSigArray));
@@ -1137,8 +1137,8 @@ namespace GH_Toolkit_Core.MIDI
                         int startTime = (int)Math.Round(songQb.TicksToMilliseconds(foNote.Time));
                         int endTime = (int)Math.Round(songQb.TicksToMilliseconds(foNote.EndTime));
                         int length = endTime - startTime;
-                        faceOffEntry.AddToArray(startTime);
-                        faceOffEntry.AddToArray(length);
+                        faceOffEntry.AddIntToArray(startTime);
+                        faceOffEntry.AddIntToArray(length);
                         faceOffs.AddArrayToArray(faceOffEntry);
                     }
                 }
@@ -1399,13 +1399,13 @@ namespace GH_Toolkit_Core.MIDI
                 QBArrayNode notes = new QBArrayNode();
                 foreach (PlayNote playNote in PlayNotes)
                 {
-                    notes.AddToArray(playNote.Time);
-                    notes.AddToArray(playNote.Length);
+                    notes.AddIntToArray(playNote.Time);
+                    notes.AddIntToArray(playNote.Length);
                     if ((!playNote.IsHopo && playNote.ForcedOn) || (playNote.IsHopo && playNote.ForcedOff))
                     {
                         playNote.Note += GH3FORCE;
                     }
-                    notes.AddToArray(playNote.Note);
+                    notes.AddIntToArray(playNote.Note);
                 }
                 currItem.SetData(notes);
                 return currItem;
@@ -1450,9 +1450,9 @@ namespace GH_Toolkit_Core.MIDI
                 foreach (StarPower star in starList)
                 {
                     QBArrayNode starEntry = new QBArrayNode();
-                    starEntry.AddToArray(star.Time);
-                    starEntry.AddToArray(star.Length);
-                    starEntry.AddToArray(star.NoteCount);
+                    starEntry.AddIntToArray(star.Time);
+                    starEntry.AddIntToArray(star.Length);
+                    starEntry.AddIntToArray(star.NoteCount);
                     starData.AddArrayToArray(starEntry);
                 }
                 return starData;
@@ -1472,7 +1472,7 @@ namespace GH_Toolkit_Core.MIDI
             {
                 string markerType = console == CONSOLE_XBOX ? WIDESTRING : STRING;
                 QBStructData marker = new QBStructData();
-                marker.AddToStruct("Time", Time);
+                marker.AddIntToStruct("Time", Time);
                 marker.AddVarToStruct("Marker", Text, markerType);
                 return marker;
             }
@@ -1564,9 +1564,9 @@ namespace GH_Toolkit_Core.MIDI
             public QBArrayNode ToGH3Anim()
             {
                 QBArrayNode animNote = new QBArrayNode();
-                animNote.AddToArray(Time);
-                animNote.AddToArray(Note);
-                animNote.AddToArray(Length);
+                animNote.AddIntToArray(Time);
+                animNote.AddIntToArray(Note);
+                animNote.AddIntToArray(Length);
                 return animNote;
             }
         }
@@ -1587,7 +1587,7 @@ namespace GH_Toolkit_Core.MIDI
             public QBStructData ToStruct()
             {
                 QBStructData light = new QBStructData();
-                light.AddToStruct("Time", Time);
+                light.AddIntToStruct("Time", Time);
                 light.AddVarToStruct("scr", Script, QBKEY);
                 if (Params != null)
                 {

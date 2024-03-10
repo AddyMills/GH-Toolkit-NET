@@ -419,6 +419,16 @@ namespace GH_Toolkit_Core.QB
 
             return QbEntryDict(qbList);
         }
+        public static byte[] CompileQbFromDict(Dictionary<string, QBItem> qbDict, string filePath, string game = GAME_GH3, string console = CONSOLE_XBOX)
+        {
+            var qbList = new List<QBItem>();
+            foreach (KeyValuePair<string, QBItem> item in qbDict)
+            {
+                qbList.Add(item.Value);
+            }
+            var bytes = CompileQbFile(qbList, filePath, game, console);
+            return bytes;
+        }
 
         public static List<QBItem> DecompileQb(byte[] qbBytes, string endian = "big", string songName = "")
         {
