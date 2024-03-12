@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using MidiTheory = Melanchall.DryWetMidi.MusicTheory;
+using static GH_Toolkit_Core.QB.QBConstants;
 
 /*
  * * This file is intended to be a collection of constants and helper functions for use in creating songs from a MIDI file
@@ -438,6 +439,158 @@ namespace GH_Toolkit_Core.MIDI
                 {50, 41},
                 {0, 40}
             };
+
+        public static Dictionary<int, int> gh3_to_gha_cameras = new Dictionary<int, int>()
+        {
+            {77, 0},
+            {78, 1},
+            {79, 56},
+            {80, 82},
+            {81, 39},
+            {82, 44},
+            {83, 59},
+            {84, 35},
+            {85, 36},
+            {86, 35},
+            {87, 47},
+            {88, 29},
+            {89, 22},
+            {90, 40},
+            {91, 44},
+            {92, 19},
+            {93, 34},
+            {94, 51},
+            {95, 38},
+            {96, 35},
+            {97, 15},
+            {98, 56},
+            {99, 31},
+            {100, 17},
+            {101, 42},
+            {102, 69},
+            {103, 26},
+            {104, 28},
+            {105, 72},
+            {106, 72},
+            {107, 73},
+            {108, 74},
+            {109, 75},
+            {110, 46},
+            {111, 60},
+            {112, 59},
+            {113, 61},
+            {114, 64},
+            {115, 85},
+            {116, 84},
+            {117, 57}
+        };
+
+        public static Dictionary<int, int> gha_to_gh3_cameras = new Dictionary<int, int>()
+        {
+            // Enable Changes
+            {0, 77},
+            {1, 78},
+            // Rhythm Cameras
+            {3, 79},
+            {4, 79},
+            {5, 79},
+            {6, 79},
+            {7, 84},
+            {8, 86},
+            // Bassist Cameras
+            {10, 97},
+            {11, 97},
+            {12, 97},
+            {13, 97},
+            {14, 84},
+            {15, 86},
+            // Drummer Cameras
+            {17, 100},
+            {18, 100},
+            {19, 92},
+            {20, 92},
+            {21, 89},
+            {22, 89},
+            // Singer Cameras
+            {24, 101},
+            {25, 101},
+            {26, 103},
+            {27, 103},
+            {28, 104},
+            {29, 88},
+            // Guitarist Cameras
+            {31, 99},
+            {32, 99},
+            {33, 93},
+            {34, 94},
+            {35, 95},
+            {36, 85},
+            // Guitarist Special
+            {38, 95},
+            {39, 81},
+            {40, 81},
+            // Stage Cameras
+            {42, 101},
+            {43, 102},
+            {44, 91},
+            {45, 82},
+            {46, 87},
+            {47, 110},
+            // Mid Cameras
+            {49, 85},
+            {50, 85},
+            {51, 94},
+            {52, 94},
+            {53, 85},
+            {54, 85},
+            // Longshot Cameras
+            {56, 91},
+            {57, 117},
+            // Zoom Cameras
+            {59, 112},
+            {60, 111},
+            {61, 113},
+            {62, 113},
+            // Pan Cameras
+            {64, 114},
+            {65, 114},
+            // Dolly Cameras
+            {67, 101},
+            {68, 101},
+            {69, 102},
+            {70, 102},
+            // Special Cameras
+            {72, 106},
+            {73, 107},
+            {74, 108},
+            {75, 109},
+            // Mocap Cameras
+            {77, 106},
+            {78, 107},
+            {79, 108},
+            {80, 109},
+            // Audience Cameras
+            {82, 80},
+            // Boss Battle Cameras
+            {84, 116},
+            {85, 115},
+            // Singer Closeups
+            {87, 104},
+            {88, 104},
+            {89, 104},
+            // Stagediver
+            {91, 117},
+        };
+
+        public static Dictionary<string, Dictionary<int, int>> cameraToGh3 = new Dictionary<string, Dictionary<int, int>>()
+        {
+            {GAME_GHA, gha_to_gh3_cameras},
+        };
+
+        public static Dictionary<string, Dictionary<int, int>> cameraToGha = new Dictionary<string, Dictionary<int, int>>()
+        {
+            {GAME_GH3, gh3_to_gha_cameras},
+        };
 
         public enum Colours
         {

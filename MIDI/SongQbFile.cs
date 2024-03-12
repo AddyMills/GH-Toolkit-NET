@@ -92,10 +92,11 @@ namespace GH_Toolkit_Core.MIDI
         private int HopoThreshold { get; set; }
         public static string? PerfOverride { get; set; }
         public static string? SongScriptOverride { get; set; }
+        public static string? VenueSource { get; set; }
         public static string? Game { get; set; }
         public static string? SongName { get; set; }
         public static string? Console { get; set; }
-        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "")
+        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "", string venueSource = "")
         {
             Game = game;
             SongName = songName;
@@ -103,6 +104,7 @@ namespace GH_Toolkit_Core.MIDI
             HopoThreshold = hopoThreshold;
             PerfOverride = perfOverride;
             SongScriptOverride = songScriptOverride;
+            VenueSource = venueSource == "" ? Game : venueSource;
             SetMidiInfo(midiPath);
         }
         public List<QBItem> ParseMidi()
@@ -112,6 +114,7 @@ namespace GH_Toolkit_Core.MIDI
             var trackChunks = SongMidiFile.GetTrackChunks();
             GetTimeSigs(trackChunks.First());
             CalculateFretbars();
+            bool noAux = true;
             foreach (var trackChunk in trackChunks.Skip(1))
             {
                 string trackName = GetTrackName(trackChunk);
@@ -137,6 +140,7 @@ namespace GH_Toolkit_Core.MIDI
                         RhythmCoop.MakeInstrument(trackChunk, this);
                         break;
                     case PARTAUX:
+                        noAux = false;
                         Aux.MakeInstrument(trackChunk, this);
                         break;
                     case PARTVOCALS:
@@ -332,6 +336,20 @@ namespace GH_Toolkit_Core.MIDI
 
             return qbItem;
         }
+        private List<Note> ConvertCameras(List<Note> cameraNotes, Dictionary<int, int> cameraDict)
+        {
+            for (int i = 0; i < cameraNotes.Count; i++)
+            {
+                Note note = cameraNotes[i];
+                int noteVal = note.NoteNumber;
+                if (cameraDict.TryGetValue(noteVal, out int newNoteVal))
+                {
+                    cameraNotes[i] = new Note((SevenBitNumber)newNoteVal, note.Length, note.Time);
+                    cameraNotes[i].Velocity = note.Velocity;
+                }
+            }
+            return cameraNotes;
+        }
         public void ProcessCameras(TrackChunk trackChunk)
         {
             int MinCameraGh3 = 79;
@@ -345,7 +363,7 @@ namespace GH_Toolkit_Core.MIDI
 
             int minCamera;
             int maxCamera;
-            switch (Game)
+            switch (VenueSource)
             {
                 case GAME_GH3:
                     minCamera = MinCameraGh3;
@@ -366,7 +384,32 @@ namespace GH_Toolkit_Core.MIDI
                 default:
                     throw new NotImplementedException("Unknown game found");
             }
+
             var cameraNotes = trackChunk.GetNotes().Where(x => x.NoteNumber >= minCamera && x.NoteNumber <= maxCamera).ToList();
+            if (Game != VenueSource)
+            {
+                Dictionary<int, int> cameraMap;
+                try
+                {
+                    switch (Game)
+                    {
+                        case GAME_GH3:
+                            cameraMap = cameraToGh3[VenueSource];
+                            break;
+                        case GAME_GHA:
+                            cameraMap = cameraToGha[VenueSource];
+                            break;
+                        default:
+                            throw new NotImplementedException("Unknown game found");
+                    }
+                }
+                catch
+                {
+                    throw;
+                }
+                cameraNotes = ConvertCameras(cameraNotes, cameraMap);
+            }
+
             List<AnimNote> cameraAnimNotes = new List<AnimNote>();
             for (int i = 0; i < cameraNotes.Count; i++)
             {
@@ -896,7 +939,7 @@ namespace GH_Toolkit_Core.MIDI
                     throw new ArgumentNullException("trackChunk or songQb is null");
                 }
 
-                int openNotes = Game == GAME_GH3 ? 0 : 1;
+                int openNotes = Game == GAME_GH3 || Game == GAME_GHA ? 0 : 1;
                 int drumsMode = !drums ? 0 : 1;
 
                 Dictionary<MidiTheory.NoteName, int> noteDict;

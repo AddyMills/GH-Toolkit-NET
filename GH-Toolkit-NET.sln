@@ -10,17 +10,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GH-Toolkit-Core", "GH-Toolk
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "QBKey-Gen", "..\QBKey-Gen\QBKey-Gen.csproj", "{131287E0-34CD-4968-9AC4-9D49E456B8B7}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PAK Extractor", "..\PAK Extractor\PAK Extractor.csproj", "{D6370F02-27CC-4682-995D-A14648CE4C0A}"
-	ProjectSection(ProjectDependencies) = postProject
-		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
-	EndProjectSection
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PS2ArchiveExplorer", "..\PS2ArchiveExplorer\PS2ArchiveExplorer.csproj", "{C7F0FDBE-3BB5-4E3E-A84B-36C1098C42F4}"
-	ProjectSection(ProjectDependencies) = postProject
-		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
-	EndProjectSection
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WAD Compiler", "..\WAD Compiler\WAD Compiler.csproj", "{81C1045D-29D2-4300-B0DE-A086C4EC5795}"
 	ProjectSection(ProjectDependencies) = postProject
 		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
 	EndProjectSection
@@ -37,16 +27,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "QBRecompiler", "..\QBRecomp
 		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
 	EndProjectSection
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PAK Compiler", "..\PAK Compiler\PAK Compiler.csproj", "{88E30218-A4D8-463C-AB11-F9BDA4EAC6D0}"
-	ProjectSection(ProjectDependencies) = postProject
-		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
-	EndProjectSection
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FileComparer", "..\FileComparer\FileComparer.csproj", "{46A8256F-C9CF-43FD-952B-B80063AD92B6}"
-	ProjectSection(ProjectDependencies) = postProject
-		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
-	EndProjectSection
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MIDITester", "..\MIDITester\MIDITester.csproj", "{CFE35ABD-0B5B-4C85-971C-843D5FE597B4}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PAK Manipulator", "..\PAK-Manipulator\PAK Manipulator.csproj", "{FD67DBE3-8DFD-488F-B243-1807879DBE1B}"
@@ -58,10 +38,18 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GH-Toolkit-GUI", "..\GH-Too
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FFMpegCore", "..\FFMpegCore\FFMpegCore\FFMpegCore.csproj", "{C78B3E4F-6B8B-4781-BF1F-56BCA14EDD9F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScriptTester", "..\ScriptTester\ScriptTester.csproj", "{9594285E-90B9-42CD-851F-24048E1817F4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ScriptTester", "..\ScriptTester\ScriptTester.csproj", "{9594285E-90B9-42CD-851F-24048E1817F4}"
 	ProjectSection(ProjectDependencies) = postProject
 		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
 	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FileComparer", "..\FileComparer\FileComparer.csproj", "{F97E2D21-5B30-405F-9C41-58C9CDED3572}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PAK Compiler", "..\Pak-Compiler\PAK Compiler.csproj", "{7FCCD6E9-7213-4FF5-B336-BEB522AFA97E}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PAK Extractor", "..\PAK-Extractor\PAK Extractor.csproj", "{9A3792A3-FAD8-4B17-AD5B-2C89555EDE4D}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WAD Compiler", "..\WAD-Compiler\WAD Compiler.csproj", "{C5C5594F-D99A-4365-8A2C-05DA0C063EAF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -77,18 +65,10 @@ Global
 		{131287E0-34CD-4968-9AC4-9D49E456B8B7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{131287E0-34CD-4968-9AC4-9D49E456B8B7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{131287E0-34CD-4968-9AC4-9D49E456B8B7}.Release|Any CPU.Build.0 = Release|Any CPU
-		{D6370F02-27CC-4682-995D-A14648CE4C0A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D6370F02-27CC-4682-995D-A14648CE4C0A}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D6370F02-27CC-4682-995D-A14648CE4C0A}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D6370F02-27CC-4682-995D-A14648CE4C0A}.Release|Any CPU.Build.0 = Release|Any CPU
 		{C7F0FDBE-3BB5-4E3E-A84B-36C1098C42F4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{C7F0FDBE-3BB5-4E3E-A84B-36C1098C42F4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C7F0FDBE-3BB5-4E3E-A84B-36C1098C42F4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C7F0FDBE-3BB5-4E3E-A84B-36C1098C42F4}.Release|Any CPU.Build.0 = Release|Any CPU
-		{81C1045D-29D2-4300-B0DE-A086C4EC5795}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{81C1045D-29D2-4300-B0DE-A086C4EC5795}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{81C1045D-29D2-4300-B0DE-A086C4EC5795}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{81C1045D-29D2-4300-B0DE-A086C4EC5795}.Release|Any CPU.Build.0 = Release|Any CPU
 		{F76CCD46-328F-4036-8013-A74AC2BF5793}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{F76CCD46-328F-4036-8013-A74AC2BF5793}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F76CCD46-328F-4036-8013-A74AC2BF5793}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -97,14 +77,6 @@ Global
 		{CD391093-D68B-4F38-AAA3-E647CA6AF82B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CD391093-D68B-4F38-AAA3-E647CA6AF82B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CD391093-D68B-4F38-AAA3-E647CA6AF82B}.Release|Any CPU.Build.0 = Release|Any CPU
-		{88E30218-A4D8-463C-AB11-F9BDA4EAC6D0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{88E30218-A4D8-463C-AB11-F9BDA4EAC6D0}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{88E30218-A4D8-463C-AB11-F9BDA4EAC6D0}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{88E30218-A4D8-463C-AB11-F9BDA4EAC6D0}.Release|Any CPU.Build.0 = Release|Any CPU
-		{46A8256F-C9CF-43FD-952B-B80063AD92B6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{46A8256F-C9CF-43FD-952B-B80063AD92B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{46A8256F-C9CF-43FD-952B-B80063AD92B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{46A8256F-C9CF-43FD-952B-B80063AD92B6}.Release|Any CPU.Build.0 = Release|Any CPU
 		{CFE35ABD-0B5B-4C85-971C-843D5FE597B4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{CFE35ABD-0B5B-4C85-971C-843D5FE597B4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CFE35ABD-0B5B-4C85-971C-843D5FE597B4}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -125,6 +97,22 @@ Global
 		{9594285E-90B9-42CD-851F-24048E1817F4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9594285E-90B9-42CD-851F-24048E1817F4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9594285E-90B9-42CD-851F-24048E1817F4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F97E2D21-5B30-405F-9C41-58C9CDED3572}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F97E2D21-5B30-405F-9C41-58C9CDED3572}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F97E2D21-5B30-405F-9C41-58C9CDED3572}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F97E2D21-5B30-405F-9C41-58C9CDED3572}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7FCCD6E9-7213-4FF5-B336-BEB522AFA97E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7FCCD6E9-7213-4FF5-B336-BEB522AFA97E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7FCCD6E9-7213-4FF5-B336-BEB522AFA97E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7FCCD6E9-7213-4FF5-B336-BEB522AFA97E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9A3792A3-FAD8-4B17-AD5B-2C89555EDE4D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9A3792A3-FAD8-4B17-AD5B-2C89555EDE4D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9A3792A3-FAD8-4B17-AD5B-2C89555EDE4D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9A3792A3-FAD8-4B17-AD5B-2C89555EDE4D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C5C5594F-D99A-4365-8A2C-05DA0C063EAF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C5C5594F-D99A-4365-8A2C-05DA0C063EAF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C5C5594F-D99A-4365-8A2C-05DA0C063EAF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C5C5594F-D99A-4365-8A2C-05DA0C063EAF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

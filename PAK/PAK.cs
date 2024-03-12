@@ -852,9 +852,9 @@ namespace GH_Toolkit_Core.PAK
                 return relPath; 
             }
         }
-        public static string CreateSongPackageGh3(string midiPath, string savePath, string songName, string game, string gameConsole, int hopoThreshold = 170, string skaPath = "", string perfOverride = "", string songScripts = "", string skaSource = "GHWT")
+        public static string CreateSongPackageGh3(string midiPath, string savePath, string songName, string game, string gameConsole, int hopoThreshold = 170, string skaPath = "", string perfOverride = "", string songScripts = "", string skaSource = "GHWT", string venueSource = "")
         {
-            var midiFile = new SongQbFile(midiPath, songName: songName, game: game, console: gameConsole, hopoThreshold: hopoThreshold, perfOverride: perfOverride, songScriptOverride: songScripts);
+            var midiFile = new SongQbFile(midiPath, songName: songName, game: game, console: gameConsole, hopoThreshold: hopoThreshold, perfOverride: perfOverride, songScriptOverride: songScripts, venueSource:venueSource);
             var midQb = midiFile.ParseMidiToQb();
 
             var saveName = Path.Combine(savePath, $"{songName}_{gameConsole}");
@@ -870,7 +870,19 @@ namespace GH_Toolkit_Core.PAK
             byte[]? skaScripts = null;
             if (Directory.Exists(skaPath))
             {
-                float skaMultiplier = skaSource == "GH3" ? (float)1.0 : (float)0.5;
+                float skaMultiplier;
+                if (game == skaSource)
+                {
+                    skaMultiplier = 1.0f;
+                }
+                else if (game == GAME_GH3)
+                {
+                    skaMultiplier = (float)0.5;
+                }
+                else
+                {
+                    skaMultiplier = skaSource == GAME_GH3 ? 2.0f : 1.0f;
+                }
                 var skaFiles = Directory.GetFiles(skaPath);
                 string skaEndian = gameConsole == CONSOLE_XBOX ? "big" : "little";
                 foreach (var skaFile in skaFiles)
