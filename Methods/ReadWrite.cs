@@ -758,7 +758,7 @@ namespace GH_Toolkit_Core.Methods
         {
             byte flags;
             byte qbType;
-            if (_game == "GH3")
+            if (_game == "GH3" || _game == "GHA")
             {
                 flags =  _endian == "big" ? (byte)(_qbstruct[type] + FLAG_STRUCT_GH3) : _qbstruct[type];
                 qbType = 0x00;

@@ -11,6 +11,7 @@ using System.Xml.Linq;
 using static GH_Toolkit_Core.QB.QB;
 using static GH_Toolkit_Core.QB.QBArray;
 using static GH_Toolkit_Core.QB.QBConstants;
+using static GH_Toolkit_Core.Checksum.CRC;
 using GH_Toolkit_Core.Methods;
 using static GH_Toolkit_Core.MIDI.MidiDefs;
 using GH_Toolkit_Core.Debug;
@@ -174,10 +175,19 @@ namespace GH_Toolkit_Core.QB
                 {
                     // Find if the item exists and update it. If it doesn't exist, add it.
                     var existingItem = Items.FirstOrDefault(item => item is QBStructItem si && si.Props.ID == key) as QBStructItem;
+
                     if (existingItem != null)
                     {
                         // Update the existing item's data
                         existingItem.Data = value;
+                        return;
+                    }
+
+                    var existingItemCrc = Items.FirstOrDefault(item => item is QBStructItem si && si.Props.ID == QBKey(key)) as QBStructItem;
+                    if (existingItemCrc != null)
+                    {
+                        // Update the existing item's data
+                        existingItemCrc.Data = value;
                     }
                     else
                     {
