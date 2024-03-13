@@ -170,6 +170,10 @@ namespace GH_Toolkit_Core.MIDI
                 gameQb.AddRange(Rhythm.ProcessQbEntriesGH3(SongName));
                 if (Game == GAME_GHA)
                 {
+                    if (noAux)
+                    {
+                        FakeAux();
+                    }
                     gameQb.AddRange(Aux.ProcessQbEntriesGH3(SongName));
                 }
                 gameQb.AddRange(GuitarCoop.ProcessQbEntriesGH3(SongName));
@@ -196,6 +200,28 @@ namespace GH_Toolkit_Core.MIDI
                 gameQb.Add(CombinePerformanceScripts_GH3($"{SongName}_performance"));
             }
             return gameQb;
+        }
+        private void FakeAux()
+        {
+            Instrument newAux;
+            int animMod;
+            if (RhythmCoop.AnimNotes.Count != 0)
+            {
+                newAux = RhythmCoop;
+                animMod = 1;
+            }
+            else
+            {
+                newAux = Guitar;
+                animMod = 2;
+            }
+            List<AnimNote> newAuxNotes = new List<AnimNote>();
+            foreach (AnimNote note in newAux.AnimNotes)
+            {
+                newAuxNotes.Add(new AnimNote(note.Time, note.Note - (animMod * 17), note.Length, note.Velocity));
+            }
+            Aux.AnimNotes = newAuxNotes;
+            Aux.Expert = newAux.Expert;
         }
         public byte[] ParseMidiToQb()
         {
