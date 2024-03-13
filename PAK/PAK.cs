@@ -877,7 +877,7 @@ namespace GH_Toolkit_Core.PAK
                 }
                 else if (game == GAME_GH3)
                 {
-                    skaMultiplier = (float)0.5;
+                    skaMultiplier = 0.5f;
                 }
                 else
                 {
@@ -891,19 +891,33 @@ namespace GH_Toolkit_Core.PAK
 
                     string skaPatternGuit = @"\d+b\.ska(\.xen)?$";
                     string skaPatternSing = @"\d\.ska(\.xen)?$";
+
+                    bool isGuitarist = Regex.IsMatch(skaFile, skaPatternGuit);
+
                     string skaType;
-                    if (Regex.IsMatch(skaFile, skaPatternGuit) && gameConsole != CONSOLE_PS2)
+                    switch (game)
                     {
-                        skaType = SKELETON_GH3_GUITARIST;
+                        case GAME_GH3:
+                            if (isGuitarist && gameConsole != CONSOLE_PS2)
+                            {
+                                skaType = SKELETON_GH3_GUITARIST;
+                            }
+                            else if (Regex.IsMatch(skaFile, skaPatternSing))
+                            {
+                                skaType = gameConsole == CONSOLE_PS2 ? SKELETON_GH3_SINGER_PS2 : SKELETON_GH3_SINGER;
+                            }
+                            else
+                            {
+                                continue;
+                            }
+                            break;
+                        case GAME_GHA:
+                            skaType = isGuitarist ? SKELETON_GH3_GUITARIST : SKELETON_GHA_SINGER;
+                            break;
+                        default:
+                            throw new NotImplementedException("Game type not supported yet.");
                     }
-                    else if (Regex.IsMatch(skaFile, skaPatternSing))
-                    {
-                        skaType = gameConsole == CONSOLE_PS2 ? SKELETON_GH3_SINGER_PS2 : SKELETON_GH3_SINGER;
-                    }
-                    else
-                    {
-                        continue;
-                    }
+                    
                     byte[] convertedSka;
                     string skaSave;
                     if (gameConsole == CONSOLE_PS2)
@@ -937,7 +951,7 @@ namespace GH_Toolkit_Core.PAK
             string songPrefix = gameConsole == CONSOLE_PS2 ? "" : "_song";
             var pakSave = Path.Combine(savePath, songName + $"{songPrefix}.pak{consoleExt}");
             File.WriteAllBytes(pakSave, pakData);
-            return saveName;
+            return pakSave;
         }
     }
 }

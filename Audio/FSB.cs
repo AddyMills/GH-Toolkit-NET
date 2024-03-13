@@ -148,7 +148,7 @@ namespace GH_Toolkit_Core.Audio
             File.WriteAllBytes(inputPath, paddedAudio);
             //return audio;
         }
-        public void CombineFSB3File(IEnumerable<string> audioFiles, string output)
+        public (string, string) CombineFSB3File(IEnumerable<string> audioFiles, string output)
         {
             long maxSize = 0;
             string fsbOut = output + ".fsb";
@@ -231,6 +231,8 @@ namespace GH_Toolkit_Core.Audio
 
                 fsb.Write(EncryptDecrypt.EncryptFSB3(fsbBytes.ToArray()));
             }
+
+            return (fsbOut, datOut);
 
         }
         public void FsbEntry(FileInfo file, Stream fsb, Stream audioBytes)

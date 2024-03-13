@@ -168,12 +168,12 @@ namespace GH_Toolkit_Core.MIDI
                 }
                 gameQb.AddRange(Guitar.ProcessQbEntriesGH3(SongName, false));
                 gameQb.AddRange(Rhythm.ProcessQbEntriesGH3(SongName));
-                gameQb.AddRange(GuitarCoop.ProcessQbEntriesGH3(SongName));
-                gameQb.AddRange(RhythmCoop.ProcessQbEntriesGH3(SongName));
                 if (Game == GAME_GHA)
                 {
                     gameQb.AddRange(Aux.ProcessQbEntriesGH3(SongName));
                 }
+                gameQb.AddRange(GuitarCoop.ProcessQbEntriesGH3(SongName));
+                gameQb.AddRange(RhythmCoop.ProcessQbEntriesGH3(SongName));
                 gameQb.AddRange(Guitar.MakeFaceOffQb(SongName));
                 gameQb.AddRange(MakeBossBattleQb());
                 gameQb.AddRange(MakeFretbarsAndTimeSig());
