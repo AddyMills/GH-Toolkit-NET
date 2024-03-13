@@ -207,7 +207,7 @@ namespace GH_Toolkit_Core.MIDI
             int animMod;
             if (RhythmCoop.AnimNotes.Count != 0)
             {
-                newAux = RhythmCoop;
+                newAux = Rhythm;
                 animMod = 1;
             }
             else
@@ -276,16 +276,21 @@ namespace GH_Toolkit_Core.MIDI
         public QBItem MakeGtrAnimNotes()
         {
             AnimNotes = Guitar.AnimNotes;
-            if (RhythmCoop.AnimNotes.Count != 0)
+            if (Game == GAME_GH3)
             {
-                AnimNotes.AddRange(RhythmCoop.AnimNotes);
+                if (RhythmCoop.AnimNotes.Count != 0)
+                {
+                    AnimNotes.AddRange(RhythmCoop.AnimNotes);
+                }
+                else
+                {
+                    AnimNotes.AddRange(Rhythm.AnimNotes);
+                }
             }
-            else
-            {
-                AnimNotes.AddRange(Rhythm.AnimNotes);
-            }
+            
             if (Game == GAME_GHA)
             {
+                AnimNotes.AddRange(Rhythm.AnimNotes);
                 AnimNotes.AddRange(Aux.AnimNotes);
             }
             // Sort animNotes by the Time variable in each AnimNote
