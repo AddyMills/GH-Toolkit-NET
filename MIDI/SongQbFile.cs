@@ -93,10 +93,11 @@ namespace GH_Toolkit_Core.MIDI
         public static string? PerfOverride { get; set; }
         public static string? SongScriptOverride { get; set; }
         public static string? VenueSource { get; set; }
+        public static bool RhythmTrack { get; set; }
         public static string? Game { get; set; }
         public static string? SongName { get; set; }
         public static string? Console { get; set; }
-        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "", string venueSource = "")
+        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "", string venueSource = "", bool rhythmTrack = false)
         {
             Game = game;
             SongName = songName;
@@ -105,6 +106,7 @@ namespace GH_Toolkit_Core.MIDI
             PerfOverride = perfOverride;
             SongScriptOverride = songScriptOverride;
             VenueSource = venueSource == "" ? Game : venueSource;
+            RhythmTrack = rhythmTrack;
             SetMidiInfo(midiPath);
         }
         public List<QBItem> ParseMidi()
@@ -167,6 +169,10 @@ namespace GH_Toolkit_Core.MIDI
                     throw new NotSupportedException("GH3 customs require a guitar track!");
                 }
                 gameQb.AddRange(Guitar.ProcessQbEntriesGH3(SongName, false));
+                /*if (Game == GAME_GHA)
+                { 
+                    GhaRhythmAux(noAux);
+                }*/
                 gameQb.AddRange(Rhythm.ProcessQbEntriesGH3(SongName));
                 if (Game == GAME_GHA)
                 {
@@ -201,13 +207,24 @@ namespace GH_Toolkit_Core.MIDI
             }
             return gameQb;
         }
+        private void GhaRhythmAux(bool noAux)
+        {
+           // If rhythm_track == 1, Aux is bass, else it's the rhythm guitar
+           if (RhythmTrack)
+           {
+                if (RhythmCoop.Expert.PlayNotes.Count > 0 && Rhythm.Expert.PlayNotes.Count > 0)
+                {
+
+                }
+           }
+        }
         private void FakeAux()
         {
             Instrument newAux;
             int animMod;
             if (RhythmCoop.AnimNotes.Count != 0)
             {
-                newAux = Rhythm;
+                newAux = Rhythm.AnimNotes.Count != 0 ? Rhythm : RhythmCoop;
                 animMod = 1;
             }
             else

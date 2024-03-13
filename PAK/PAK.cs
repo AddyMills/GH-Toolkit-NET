@@ -852,9 +852,9 @@ namespace GH_Toolkit_Core.PAK
                 return relPath; 
             }
         }
-        public static string CreateSongPackageGh3(string midiPath, string savePath, string songName, string game, string gameConsole, int hopoThreshold = 170, string skaPath = "", string perfOverride = "", string songScripts = "", string skaSource = "GHWT", string venueSource = "")
+        public static string CreateSongPackageGh3(string midiPath, string savePath, string songName, string game, string gameConsole, int hopoThreshold = 170, string skaPath = "", string perfOverride = "", string songScripts = "", string skaSource = "GHWT", string venueSource = "", bool rhythmTrack = false)
         {
-            var midiFile = new SongQbFile(midiPath, songName: songName, game: game, console: gameConsole, hopoThreshold: hopoThreshold, perfOverride: perfOverride, songScriptOverride: songScripts, venueSource:venueSource);
+            var midiFile = new SongQbFile(midiPath, songName: songName, game: game, console: gameConsole, hopoThreshold: hopoThreshold, perfOverride: perfOverride, songScriptOverride: songScripts, venueSource:venueSource, rhythmTrack: rhythmTrack);
             var midQb = midiFile.ParseMidiToQb();
 
             var saveName = Path.Combine(savePath, $"{songName}_{gameConsole}");
