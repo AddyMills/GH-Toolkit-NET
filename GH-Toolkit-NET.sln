@@ -29,8 +29,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "QBRecompiler", "..\QBRecomp
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MIDITester", "..\MIDITester\MIDITester.csproj", "{CFE35ABD-0B5B-4C85-971C-843D5FE597B4}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PAK Manipulator", "..\PAK-Manipulator\PAK Manipulator.csproj", "{FD67DBE3-8DFD-488F-B243-1807879DBE1B}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GH-Toolkit-GUI", "..\GH-Toolkit-GUI\GH-Toolkit-GUI.csproj", "{2519DE8E-8CCB-4988-91B4-B9357C599BBC}"
 	ProjectSection(ProjectDependencies) = postProject
 		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
@@ -50,6 +48,8 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PAK Extractor", "..\PAK-Extractor\PAK Extractor.csproj", "{9A3792A3-FAD8-4B17-AD5B-2C89555EDE4D}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WAD Compiler", "..\WAD-Compiler\WAD Compiler.csproj", "{C5C5594F-D99A-4365-8A2C-05DA0C063EAF}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PAK Manipulator", "..\PAK Manipulator\PAK Manipulator.csproj", "{1487208C-FB5F-47E5-802D-DE1BB057AFF3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -81,10 +81,6 @@ Global
 		{CFE35ABD-0B5B-4C85-971C-843D5FE597B4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CFE35ABD-0B5B-4C85-971C-843D5FE597B4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CFE35ABD-0B5B-4C85-971C-843D5FE597B4}.Release|Any CPU.Build.0 = Release|Any CPU
-		{FD67DBE3-8DFD-488F-B243-1807879DBE1B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{FD67DBE3-8DFD-488F-B243-1807879DBE1B}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{FD67DBE3-8DFD-488F-B243-1807879DBE1B}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{FD67DBE3-8DFD-488F-B243-1807879DBE1B}.Release|Any CPU.Build.0 = Release|Any CPU
 		{2519DE8E-8CCB-4988-91B4-B9357C599BBC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{2519DE8E-8CCB-4988-91B4-B9357C599BBC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2519DE8E-8CCB-4988-91B4-B9357C599BBC}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -113,6 +109,10 @@ Global
 		{C5C5594F-D99A-4365-8A2C-05DA0C063EAF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C5C5594F-D99A-4365-8A2C-05DA0C063EAF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C5C5594F-D99A-4365-8A2C-05DA0C063EAF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1487208C-FB5F-47E5-802D-DE1BB057AFF3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1487208C-FB5F-47E5-802D-DE1BB057AFF3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1487208C-FB5F-47E5-802D-DE1BB057AFF3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1487208C-FB5F-47E5-802D-DE1BB057AFF3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
