@@ -368,8 +368,4 @@ FodyWeavers.xsd
 /Audio/MSV C Code
 /Audio/Blank Audio
 /Other/To Implement.txt
-/Tools/RemoveReadOnly/RemoveReadOnly.deps.json
-/Tools/RemoveReadOnly/RemoveReadOnly.dll
-/Tools/RemoveReadOnly/RemoveReadOnly.exe
-/Tools/RemoveReadOnly/RemoveReadOnly.pdb
-/Tools/RemoveReadOnly/RemoveReadOnly.runtimeconfig.json
+/Tools/*
