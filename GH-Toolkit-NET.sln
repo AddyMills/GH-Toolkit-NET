@@ -51,7 +51,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WAD Compiler", "..\WAD-Comp
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PAK Manipulator", "..\PAK Manipulator\PAK Manipulator.csproj", "{1487208C-FB5F-47E5-802D-DE1BB057AFF3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RemoveReadOnly", "..\RemoveReadOnly\RemoveReadOnly.csproj", "{20C591DB-C745-4841-9D24-622EE59E31DA}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RemoveReadOnly", "..\RemoveReadOnly\RemoveReadOnly.csproj", "{20C591DB-C745-4841-9D24-622EE59E31DA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SKA-Tester", "..\SKA-Tester\SKA-Tester.csproj", "{1D302FAD-BEE6-477F-B4EC-696C27B7BE61}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -119,6 +121,10 @@ Global
 		{20C591DB-C745-4841-9D24-622EE59E31DA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{20C591DB-C745-4841-9D24-622EE59E31DA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{20C591DB-C745-4841-9D24-622EE59E31DA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1D302FAD-BEE6-477F-B4EC-696C27B7BE61}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1D302FAD-BEE6-477F-B4EC-696C27B7BE61}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1D302FAD-BEE6-477F-B4EC-696C27B7BE61}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1D302FAD-BEE6-477F-B4EC-696C27B7BE61}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
