@@ -569,6 +569,14 @@ namespace GH_Toolkit_Core.MIDI
                             }
                             scriptArray.Add((eventTime, MakeNewAnimScript(eventTime, actor, eventType, eventData)));
                             break;
+                        case GUITAR_START:
+                        case GUITAR_WALK01:
+                            if (!isOldGame || actor != GUITARIST)
+                            {
+                                continue;
+                            }
+                            scriptArray.Add((eventTime, MakeNewWalkScript(eventTime, actor, eventType, eventData)));
+                            break;
                         default:
                             break;
                     }
@@ -764,6 +772,17 @@ namespace GH_Toolkit_Core.MIDI
             ScriptStruct animScript = new ScriptStruct(eventTime, BAND_PLAYANIM, animParams);
             return animScript.ToStruct();
         }
+        private QBStructData MakeNewWalkScript(int eventTime, string actor, string nodeType, string flagParams)
+        {
+            QBStructData? animParams = new QBStructData();
+            animParams.MakeWalkToNode(actor, nodeType, Console!);
+            if (flagParams != EMPTYSTRING)
+            {
+                animParams.AddFlags(flagParams);
+            }
+            ScriptStruct animScript = new ScriptStruct(eventTime, BAND_WALKTONODE, animParams);
+            return animScript.ToStruct();
+        }
         public void ProcessEvents(TrackChunk trackChunk)
         {
             // Create a variable that grabs all text events
@@ -924,6 +943,8 @@ namespace GH_Toolkit_Core.MIDI
                     case SOLO:
                     case HANDSOFF:
                     case ENDSTRUM:
+                    case GUITAR_START:
+                    case GUITAR_WALK01:
                         eventType = flagArray[0];
                         eventText = eventText.Replace(flagArray[0], EMPTYSTRING).TrimStart();
                         break;

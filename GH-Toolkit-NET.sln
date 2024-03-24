@@ -53,7 +53,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PAK Manipulator", "..\PAK M
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RemoveReadOnly", "..\RemoveReadOnly\RemoveReadOnly.csproj", "{20C591DB-C745-4841-9D24-622EE59E31DA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SKA-Tester", "..\SKA-Tester\SKA-Tester.csproj", "{1D302FAD-BEE6-477F-B4EC-696C27B7BE61}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SKA-Tester", "..\SKA-Tester\SKA-Tester.csproj", "{1D302FAD-BEE6-477F-B4EC-696C27B7BE61}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pak-Decompressor", "..\Pak-Decompressor\Pak-Decompressor.csproj", "{11631A72-B00F-40F6-BEA2-ADD50BCE2D6A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -125,6 +127,10 @@ Global
 		{1D302FAD-BEE6-477F-B4EC-696C27B7BE61}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1D302FAD-BEE6-477F-B4EC-696C27B7BE61}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1D302FAD-BEE6-477F-B4EC-696C27B7BE61}.Release|Any CPU.Build.0 = Release|Any CPU
+		{11631A72-B00F-40F6-BEA2-ADD50BCE2D6A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{11631A72-B00F-40F6-BEA2-ADD50BCE2D6A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{11631A72-B00F-40F6-BEA2-ADD50BCE2D6A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{11631A72-B00F-40F6-BEA2-ADD50BCE2D6A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

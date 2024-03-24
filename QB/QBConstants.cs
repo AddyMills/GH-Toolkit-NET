@@ -158,6 +158,7 @@ namespace GH_Toolkit_Core.QB
         // Script Constants
         public const string TIME = "time";
         public const string NAME = "name";
+        public const string NODE = "node";
         public const string ANIM = "anim";
         public const string REPEAT_COUNT = "repeat_count";
 

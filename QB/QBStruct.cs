@@ -288,6 +288,13 @@ namespace GH_Toolkit_Core.QB
                 AddVarToStruct(NAME, actor, QBKEY);
                 AddVarToStruct(paramType, eventData, QBKEY);
             }
+            // Params for GH3 walk to node scripts
+            public void MakeWalkToNode(string actor, string node, string platform)
+            {
+                var sType = platform == CONSOLE_PS2 ? STRING : WIDESTRING;
+                AddVarToStruct(NAME, actor, QBKEY);
+                AddVarToStruct(NODE, node, sType);
+            }
             // Method to add all items from a string to the struct as flags
             public void AddFlags(string flags)
             {

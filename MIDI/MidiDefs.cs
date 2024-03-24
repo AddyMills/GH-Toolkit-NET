@@ -68,6 +68,8 @@ namespace GH_Toolkit_Core.MIDI
         public const string BAND_PLAYANIM = "band_playanim";
         public const string BAND_CHANGESTANCE = "band_changestance";
         public const string BAND_WALKTONODE = "band_walktonode";
+        public const string GUITAR_WALK01 = "guitarist_walk01";
+        public const string GUITAR_START = "guitarist_start";
 
         public const string CROWD_STARTLIGHTERS = "crowd_startlighters";
         public const string CROWD_STOPLIGHTERS = "crowd_stoplighters";
