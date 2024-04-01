@@ -95,7 +95,7 @@ namespace GH_Toolkit_Core.SKA
         internal float UnknownFloatB { get; set; }
         internal float UnknownFloatC { get; set; }
         internal int NewBones { get; set; }
-        internal int NewFlags { get; set; }
+        internal uint NewFlags { get; set; }
 
         public SkaFile()
         {
@@ -781,7 +781,7 @@ namespace GH_Toolkit_Core.SKA
                 }
                 else
                 {
-                    count = 1; 
+                    count = 1;
                 }
                 previousFrame = currentFrame;
             }
@@ -1053,7 +1053,7 @@ namespace GH_Toolkit_Core.SKA
                 _rwPs2.WriteAndMaybeFlipBytes(stream, yBytes);
                 _rwPs2.WriteAndMaybeFlipBytes(stream, zBytes);
             }
-            
+
         }
         private byte[] CompressComponent(short value, ref ushort compFlags, ushort flag)
         {
@@ -1256,7 +1256,7 @@ namespace GH_Toolkit_Core.SKA
                 int newBone;
                 try
                 {
-                   newBone = newBones.bonesName[boneName];
+                    newBone = newBones.bonesName[boneName];
                 }
                 catch
                 {
@@ -1290,7 +1290,7 @@ namespace GH_Toolkit_Core.SKA
                 _rwPs2.WriteNoFlipBytes(totalFile, _rwPs2.ValueHex(VERSION_PS2)); // Should be int
                 _rwPs2.WriteNoFlipBytes(totalFile, _rwPs2.ValueHex(NewFlags));
                 _rwPs2.WriteNoFlipBytes(totalFile, _rwPs2.ValueHex(Duration));
-                byte[] boneCountBytes= { 0x00, (byte)NewBones};
+                byte[] boneCountBytes = { 0x00, (byte)NewBones };
                 _rwPs2.WriteNoFlipBytes(totalFile, boneCountBytes);
                 _rwPs2.WriteNoFlipBytes(totalFile, _rwPs2.ValueHex((ushort)quatFrames));
                 _rwPs2.WriteNoFlipBytes(totalFile, _rwPs2.ValueHex((ushort)transFrames));
@@ -1310,13 +1310,13 @@ namespace GH_Toolkit_Core.SKA
                 return totalFile.ToArray();
             }
 
-             
+
         }
-        public byte[]? WriteGh3StyleSka(string convertTo, float quatMultiplier = 1) // For GH3 and GHA
+        private (Dictionary<int, List<BoneFrameQuat>> newQuatData, Dictionary<int, List<BoneFrameTrans>> newTransData, List<int> newAnimFlags, int newBones, int quatFrames, int transFrames, int customKeys) InitializeAnimationData(string convertTo, float quatMultiplier = 1)
         {
             var oldBones = ALL_DATA[SkeletonType];
             var newBones = ALL_DATA[convertTo];
-            NewBones = newBones.bonesNum.Count;
+            int newBonesCount = newBones.bonesNum.Count;
 
             var newAnimFlags = new List<int>();
             var newQuatData = new Dictionary<int, List<BoneFrameQuat>>();
@@ -1330,9 +1330,17 @@ namespace GH_Toolkit_Core.SKA
                 newTransData[newBone] = WriteNewTransData(TransData[bone]);
             }
 
-            var quatFrames = newQuatData.Values.Sum(x => Convert.ToInt32(x.Count));
-            var transFrames = newTransData.Values.Sum(x => Convert.ToInt32(x.Count));
+            var quatFrames = newQuatData.Values.Sum(x => x.Count);
+            var transFrames = newTransData.Values.Sum(x => x.Count);
             var customKeys = CustomKeys.Count;
+
+            return (newQuatData, newTransData, newAnimFlags, newBonesCount, quatFrames, transFrames, customKeys);
+        }
+        public byte[]? WriteGh3StyleSka(string convertTo, float quatMultiplier = 1) // For GH3 and GHA
+        {
+            var (newQuatData, newTransData, newAnimFlags, newBones, quatFrames, transFrames, customKeys) = InitializeAnimationData(convertTo, quatMultiplier);
+
+            NewBones = newBones;
 
             // Create an array of arrays of floats where the first float is 1.0 and the rest are 0.0
             var floatValues = new float[GH3_FLOATS][];
@@ -1348,7 +1356,7 @@ namespace GH_Toolkit_Core.SKA
             {
                 HasBigTime = true;
                 NewFlags += BIG_TIME;
-            } 
+            }
 
             using (var totalFile = new MemoryStream())
             using (var quatBytes = new MemoryStream())
@@ -1404,6 +1412,49 @@ namespace GH_Toolkit_Core.SKA
 
                 return totalFile.ToArray();
             }
+        }
+        public byte[]? WriteModernStyleSka(string convertTo, string game = GAME_GHWT, float quatMultiplier = 1) // For GHWT+
+        {
+            var (newQuatData, newTransData, newAnimFlags, newBones, quatFrames, transFrames, customKeys) = InitializeAnimationData(convertTo, quatMultiplier);
+
+            NewBones = newBones;
+
+            var floatValues = new float[][]
+            {
+                [0f, 0f, 0f, 1f],
+                [-0.5f, -0.5f, -0.5f, 0.5f],
+                [0f, 0f, 0f, 1f],
+                [-0.5f, -0.5f, -0.5f, 0.5f]
+            };
+
+            if (game == GAME_GHWT)
+            {
+                NewFlags = (uint)(SkeletonType == SKELETON_CAMERA ? 0x06811000 : 0x068B5000);
+            }
+            else
+            {
+                NewFlags = SkeletonType == SKELETON_CAMERA ? 0x96011000 : 0x960B5000;
+            }
+
+            if (Duration > 34.11 || HasBigTime)
+            {
+                HasBigTime = true;
+                NewFlags += BIG_TIME;
+            }
+
+            using (var totalFile = new MemoryStream())
+            using (var quatBytes = new MemoryStream())
+            using (var quatBoneCountBytes = new MemoryStream())
+            using (var transBytes = new MemoryStream())
+            using (var transBoneCountBytes = new MemoryStream())
+            using (var partialAnimBytes = new MemoryStream()) // No camera support yet, so it's always assumed to have one
+            {
+                bool compressedData = game == GAME_GHWT;
+                QuatDataToBytes(quatBytes, quatBoneCountBytes, newQuatData, newAnimFlags, compressedData);
+
+            }
+
+            return new byte[] { 0 }; // Placeholder
         }
     }
 }

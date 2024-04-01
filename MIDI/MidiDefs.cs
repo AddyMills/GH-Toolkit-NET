@@ -21,6 +21,32 @@ namespace GH_Toolkit_Core.MIDI
     {
         public const int GH3FORCE = 32;
 
+        // Define constants for note ranges
+        public const int EasyNoteMin = 60;
+        public const int EasyNoteMax = 64;
+        public const int MediumNoteMin = 72;
+        public const int MediumNoteMax = 76;
+        public const int HardNoteMin = 84;
+        public const int HardNoteMax = 88;
+        public const int ExpertNoteMin = 96;
+        public const int ExpertNoteMax = 100;
+        public const int SoloNote = 103;
+        public const int TapNote = 104;
+        public const int FaceOffP1Note = 105;
+        public const int FaceOffP2Note = 106;
+        public const int FaceOffStarNote = 107;
+        public const int BattleStarNote = 115;
+        public const int StarPowerNote = 116;
+
+        public const int GuitarAnimStart = 40;
+        public const int GuitarAnimEnd = 59;
+
+        public const int DrumAnimStart = 20;
+        public const int DrumHiHatOpen = 25;
+        public const int DrumHiHatRight = 31;
+        public const int DrumHiHatLeft = 30;
+        public const int DrumAnimEnd = 51;
+
         public const string GUITAR_NAME = "";
         public const string RHYTHM_NAME = "_rhythm";
         public const string GUITARCOOP_NAME = "_guitarcoop";
@@ -593,6 +619,11 @@ namespace GH_Toolkit_Core.MIDI
         {
             {GAME_GH3, gh3_to_gha_cameras},
         };
+        public static Dictionary<string, Dictionary<int, int>> cameraToGhwt = new Dictionary<string, Dictionary<int, int>>()
+        {
+            {GAME_GH3, gh3_to_gha_cameras},
+        };
+
 
         public enum Colours
         {

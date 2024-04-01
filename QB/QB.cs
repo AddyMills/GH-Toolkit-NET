@@ -138,7 +138,8 @@ namespace GH_Toolkit_Core.QB
             {
                 if (data == null)
                 {
-                    throw new ArgumentNullException($"Could not parse {Name} due to null data found.");
+                    MakeEmpty(); return;
+                    // throw new ArgumentNullException($"Could not parse {Name} due to null data found.");
                 }
                 if (data is QBArrayNode)
                 {

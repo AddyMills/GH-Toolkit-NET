@@ -852,7 +852,7 @@ namespace GH_Toolkit_Core.PAK
                 return relPath; 
             }
         }
-        public static string CreateSongPackageGh3(string midiPath, string savePath, string songName, string game, string gameConsole, int hopoThreshold = 170, string skaPath = "", string perfOverride = "", string songScripts = "", string skaSource = "GHWT", string venueSource = "", bool rhythmTrack = false)
+        public static string CreateSongPackage(string midiPath, string savePath, string songName, string game, string gameConsole, int hopoThreshold = 170, string skaPath = "", string perfOverride = "", string songScripts = "", string skaSource = "GHWT", string venueSource = "", bool rhythmTrack = false)
         {
             var midiFile = new SongQbFile(midiPath, songName: songName, game: game, console: gameConsole, hopoThreshold: hopoThreshold, perfOverride: perfOverride, songScriptOverride: songScripts, venueSource:venueSource, rhythmTrack: rhythmTrack);
             var midQb = midiFile.ParseMidiToQb();
@@ -914,28 +914,43 @@ namespace GH_Toolkit_Core.PAK
                         case GAME_GHA:
                             skaType = isGuitarist ? SKELETON_GH3_GUITARIST : SKELETON_GHA_SINGER;
                             break;
+                        case GAME_GHWT:
+                            skaType = SKELETON_WT_ROCKER;
+                            break;
                         default:
                             throw new NotImplementedException("Game type not supported yet.");
                     }
                     
                     byte[] convertedSka;
                     string skaSave;
-                    if (gameConsole == CONSOLE_PS2)
+                    if (game == GAME_GH3 || game == GAME_GHA)
                     {
-                        if (!ps2SkaProcessed)
+                        if (gameConsole == CONSOLE_PS2)
                         {
-                            skaScripts = midiFile.MakePs2SkaScript();
-                            ps2SkaProcessed = true;
+                            if (!ps2SkaProcessed)
+                            {
+                                skaScripts = midiFile.MakePs2SkaScript();
+                                ps2SkaProcessed = true;
+                            }
+                            convertedSka = skaTest.WritePs2StyleSka();
+                            string skaFolderPs2 = Path.Combine(savePath, "PS2 SKA Files");
+                            skaSave = Path.Combine(skaFolderPs2, Path.GetFileName(skaFile).Replace(DOTXEN, DOTPS2));
+                            Directory.CreateDirectory(skaFolderPs2);
                         }
-                        convertedSka = skaTest.WritePs2StyleSka();
-                        string skaFolderPs2 = Path.Combine(savePath, "PS2 SKA Files");
-                        skaSave = Path.Combine(skaFolderPs2, Path.GetFileName(skaFile).Replace(DOTXEN, DOTPS2));
-                        Directory.CreateDirectory(skaFolderPs2);
+                        else
+                        {
+                            convertedSka = skaTest.WriteGh3StyleSka(skaType, skaMultiplier);
+                            skaSave = Path.Combine(saveName, Path.GetFileName(skaFile));
+                        }
                     }
-                    else
+                    else if (game == GAME_GHWT)
                     {
                         convertedSka = skaTest.WriteGh3StyleSka(skaType, skaMultiplier);
                         skaSave = Path.Combine(saveName, Path.GetFileName(skaFile));
+                    }
+                    else
+                    {
+                        throw new NotImplementedException("Game type not supported yet.");
                     }
                     File.WriteAllBytes(skaSave, convertedSka);
                 }

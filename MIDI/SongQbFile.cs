@@ -9,6 +9,8 @@ using static GH_Toolkit_Core.QB.QBArray;
 using static GH_Toolkit_Core.QB.QBConstants;
 using static GH_Toolkit_Core.QB.QBStruct;
 using MidiTheory = Melanchall.DryWetMidi.MusicTheory;
+using MidiData = Melanchall.DryWetMidi.Interaction;
+using Melanchall.DryWetMidi.MusicTheory;
 
 /*
  * This file contains all the logic for creating a QB file from a MIDI file
@@ -50,6 +52,9 @@ namespace GH_Toolkit_Core.MIDI
 
         private const string STAR = "Star";
         private const string STAR_BM = "StarBattleMode";
+        private const string FACEOFFSTAR = "FaceOffStar";
+        private const string TAP = "Tapping";
+        private const string WHAMMYCONTROLLER = "WhammyController";
 
         private const string LYRIC = "lyric";
 
@@ -109,6 +114,15 @@ namespace GH_Toolkit_Core.MIDI
             RhythmTrack = rhythmTrack;
             SetMidiInfo(midiPath);
         }
+        public string GetGame()
+        {
+            return Game!;
+        }
+        public string GetConsole()
+        {
+            return Console!;
+        }
+
         public List<QBItem> ParseMidi()
         {
             // Getting the tempo map to convert ticks to time
@@ -204,6 +218,16 @@ namespace GH_Toolkit_Core.MIDI
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_crowd", CrowdScripts));
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_drums", DrumsScripts));
                 gameQb.Add(CombinePerformanceScripts_GH3($"{SongName}_performance"));
+            }
+            else if (Game == GAME_GHWT)
+            {
+                gameQb.AddRange(MakeFretbarsAndTimeSig());
+                gameQb.AddRange(Guitar.ProcessQbEntriesGHWT(SongName));
+                gameQb.AddRange(Rhythm.ProcessQbEntriesGHWT(SongName));
+                gameQb.AddRange(Drums.ProcessQbEntriesGHWT(SongName));
+                gameQb.AddRange(Aux.ProcessQbEntriesGHWT(SongName));
+                gameQb.AddRange(GuitarCoop.ProcessQbEntriesGHWT(SongName));
+                gameQb.AddRange(RhythmCoop.ProcessQbEntriesGHWT(SongName));
             }
             return gameQb;
         }
@@ -384,15 +408,15 @@ namespace GH_Toolkit_Core.MIDI
 
             return qbItem;
         }
-        private List<Note> ConvertCameras(List<Note> cameraNotes, Dictionary<int, int> cameraDict)
+        private List<MidiData.Note> ConvertCameras(List<MidiData.Note> cameraNotes, Dictionary<int, int> cameraDict)
         {
             for (int i = 0; i < cameraNotes.Count; i++)
             {
-                Note note = cameraNotes[i];
+                MidiData.Note note = cameraNotes[i];
                 int noteVal = note.NoteNumber;
                 if (cameraDict.TryGetValue(noteVal, out int newNoteVal))
                 {
-                    cameraNotes[i] = new Note((SevenBitNumber)newNoteVal, note.Length, note.Time);
+                    cameraNotes[i] = new MidiData.Note((SevenBitNumber)newNoteVal, note.Length, note.Time);
                     cameraNotes[i].Velocity = note.Velocity;
                 }
             }
@@ -461,7 +485,7 @@ namespace GH_Toolkit_Core.MIDI
             List<AnimNote> cameraAnimNotes = new List<AnimNote>();
             for (int i = 0; i < cameraNotes.Count; i++)
             {
-                Note note = cameraNotes[i];
+                MidiData.Note note = cameraNotes[i];
                 int startTime = GameMilliseconds(note.Time);
                 int length;
                 if (i == cameraNotes.Count - 1)
@@ -616,7 +640,7 @@ namespace GH_Toolkit_Core.MIDI
                 }
             }
 
-            foreach (Note note in lightNotes)
+            foreach (MidiData.Note note in lightNotes)
             {
                 int noteVal = note.NoteNumber;
                 int startTime = GameMilliseconds(note.Time);
@@ -632,7 +656,7 @@ namespace GH_Toolkit_Core.MIDI
             }
 
         }
-        private QBArrayNode Gh3LightsNote107(List<Note> notes)
+        private QBArrayNode Gh3LightsNote107(List<MidiData.Note> notes)
         {
             QBArrayNode listScripts = new QBArrayNode();
             int MOOD_MIN = 70;
@@ -644,8 +668,8 @@ namespace GH_Toolkit_Core.MIDI
             int prevLen = -1;
             long defaultTick = DefaultTickThreshold * TPB / DefaultTPB;
             long blendReduction = defaultTick; // Always place blends slightly before the note being blended.
-            List<Chord> chords = GroupNotes(notes, blendReduction);
-            foreach (Chord lightGroup in chords)
+            List<MidiData.Chord> chords = GroupNotes(notes, blendReduction);
+            foreach (MidiData.Chord lightGroup in chords)
             {
                 long blendNoteTime = lightGroup.Time - blendReduction;
                 if (blendNoteTime < 0)
@@ -654,7 +678,7 @@ namespace GH_Toolkit_Core.MIDI
                 }
                 long maxLen = 0;
                 bool isBlended = false;
-                foreach (Note note in lightGroup.Notes)
+                foreach (MidiData.Note note in lightGroup.Notes)
                 {
                     if (note.NoteNumber == PYRO_NOTE)
                     {
@@ -685,7 +709,7 @@ namespace GH_Toolkit_Core.MIDI
                 }
                 if (strobeMode)
                 {
-                    notes.Add(new Note((SevenBitNumber)blendLookup[0], defaultTick, blendNoteTime));
+                    notes.Add(new MidiData.Note((SevenBitNumber)blendLookup[0], defaultTick, blendNoteTime));
                 }
                 else
                 {
@@ -708,7 +732,7 @@ namespace GH_Toolkit_Core.MIDI
                         int blendNote = FindBlendNote(blendLookup, length);
                         if (prevLen != blendNote)
                         {
-                            notes.Add(new Note((SevenBitNumber)blendNote, defaultTick, blendNoteTime));
+                            notes.Add(new MidiData.Note((SevenBitNumber)blendNote, defaultTick, blendNoteTime));
                             prevLen = blendNote;
                         }
                     }
@@ -958,32 +982,6 @@ namespace GH_Toolkit_Core.MIDI
         }
         public class Instrument
         {
-            // Define constants for note ranges
-            private const int EasyNoteMin = 60;
-            private const int EasyNoteMax = 64;
-            private const int MediumNoteMin = 72;
-            private const int MediumNoteMax = 76;
-            private const int HardNoteMin = 84;
-            private const int HardNoteMax = 88;
-            private const int ExpertNoteMin = 96;
-            private const int ExpertNoteMax = 100;
-            private const int SoloNote = 103;
-            private const int TapNote = 104;
-            private const int FaceOffP1Note = 105;
-            private const int FaceOffP2Note = 106;
-            private const int FaceOffStarNote = 107;
-            private const int BattleStarNote = 115;
-            private const int StarPowerNote = 116;
-
-            private const int GuitarAnimStart = 40;
-            private const int GuitarAnimEnd = 59;
-
-            private const int DrumAnimStart = 20;
-            private const int DrumHiHatOpen = 25;
-            private const int DrumHiHatRight = 31;
-            private const int DrumHiHatLeft = 30;
-            private const int DrumAnimEnd = 51;
-
             public Difficulty Easy { get; set; } = new Difficulty(EASY);
             public Difficulty Medium { get; set; } = new Difficulty(MEDIUM);
             public Difficulty Hard { get; set; } = new Difficulty(HARD);
@@ -991,11 +989,12 @@ namespace GH_Toolkit_Core.MIDI
             public List<StarPower>? FaceOffStar { get; set; } = null; // In-game. Based off of the easy chart.
             public QBArrayNode FaceOffP1 { get; set; }
             public QBArrayNode FaceOffP2 { get; set; }
+            public QBArrayNode TapNotes { get; set; }
             public List<AnimNote> AnimNotes { get; set; } = new List<AnimNote>();
             public List<(int, QBStructData)> PerformanceScript { get; set; } = new List<(int, QBStructData)>();
-            internal List<Note> StarPowerPhrases { get; set; }
-            internal List<Note> BattleStarPhrases { get; set; }
-            internal List<Note> FaceOffStarPhrases { get; set; }
+            internal List<MidiData.Note> StarPowerPhrases { get; set; }
+            internal List<MidiData.Note> BattleStarPhrases { get; set; }
+            internal List<MidiData.Note> FaceOffStarPhrases { get; set; }
             internal string TrackName { get; set; }
             public Instrument(string trackName) // Default empty instrument
             {
@@ -1052,9 +1051,12 @@ namespace GH_Toolkit_Core.MIDI
 
                 // Extract Face-Off Notes
                 var faceOffP1Notes = allNotes.Where(x => x.NoteNumber == FaceOffP1Note).ToList();
-                FaceOffP1 = ProcessFaceOffSections(faceOffP1Notes, songQb);
+                FaceOffP1 = ProcessOtherSections(faceOffP1Notes, songQb);
                 var faceOffP2Notes = allNotes.Where(x => x.NoteNumber == FaceOffP2Note).ToList();
-                FaceOffP2 = ProcessFaceOffSections(faceOffP2Notes, songQb);
+                FaceOffP2 = ProcessOtherSections(faceOffP2Notes, songQb);
+
+                
+                // TapNotes = ProcessOtherSections(tapNotes, songQb, isTapNote:true);
 
                 // Create performance scripts for the instrument
                 var timedEvents = trackChunk.GetTimedEvents().ToList();
@@ -1085,12 +1087,12 @@ namespace GH_Toolkit_Core.MIDI
                 {
                     FaceOffStarPhrases = StarPowerPhrases;
                 }
-
+                
                 if (!drums)
                 {
                     AnimNotes = InstrumentAnims(allNotes, GuitarAnimStart, GuitarAnimEnd, animDict, songQb);
                     // Process notes for each difficulty level
-                    Easy.ProcessDifficultyGuitar(allNotes, EasyNoteMin, EasyNoteMax, noteDict, openNotes, songQb, StarPowerPhrases, BattleStarPhrases, FaceOffStarPhrases);
+                    Easy.ProcessDifficultyGuitar(allNotes, EasyNoteMin, EasyNoteMax, noteDict, 0, songQb, StarPowerPhrases, BattleStarPhrases, FaceOffStarPhrases);
                     Medium.ProcessDifficultyGuitar(allNotes, MediumNoteMin, MediumNoteMax, noteDict, openNotes, songQb, StarPowerPhrases, BattleStarPhrases);
                     Hard.ProcessDifficultyGuitar(allNotes, HardNoteMin, HardNoteMax, noteDict, openNotes, songQb, StarPowerPhrases, BattleStarPhrases);
                     Expert.ProcessDifficultyGuitar(allNotes, ExpertNoteMin, ExpertNoteMax, noteDict, openNotes, songQb, StarPowerPhrases, BattleStarPhrases);
@@ -1106,7 +1108,7 @@ namespace GH_Toolkit_Core.MIDI
                 }
                 FaceOffStar = Easy.FaceOffStar;
             }
-            private List<AnimNote> InstrumentAnims(List<Note> allNotes, int minNote, int maxNote, Dictionary<int, int> animDict, SongQbFile songQb, bool allowMultiTime = false)
+            private List<AnimNote> InstrumentAnims(List<MidiData.Note> allNotes, int minNote, int maxNote, Dictionary<int, int> animDict, SongQbFile songQb, bool allowMultiTime = false)
             {
                 int AnimNoteMin = 22;
                 List<AnimNote> animNotes = new List<AnimNote>();
@@ -1114,7 +1116,7 @@ namespace GH_Toolkit_Core.MIDI
                 var hihatNotes = allNotes.Where(n => n.NoteNumber == DrumHiHatOpen).ToList();
                 var prevTime = 0;
                 var prevNote = 0;
-                foreach (Note note in notes)
+                foreach (MidiData.Note note in notes)
                 {
                     int noteVal = animDict[note.NoteNumber];
                     int practiceNote = 0;
@@ -1215,15 +1217,45 @@ namespace GH_Toolkit_Core.MIDI
                 list.Add(Medium.CreateGH3Notes(playName));
                 list.Add(Hard.CreateGH3Notes(playName));
                 list.Add(Expert.CreateGH3Notes(playName));
-                list.Add(Easy.CreateGH3StarPower(starName));
-                list.Add(Medium.CreateGH3StarPower(starName));
-                list.Add(Hard.CreateGH3StarPower(starName));
-                list.Add(Expert.CreateGH3StarPower(starName));
-                list.Add(Easy.CreateGH3BattleStar(starName, blankBM));
-                list.Add(Medium.CreateGH3BattleStar(starName, blankBM));
-                list.Add(Hard.CreateGH3BattleStar(starName, blankBM));
-                list.Add(Expert.CreateGH3BattleStar(starName, blankBM));
+                list.Add(Easy.CreateStarPowerPhrases(starName));
+                list.Add(Medium.CreateStarPowerPhrases(starName));
+                list.Add(Hard.CreateStarPowerPhrases(starName));
+                list.Add(Expert.CreateStarPowerPhrases(starName));
+                list.Add(Easy.CreateBattleStarPhrases(starName, blankBM));
+                list.Add(Medium.CreateBattleStarPhrases(starName, blankBM));
+                list.Add(Hard.CreateBattleStarPhrases(starName, blankBM));
+                list.Add(Expert.CreateBattleStarPhrases(starName, blankBM));
 
+                return list;
+            }
+            public List<QBItem> ProcessQbEntriesGHWT(string name)
+            {
+                var list = new List<QBItem>();
+                string playName = $"{name}_song{TrackName}";
+                string starName = $"{name}{TrackName}";
+                list.Add(Easy.CreateGHWTNotes(playName));
+                list.Add(Medium.CreateGHWTNotes(playName));
+                list.Add(Hard.CreateGHWTNotes(playName));
+                list.Add(Expert.CreateGHWTNotes(playName));
+                list.Add(Easy.CreateStarPowerPhrases(starName));
+                list.Add(Medium.CreateStarPowerPhrases(starName));
+                list.Add(Hard.CreateStarPowerPhrases(starName));
+                list.Add(Expert.CreateStarPowerPhrases(starName));
+                list.Add(Easy.CreateBattleStarPhrases(starName, false));
+                list.Add(Medium.CreateBattleStarPhrases(starName, false));
+                list.Add(Hard.CreateBattleStarPhrases(starName, false));
+                list.Add(Expert.CreateBattleStarPhrases(starName, false));
+                list.Add(Easy.CreateTapPhrases(starName));
+                list.Add(Medium.CreateTapPhrases(starName));
+                list.Add(Hard.CreateTapPhrases(starName));
+                list.Add(Expert.CreateTapPhrases(starName));
+                list.Add(Easy.CreateWhammyController(starName));
+                list.Add(Medium.CreateWhammyController(starName));
+                list.Add(Hard.CreateWhammyController(starName));
+                list.Add(Expert.CreateWhammyController(starName));
+                list.Add(Easy.CreateFaceOffStar(starName));
+                list.AddRange(MakeFaceOffQb(SongName));
+                
                 return list;
             }
             public List<QBItem> MakeFaceOffQb(string name)
@@ -1234,28 +1266,32 @@ namespace GH_Toolkit_Core.MIDI
                 qBItems.Add(new QBItem(qbName + "P2", FaceOffP2));
                 return qBItems;
             }
-            private QBArrayNode ProcessFaceOffSections(List<Note> faceOffNotes, SongQbFile songQb)
+            private QBArrayNode ProcessOtherSections(List<MidiData.Note> entryNotes, SongQbFile songQb, bool isTapNote = false)
             {
-                QBArrayNode faceOffs = new QBArrayNode();
-                if (faceOffNotes.Count == 0)
+                QBArrayNode entries = new QBArrayNode();
+                if (entryNotes.Count == 0)
                 {
-                    faceOffs.MakeEmpty();
+                    entries.MakeEmpty();
                 }
                 else
                 {
-                    foreach (Note foNote in faceOffNotes)
+                    foreach (MidiData.Note entryNote in entryNotes)
                     {
-                        QBArrayNode faceOffEntry = new QBArrayNode();
-                        int startTime = (int)Math.Round(songQb.TicksToMilliseconds(foNote.Time));
-                        int endTime = (int)Math.Round(songQb.TicksToMilliseconds(foNote.EndTime));
+                        QBArrayNode entry = new QBArrayNode();
+                        int startTime = (int)Math.Round(songQb.TicksToMilliseconds(entryNote.Time));
+                        int endTime = (int)Math.Round(songQb.TicksToMilliseconds(entryNote.EndTime));
                         int length = endTime - startTime;
-                        faceOffEntry.AddIntToArray(startTime);
-                        faceOffEntry.AddIntToArray(length);
-                        faceOffs.AddArrayToArray(faceOffEntry);
+                        entry.AddIntToArray(startTime);
+                        entry.AddIntToArray(length);
+                        if (isTapNote)
+                        {
+                            entry.AddIntToArray(1); // Always 1? Official songs have other values here sometimes
+                        }
+                        entries.AddArrayToArray(entry);
                     }
                 }
 
-                return faceOffs;
+                return entries;
             }
         }
         public class VocalsInstrument
@@ -1277,18 +1313,18 @@ namespace GH_Toolkit_Core.MIDI
                 PerformanceScript = songQb.InstrumentScripts(textEvents, VOCALIST);
             }
         }
-        public List<PlayNote> MakeGuitar(List<Chord> chords, List<Note> forceOn, List<Note> forceOff, Dictionary<MidiTheory.NoteName, int> noteDict)
+        public List<PlayNote> MakeGuitar(List<MidiData.Chord> chords, List<MidiData.Note> forceOn, List<MidiData.Note> forceOff, Dictionary<MidiTheory.NoteName, int> noteDict)
         {
             List<PlayNote> noteList = new List<PlayNote>();
             long prevTime = 0;
             int prevNote = 0;
             for (int i = 0; i < chords.Count; i++)
             {
-                Chord notes = chords[i];
+                MidiData.Chord notes = chords[i];
                 long currTime = notes.Time;
                 int noteVal = 0;
                 long endTimeTicks = notes.EndTime;
-                foreach (Note note in notes.Notes)
+                foreach (MidiData.Note note in notes.Notes)
                 {
                     noteVal += noteDict[note.NoteName];
                     if (note.EndTime < endTimeTicks)
@@ -1314,16 +1350,72 @@ namespace GH_Toolkit_Core.MIDI
                 prevNote = noteVal;
                 noteList.Add(currNote);
             }
-
+            if (Game == GAME_GH3 || Game == GAME_GHA)
+            {
+                // Make method to make sure notes do not overlap
+                FixOverlappingNotes(noteList);
+            }
+            else
+            {
+                // Make method to determine which notes overlap and change flags as appropriate
+                MakeExtendedNotes(noteList);
+            }
             return noteList;
         }
-        public List<PlayNote> MakeDrums(List<Chord> chords, Dictionary<MidiTheory.NoteName, int> noteDict)
+        private void FixOverlappingNotes(List<PlayNote> notes)
+        {
+            for (int i = 0; i < notes.Count; i++)
+            {
+                // Get the current note
+                var currNote = notes[i];
+                // Get the notes that are contained within the current note
+                var containedNotes = notes.Where(n => n.Time >= currNote.Time && n.Time < (currNote.Time + currNote.Length)).ToList();
+            }
+        }
+        private void MakeExtendedNotes(List<PlayNote> notes)
+        {
+            for (int i = 0; i < notes.Count; i++)
+            {
+                // Get the current note
+                var currNote = notes[i];
+                // Explicitly add bits from currNote.Note that aren't already set in currNote.Accents
+                int bitsNotSet = ~currNote.Accents & currNote.Note;
+                currNote.Accents |= currNote.Note;
+                // Get the notes that are contained within the current note
+                var containedNotes = notes.Where(n => n.Time > currNote.Time && n.Time < (currNote.Time + currNote.Length)).ToList();
+                foreach (var note in containedNotes)
+                {
+                    if (note.Note < currNote.Note)
+                    {
+                        currNote.Length = note.Time - currNote.Time;
+                        break;
+                    }
+                    // Only add bits from note.Note that aren't already set in currNote.Accents
+                    // First, determine which bits are not yet set in currNote.Accents
+                    int bitsNotSetExtend = ~currNote.Accents & note.Note;
+                    // Then, add those bits to currNote.Accents
+                    currNote.Accents |= bitsNotSetExtend;
+                }
+
+                // Apply updated currNote.Accents to all contained notes that weren't skipped
+                foreach (var note in containedNotes)
+                {
+                    if (note.Time >= currNote.Time + currNote.Length)
+                    {
+                        // This note was beyond the updated range; it should not be updated.
+                        break;
+                    }
+                    note.Accents = currNote.Accents;
+                }
+            }
+        }
+        public List<PlayNote> MakeDrums(List<MidiData.Chord> chords, Dictionary<MidiTheory.NoteName, int> noteDict)
         {
             List<PlayNote> noteList = new List<PlayNote>();
             long prevTime = 0;
             for (int i = 0; i < chords.Count; i++)
             {
-                Chord notes = chords[i];
+                MidiData.Chord notes = chords[i];
                 KickNote? kickNote = null;
                 // If the kick note and hand-notes are different lengths, this is made to make a potential second entry
 
@@ -1333,7 +1425,7 @@ namespace GH_Toolkit_Core.MIDI
                 int ghostVal = 0;
                 byte numAccents = 0;
                 long endTimeTicks = notes.EndTime;
-                foreach (Note note in notes.Notes)
+                foreach (MidiData.Note note in notes.Notes)
                 {
                     int noteBit = noteDict[note.NoteName];
                     if (note.NoteName != MidiTheory.NoteName.C && note.NoteName != MidiTheory.NoteName.B)
@@ -1341,10 +1433,13 @@ namespace GH_Toolkit_Core.MIDI
                         noteVal += noteBit;
                         if (note.EndTime < endTimeTicks)
                         {
+                            // This ensures that the end time is the shortest note in the chord
+                            // Not counting kick notes which can be separate.
                             endTimeTicks = note.EndTime;
                         }
                         if (note.Velocity != AccentVelocity)
                         {
+                            // If the note is not an accent, remove the accent bit
                             accentVal -= noteBit;
                         }
                         else
@@ -1376,6 +1471,8 @@ namespace GH_Toolkit_Core.MIDI
                     var kickCheck = kickNote.EndTimeTicks;
                     if (kickCheck == endTimeTicks || (kickCheck <= eightNoteCheck && endTimeTicks <= eightNoteCheck))
                     {
+                        // If the kick note is the same length as the chord or less than an eighth note
+                        // It can be combined with the hand notes
                         noteVal += kickNote.NoteBit;
                         kickNote = null;
                     }
@@ -1391,6 +1488,7 @@ namespace GH_Toolkit_Core.MIDI
                 noteList.Add(currNote);
                 if (kickNote != null)
                 {
+                    // If there is still a kick note remaining, add it as a separate note
                     int endKickTime = (int)Math.Round(TicksToMilliseconds(kickNote.EndTimeTicks));
                     int kickLength = endKickTime - startTime;
                     PlayNote sepKick = new PlayNote(startTime, kickNote.NoteBit, kickLength);
@@ -1433,19 +1531,22 @@ namespace GH_Toolkit_Core.MIDI
             public List<StarPower>? StarEntries { get; set; }
             public List<StarPower>? BattleStarEntries { get; set; }
             public List<StarPower>? FaceOffStar { get; set; }
+            public List<StarPower>? TapNotes { get; set; }
             public Difficulty(string name)
             {
                 diffName = name;
             }
-            public void ProcessDifficultyGuitar(List<Note> allNotes, int minNote, int maxNote, Dictionary<MidiTheory.NoteName, int> noteDict, int openNotes, SongQbFile songQb, List<Note> StarPowerPhrases, List<Note> BattleStarPhrases, List<Note> FaceOffStarPhrases = null)
+            public void ProcessDifficultyGuitar(List<MidiData.Note> allNotes, int minNote, int maxNote, Dictionary<MidiTheory.NoteName, int> noteDict, int openNotes, SongQbFile songQb, List<MidiData.Note> StarPowerPhrases, List<MidiData.Note> BattleStarPhrases, List<MidiData.Note> FaceOffStarPhrases = null)
             {
                 var notes = allNotes.Where(n => n.NoteNumber >= (minNote - openNotes) && n.NoteNumber <= maxNote).ToList();
                 //var chords = notes.GetChords().ToList();
                 var chords = GroupNotes(notes, DefaultTickThreshold * songQb.TPB / DefaultTPB).ToList();
                 var onNotes = allNotes.Where(n => n.NoteNumber == maxNote + 1).ToList();
                 var offNotes = allNotes.Where(n => n.NoteNumber == maxNote + 2).ToList();
-
+                
                 PlayNotes = songQb.MakeGuitar(chords, onNotes, offNotes, noteDict);
+                // Process tap notes
+                TapNotes = ProcessTapNotes(allNotes, chords, songQb);
                 StarEntries = CalculateStarPowerNotes(chords, StarPowerPhrases, songQb);
                 BattleStarEntries = CalculateStarPowerNotes(chords, BattleStarPhrases, songQb);
                 if (FaceOffStarPhrases != null && diffName == EASY)
@@ -1455,7 +1556,60 @@ namespace GH_Toolkit_Core.MIDI
                 }
 
             }
-            public void ProcessDifficultyDrums(List<Note> allNotes, int minNote, int maxNote, Dictionary<MidiTheory.NoteName, int> noteDict, int openNotes, SongQbFile songQb, List<Note> StarPowerPhrases, List<Note> BattleStarPhrases, List<Note> FaceOffStarPhrases = null)
+            public List<StarPower> ProcessTapNotes(List<MidiData.Note> allNotes, List<MidiData.Chord> chords, SongQbFile songQb)
+            {
+                List<StarPower> allTaps = new List<StarPower>();
+                bool filterChords = songQb.GetConsole() != CONSOLE_PC && songQb.GetGame() == GAME_GHWT;
+                // Extract Tap Notes
+                var tapNotes = allNotes.Where(x => x.NoteNumber == TapNote).ToList();
+                foreach (var note in tapNotes)
+                {
+                    var tapUnder = chords.Where(x => x.Time >= note.Time && x.Time < note.EndTime).ToList();
+                    var currTime = note.Time;
+                    int startTime;
+                    int endTime;
+                    int length;
+                    int noteCount = 0;
+                    if (filterChords)
+                    {
+                        for (int i = 0; i < tapUnder.Count; i++)
+                        {
+                            var chord = tapUnder[i];
+                            if (chord.Notes.Count > 1)
+                            {
+                                if (noteCount == 0)
+                                {
+                                    currTime = chord.EndTime;
+                                    continue;
+                                }
+                                startTime = (int)Math.Round(songQb.TicksToMilliseconds(currTime));
+                                endTime = (int)Math.Round(songQb.TicksToMilliseconds(chord.Time));
+                                length = endTime - startTime;
+                                allTaps.Add(new StarPower(startTime, length, 1));
+                                currTime = chord.EndTime;
+                                noteCount = 0;
+                            }
+                            else
+                            {
+                                noteCount++;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        noteCount++;
+                    }
+                    if (noteCount != 0)
+                    {
+                        startTime = (int)Math.Round(songQb.TicksToMilliseconds(currTime));
+                        endTime = (int)Math.Round(songQb.TicksToMilliseconds(note.EndTime));
+                        length = endTime - startTime;
+                        allTaps.Add(new StarPower(startTime, length, 1));
+                    }
+                }
+                return allTaps;
+            }
+            public void ProcessDifficultyDrums(List<MidiData.Note> allNotes, int minNote, int maxNote, Dictionary<MidiTheory.NoteName, int> noteDict, int openNotes, SongQbFile songQb, List<MidiData.Note> StarPowerPhrases, List<MidiData.Note> BattleStarPhrases, List<MidiData.Note> FaceOffStarPhrases = null)
             {
                 var notes = allNotes.Where(n => n.NoteNumber >= (minNote - openNotes) && n.NoteNumber <= maxNote);
 
@@ -1471,10 +1625,10 @@ namespace GH_Toolkit_Core.MIDI
                     FaceOffStar = CalculateStarPowerNotes(chords, FaceOffStarPhrases, songQb);
                 }
             }
-            private List<StarPower> CalculateStarPowerNotes(List<Chord> playNotes, List<Note> starNotes, SongQbFile songQb)
+            private List<StarPower> CalculateStarPowerNotes(List<MidiData.Chord> playNotes, List<MidiData.Note> starNotes, SongQbFile songQb)
             {
                 List<StarPower> stars = new List<StarPower>();
-                foreach (Note SpPhrase in starNotes)
+                foreach (MidiData.Note SpPhrase in starNotes)
                 {
                     var noteCount = playNotes.Where(x => x.Time >= SpPhrase.Time && x.Time < SpPhrase.EndTime).Count();
                     int startTime = (int)Math.Round(songQb.TicksToMilliseconds(SpPhrase.Time));
@@ -1492,9 +1646,17 @@ namespace GH_Toolkit_Core.MIDI
                 currItem.SetInfo(ARRAY);
                 return currItem;
             }
-            public QBItem CreateStarBase(string songName, string starType)
+            public QBItem CreateStarBase(string songName, string starType, bool isFaceoff = false)
             {
-                string fullName = $"{songName}_{diffName}_{starType}";
+                string fullName;
+                if (!isFaceoff)
+                {
+                    fullName = $"{songName}_{diffName}_{starType}";
+                }
+                else
+                {
+                    fullName = $"{songName}_{starType}";
+                }
                 QBItem currItem = new QBItem();
                 currItem.SetName(fullName);
                 currItem.SetInfo(ARRAY);
@@ -1522,7 +1684,33 @@ namespace GH_Toolkit_Core.MIDI
                 currItem.SetData(notes);
                 return currItem;
             }
-            public QBItem CreateGH3StarPower(string songName)
+            public QBItem CreateGHWTNotes(string songName) // Combine this with SP
+            {
+                QBItem currItem = CreateNotesBase(songName);
+                if (PlayNotes == null)
+                {
+                    currItem.MakeEmpty();
+                    return currItem;
+                }
+                QBArrayNode notes = new QBArrayNode();
+                foreach (PlayNote playNote in PlayNotes)
+                {
+                    notes.AddIntToArray(playNote.Time);
+
+                    int noteData = playNote.Accents;  // Starts as the 8 MSBs.
+                    noteData <<= 1;  // Shift left to make space for hopoFlag.
+                    noteData |= (playNote.IsHopo || playNote.ForcedOn) && !playNote.ForcedOff ? 1 : 0; // Add hopoFlag.
+                    noteData <<= 6;  // Shift left to make space for noteString.
+                    noteData |= playNote.Note & 0x3F; // Ensure note is only 6 bits and add it.
+                    noteData <<= 16; // Shift left to make space for noteLength.
+                    noteData |= playNote.Length & 0xFFFF; // Ensure length is only 16 bits and add it.
+
+                    notes.AddIntToArray(noteData);
+                }
+                currItem.SetData(notes);
+                return currItem;
+            }
+            public QBItem CreateStarPowerPhrases(string songName)
             {
                 QBItem star = CreateStarBase(songName, STAR);
                 if (StarEntries == null)
@@ -1534,7 +1722,19 @@ namespace GH_Toolkit_Core.MIDI
 
                 return star;
             }
-            public QBItem CreateGH3BattleStar(string songName, bool makeBlank)
+            public QBItem CreateFaceOffStar(string songName)
+            {
+                QBItem star = CreateStarBase(songName, FACEOFFSTAR, true);
+                if (FaceOffStar == null)
+                {
+                    star.MakeEmpty();
+                    return star;
+                }
+                star.SetData(MakeStarArray(FaceOffStar));
+
+                return star;
+            }
+            public QBItem CreateBattleStarPhrases(string songName, bool makeBlank)
             {
                 QBItem starBM = CreateStarBase(songName, STAR_BM);
                 if (StarEntries == null)
@@ -1555,6 +1755,25 @@ namespace GH_Toolkit_Core.MIDI
 
 
                 return starBM;
+            }
+            public QBItem CreateTapPhrases(string songName)
+            {
+                QBItem tap = CreateStarBase(songName, TAP);
+                if (TapNotes == null)
+                {
+                    tap.MakeEmpty();
+                    return tap;
+                }
+                tap.SetData(MakeStarArray(TapNotes));
+
+                return tap;
+            }
+            public QBItem CreateWhammyController(string songName)
+            {
+                QBItem whammy = CreateStarBase(songName, WHAMMYCONTROLLER);
+                whammy.MakeEmpty();
+                // No whammy data for now, need to figure out how to implement it
+                return whammy;
             }
             private QBArrayNode MakeStarArray(List<StarPower> starList)
             {
@@ -1800,7 +2019,7 @@ namespace GH_Toolkit_Core.MIDI
             }
 
         }
-        private bool IsInTimeRange(long time, List<Note> notes)
+        private bool IsInTimeRange(long time, List<MidiData.Note> notes)
         {
             foreach (var note in notes)
             {
