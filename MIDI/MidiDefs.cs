@@ -37,6 +37,11 @@ namespace GH_Toolkit_Core.MIDI
         public const int FaceOffStarNote = 107;
         public const int BattleStarNote = 115;
         public const int StarPowerNote = 116;
+        public const int VocalMin = 36;
+        public const int VocalMax = 84;
+        public const int PhraseMin = 105;
+        public const int PhraseMax = 106;
+        public const int FreeformNote = 104;
 
         public const int GuitarAnimStart = 40;
         public const int GuitarAnimEnd = 59;

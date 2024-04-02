@@ -11,6 +11,8 @@ using static GH_Toolkit_Core.QB.QBStruct;
 using MidiTheory = Melanchall.DryWetMidi.MusicTheory;
 using MidiData = Melanchall.DryWetMidi.Interaction;
 using Melanchall.DryWetMidi.MusicTheory;
+using static GH_Toolkit_Core.MIDI.SongQbFile;
+using System.Security.Cryptography.X509Certificates;
 
 /*
  * This file contains all the logic for creating a QB file from a MIDI file
@@ -201,7 +203,7 @@ namespace GH_Toolkit_Core.MIDI
                 gameQb.AddRange(Guitar.MakeFaceOffQb(SongName));
                 gameQb.AddRange(MakeBossBattleQb());
                 gameQb.AddRange(MakeFretbarsAndTimeSig());
-                gameQb.Add(ProcessMarkers());
+                gameQb.AddRange(ProcessMarkers());
                 gameQb.Add(AnimNodeQbItem($"{SongName}_scripts_notes", ScriptNotes));
                 gameQb.Add(MakeGtrAnimNotes());
                 gameQb.Add(AnimNodeQbItem($"{SongName}_triggers_notes", TriggersNotes));
@@ -217,7 +219,7 @@ namespace GH_Toolkit_Core.MIDI
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_lightshow", LightshowScripts));
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_crowd", CrowdScripts));
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_drums", DrumsScripts));
-                gameQb.Add(CombinePerformanceScripts_GH3($"{SongName}_performance"));
+                gameQb.Add(CombinePerformanceScripts($"{SongName}_performance"));
             }
             else if (Game == GAME_GHWT)
             {
@@ -228,6 +230,25 @@ namespace GH_Toolkit_Core.MIDI
                 gameQb.AddRange(Aux.ProcessQbEntriesGHWT(SongName));
                 gameQb.AddRange(GuitarCoop.ProcessQbEntriesGHWT(SongName));
                 gameQb.AddRange(RhythmCoop.ProcessQbEntriesGHWT(SongName));
+                gameQb.AddRange(MakeBossBattleQb());
+                gameQb.AddRange(ProcessMarkers());
+                gameQb.AddRange(Drums.MakeDrumFillQb(SongName));
+                gameQb.Add(AnimNodeQbItem($"{SongName}_scripts_notes", ScriptNotes));
+                gameQb.Add(MakeGtrAnimNotes());
+                gameQb.Add(AnimNodeQbItem($"{SongName}_triggers_notes", TriggersNotes));
+                gameQb.Add(AnimNodeQbItem($"{SongName}_cameras_notes", CamerasNotes));
+                gameQb.Add(AnimNodeQbItem($"{SongName}_lightshow_notes", LightshowNotes));
+                gameQb.Add(AnimNodeQbItem($"{SongName}_crowd_notes", CrowdNotes));
+                gameQb.Add(AnimNodeQbItem($"{SongName}_drums_notes", DrumsNotes));
+                gameQb.Add(AnimNodeQbItem($"{SongName}_performance_notes", PerformanceNotes));
+                gameQb.Add(ScriptArrayQbItem($"{SongName}_scripts", ScriptScripts));
+                gameQb.Add(ScriptArrayQbItem($"{SongName}_anim", AnimScripts));
+                gameQb.Add(ScriptArrayQbItem($"{SongName}_triggers", TriggersScripts));
+                gameQb.Add(ScriptArrayQbItem($"{SongName}_cameras", CamerasScripts));
+                gameQb.Add(ScriptArrayQbItem($"{SongName}_lightshow", LightshowScripts));
+                gameQb.Add(ScriptArrayQbItem($"{SongName}_crowd", CrowdScripts));
+                gameQb.Add(ScriptArrayQbItem($"{SongName}_drums", DrumsScripts));
+                gameQb.Add(CombinePerformanceScripts($"{SongName}_performance"));
             }
             return gameQb;
         }
@@ -329,10 +350,15 @@ namespace GH_Toolkit_Core.MIDI
                 }
             }
             
-            if (Game == GAME_GHA)
+            else if (Game == GAME_GHA)
             {
                 AnimNotes.AddRange(Rhythm.AnimNotes);
                 AnimNotes.AddRange(Aux.AnimNotes);
+            }
+
+            else
+            {
+                AnimNotes.AddRange(Rhythm.AnimNotes);
             }
             // Sort animNotes by the Time variable in each AnimNote
             AnimNotes.Sort((x, y) => x.Time.CompareTo(y.Time));
@@ -352,7 +378,12 @@ namespace GH_Toolkit_Core.MIDI
             }
             else
             {
-                throw new NotImplementedException("Coming soon");
+                foreach (AnimNote animNote in animNotes)
+                {
+                    animNote.ToWtAnim(animArray);
+                    
+                }
+                // throw new NotImplementedException("Coming soon");
             }
             return animArray;
         }
@@ -383,7 +414,7 @@ namespace GH_Toolkit_Core.MIDI
                 return new QBItem(name, scriptArray);
             }
         }
-        public QBItem ProcessMarkers()
+        public List<QBItem> ProcessMarkers()
         {
             if (Markers == null)
             {
@@ -396,6 +427,7 @@ namespace GH_Toolkit_Core.MIDI
                 markerArray.AddStructToArray(markerEntry);
             }
             string markerName;
+            var qbList = new List<QBItem>();
             if (Game == GAME_GH3 || Game == GAME_GHA)
             {
                 markerName = $"{SongName}_markers";
@@ -403,10 +435,18 @@ namespace GH_Toolkit_Core.MIDI
             else
             {
                 markerName = $"{SongName}_guitar_markers";
-            }
-            QBItem qbItem = new QBItem(markerName, markerArray);
 
-            return qbItem;
+                QBArrayNode fakeArray = new QBArrayNode();
+                fakeArray.MakeEmpty();
+                QBItem rhythmMarker = new QBItem($"{SongName}_rhythm_markers", fakeArray);
+                qbList.Add(rhythmMarker);
+                QBItem drumsMarker = new QBItem($"{SongName}_drum_markers", fakeArray);
+                qbList.Add(drumsMarker);
+            }
+            QBItem gtrMarker = new QBItem(markerName, markerArray);
+            qbList.Insert(0, gtrMarker);
+
+            return qbList;
         }
         private List<MidiData.Note> ConvertCameras(List<MidiData.Note> cameraNotes, Dictionary<int, int> cameraDict)
         {
@@ -502,7 +542,7 @@ namespace GH_Toolkit_Core.MIDI
             }
             CamerasNotes = cameraAnimNotes;
         }
-        public QBItem CombinePerformanceScripts_GH3(string songName)
+        public QBItem CombinePerformanceScripts(string songName)
         {
             var perfScripts = new List<(int, QBStructData)>();
             //QBItem perfScripts = new QBItem(songName, Guitar.PerformanceScript);
@@ -511,6 +551,10 @@ namespace GH_Toolkit_Core.MIDI
             if (Game == GAME_GHA)
             {
                 perfScripts.AddRange(Aux.PerformanceScript);
+            }
+            else if (Game != GAME_GH3)
+            {
+                perfScripts.AddRange(Drums.PerformanceScript);
             }
             perfScripts.AddRange(Vocals.PerformanceScript);
             // Add Perf override function here
@@ -851,7 +895,10 @@ namespace GH_Toolkit_Core.MIDI
                     }
                 }
             }
-
+            if (Markers.Count == 0)
+            {
+                Markers = [new Marker(0, "start")];
+            }
         }
         public static string FormatString(string inputString)
         {
@@ -989,7 +1036,7 @@ namespace GH_Toolkit_Core.MIDI
             public List<StarPower>? FaceOffStar { get; set; } = null; // In-game. Based off of the easy chart.
             public QBArrayNode FaceOffP1 { get; set; }
             public QBArrayNode FaceOffP2 { get; set; }
-            public QBArrayNode TapNotes { get; set; }
+            public QBArrayNode DrumFill { get; set; }
             public List<AnimNote> AnimNotes { get; set; } = new List<AnimNote>();
             public List<(int, QBStructData)> PerformanceScript { get; set; } = new List<(int, QBStructData)>();
             internal List<MidiData.Note> StarPowerPhrases { get; set; }
@@ -1099,7 +1146,10 @@ namespace GH_Toolkit_Core.MIDI
                 }
                 else
                 {
+                    var drumFillNotes = allNotes.Where(x => x.NoteNumber == TapNote).ToList();
                     AnimNotes = InstrumentAnims(allNotes, DrumAnimStart, DrumAnimEnd, drumAnimDict, songQb, true);
+                    DrumFill = ProcessDrumFills(drumFillNotes, songQb);
+                    // Process notes for each difficulty level
                     Easy.ProcessDifficultyDrums(allNotes, EasyNoteMin, EasyNoteMax, noteDict, 0, songQb, StarPowerPhrases, BattleStarPhrases, FaceOffStarPhrases);
                     Medium.ProcessDifficultyDrums(allNotes, MediumNoteMin, MediumNoteMax, noteDict, 0, songQb, StarPowerPhrases, BattleStarPhrases);
                     Hard.ProcessDifficultyDrums(allNotes, HardNoteMin, HardNoteMax, noteDict, 0, songQb, StarPowerPhrases, BattleStarPhrases);
@@ -1266,6 +1316,25 @@ namespace GH_Toolkit_Core.MIDI
                 qBItems.Add(new QBItem(qbName + "P2", FaceOffP2));
                 return qBItems;
             }
+            public List<QBItem> MakeDrumFillQb(string name)
+            {
+                string[] diffs = ["Easy", "Medium", "Hard", "Expert"];
+                var list = new List<QBItem>();
+                foreach (string diff in diffs)
+                {
+                    string qbName = $"{name}_{diff}_DrumFill";
+                    list.Add(new QBItem(qbName, DrumFill));
+                }
+                foreach (string diff in diffs)
+                {
+                    string qbName = $"{name}_{diff}_DrumUnmute";
+                    var qb = new QBItem();
+                    qb.SetName(qbName);
+                    qb.MakeEmpty();
+                    list.Add(qb);
+                }
+                return list;
+            }
             private QBArrayNode ProcessOtherSections(List<MidiData.Note> entryNotes, SongQbFile songQb, bool isTapNote = false)
             {
                 QBArrayNode entries = new QBArrayNode();
@@ -1293,10 +1362,39 @@ namespace GH_Toolkit_Core.MIDI
 
                 return entries;
             }
+            private QBArrayNode ProcessDrumFills(List<MidiData.Note> entryNotes, SongQbFile songQb)
+            {
+                QBArrayNode entries = new QBArrayNode();
+                if (entryNotes.Count == 0)
+                {
+                    entries.MakeEmpty();
+                }
+                else
+                {
+                    foreach (MidiData.Note entryNote in entryNotes)
+                    {
+                        QBArrayNode entry = new QBArrayNode();
+                        int startTime = (int)Math.Round(songQb.TicksToMilliseconds(entryNote.Time));
+                        int endTime = (int)Math.Round(songQb.TicksToMilliseconds(entryNote.EndTime));
+                        entry.AddIntToArray(startTime);
+                        entry.AddIntToArray(endTime);
+
+                        entries.AddArrayToArray(entry);
+                    }
+                }
+
+                return entries;
+            }
         }
         public class VocalsInstrument
         {
             public List<(int, QBStructData)> PerformanceScript { get; set; } = new List<(int, QBStructData)>();
+            public List<PlayNote>? Notes { get; set; } = new List<PlayNote>();
+            public List<StarPower>? Freeform { get; set; } = new List<StarPower>();
+            public List<VocalPhrase>? VocalPhrases { get; set; } = new List<VocalPhrase>();
+            public (int, int)? NoteRange { get; set; } = (60, 60);
+            public List<QBArrayNode>? Lyrics { get; set; } = new List<QBArrayNode>();
+            public List<QBArrayNode>? Markers { get; set; } = new List<QBArrayNode>();
             // GHWT stuff to come later
             public VocalsInstrument()
             {
@@ -1309,8 +1407,69 @@ namespace GH_Toolkit_Core.MIDI
                     throw new ArgumentNullException("trackChunk or songQb is null");
                 }
                 var timedEvents = trackChunk.GetTimedEvents().ToList();
-                var textEvents = timedEvents.Where(e => e.Event is TextEvent).ToList();
+                var textEvents = timedEvents.Where(e => e.Event is TextEvent || e.Event is LyricEvent).ToList();
                 PerformanceScript = songQb.InstrumentScripts(textEvents, VOCALIST);
+                if (Game != GAME_GH3 && Game != GAME_GHA)
+                {
+                    var allNotes = trackChunk.GetNotes().ToList();
+                    var singNotes = new Dictionary<long, MidiData.Note>();
+                    var phraseNotes = new Dictionary<long, int>();
+                    var freeformNotes = new Dictionary<long, int>();
+                    var noteRangeMin = 127;
+                    var noteRangeMax = 0;
+                    foreach (MidiData.Note note in allNotes)
+                    {
+                        if (note.NoteNumber >= VocalMin && note.NoteNumber <= VocalMax)
+                        {
+                            if (singNotes.ContainsKey(note.Time))
+                            {
+                                throw new Exception("Duplicate note found");
+                            }
+                            else
+                            {
+                                singNotes.Add(note.Time, note);
+                                if (note.NoteNumber < noteRangeMin)
+                                {
+                                    noteRangeMin = note.NoteNumber;
+                                }
+                                if (note.NoteNumber > noteRangeMax)
+                                {
+                                    noteRangeMax = note.NoteNumber;
+                                }
+                            }
+                        }
+                        else if (note.NoteNumber == PhraseMin || note.NoteNumber == PhraseMax)
+                        {
+                            var player = note.NoteNumber - (PhraseMin - 1);
+                            if (phraseNotes.ContainsKey(note.Time))
+                            {
+                                phraseNotes[note.Time] += player;
+                            }
+                            else
+                            {
+                                phraseNotes.Add(note.Time, player);
+                            }
+                        }
+                        else if (note.NoteNumber == FreeformNote)
+                        {
+                            if (!freeformNotes.ContainsKey(note.Time))
+                            {
+                                freeformNotes.Add(note.Time, note.Channel);
+                            }
+                            else
+                            {
+                                throw new Exception("Duplicate freeform note found");
+                            }
+                        }
+                    }
+                    /*
+                    Notes = MakeVocalNotes(trackChunk, songQb);
+                    Freeform = MakeFreeformStarPower(trackChunk, songQb);
+                    VocalPhrases = MakeVocalPhrases(trackChunk, songQb);
+                    Lyrics = MakeLyrics(trackChunk, songQb);
+                    Markers = MakeMarkers(trackChunk, songQb);
+                    */
+                }
             }
         }
         public List<PlayNote> MakeGuitar(List<MidiData.Chord> chords, List<MidiData.Note> forceOn, List<MidiData.Note> forceOff, Dictionary<MidiTheory.NoteName, int> noteDict)
@@ -1369,7 +1528,7 @@ namespace GH_Toolkit_Core.MIDI
                 // Get the current note
                 var currNote = notes[i];
                 // Get the notes that are contained within the current note
-                var containedNotes = notes.Where(n => n.Time >= currNote.Time && n.Time < (currNote.Time + currNote.Length)).ToList();
+                var containedNotes = notes.Where(n => n.Time > currNote.Time && n.Time < (currNote.Time + currNote.Length)).ToList();
             }
         }
         private void MakeExtendedNotes(List<PlayNote> notes)
@@ -1867,6 +2026,21 @@ namespace GH_Toolkit_Core.MIDI
                 EndTimeTicks = endTimeTicks;
             }
         }
+        public class VocalPhrase
+        {
+            public int Time { get; set; }
+            public int Player { get; set; }
+            public VocalPhrase(int time, int player)
+            {
+                Time = time;
+                Player = player;
+                // Can be 0, 1, 2, or 3
+                // 0 = No player
+                // 1 = Player 1
+                // 2 = Player 2
+                // 3 = Both players
+            }
+        }
         [DebuggerDisplay("{(float)Time/1000, nq}: {Length} ms long")]
         public class FaceOffSection
         {
@@ -1888,9 +2062,9 @@ namespace GH_Toolkit_Core.MIDI
             public AnimNote(int time, int note, int length, int velocity)
             {
                 Time = time;
-                Note = note;
-                Length = length;
-                Velocity = velocity;
+                Note = Math.Min(note, 255); // Ensure note does not exceed 255
+                Length = Math.Min(length, 65535); // Ensure length does not exceed 65535
+                Velocity = Math.Min(velocity, 255); // Ensure velocity does not exceed 255
             }
             public QBArrayNode ToGH3Anim()
             {
@@ -1899,6 +2073,19 @@ namespace GH_Toolkit_Core.MIDI
                 animNote.AddIntToArray(Note);
                 animNote.AddIntToArray(Length);
                 return animNote;
+            }
+            public void ToWtAnim(QBArrayNode animNote)
+            {
+                animNote.AddIntToArray(Time);
+
+                // Construct the integer with velocity, note, and length.
+                // Velocity occupies the highest 8 bits, so it's shifted left by 24 bits.
+                // Note is next, so it's shifted left by 16 bits.
+                // Length occupies the lowest 16 bits, so it's added directly without shifting.
+                int velocityNoteLength = (Velocity << 24) | (Note << 16) | Length;
+
+                animNote.AddIntToArray(velocityNoteLength);
+                return;
             }
         }
         public class ScriptStruct
