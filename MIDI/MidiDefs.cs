@@ -66,6 +66,10 @@ namespace GH_Toolkit_Core.MIDI
         public const string VOCALIST = "vocalist";
         public const string RHYTHM = "rhythm";
 
+        public const string SLIDE_LYRIC = "+";
+        public const string JOIN_LYRIC = "-";
+        public const string HYPHEN_LYRIC = "=";
+
         // Rock Band crowd names
         public const string INTENSE = "intense";
         public const string NORMAL = "normal";

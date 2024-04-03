@@ -12,7 +12,8 @@ using MidiTheory = Melanchall.DryWetMidi.MusicTheory;
 using MidiData = Melanchall.DryWetMidi.Interaction;
 using Melanchall.DryWetMidi.MusicTheory;
 using static GH_Toolkit_Core.MIDI.SongQbFile;
-using System.Security.Cryptography.X509Certificates;
+using System.Collections.Specialized;
+using System.Text;
 
 /*
  * This file contains all the logic for creating a QB file from a MIDI file
@@ -104,6 +105,7 @@ namespace GH_Toolkit_Core.MIDI
         public static string? Game { get; set; }
         public static string? SongName { get; set; }
         public static string? Console { get; set; }
+        private List<string> ErrorList { get; set; } = new List<string>();
         public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "", string venueSource = "", bool rhythmTrack = false)
         {
             Game = game;
@@ -124,7 +126,14 @@ namespace GH_Toolkit_Core.MIDI
         {
             return Console!;
         }
-
+        public void AddToErrorList(string error)
+        {
+            ErrorList.Add(error);
+        }
+        public void AddTimedError(string error, string part, long ticks)
+        {
+            AddToErrorList($"{part}: {error} found at {TicksToMilliseconds(ticks) / 1000}");
+        }
         public List<QBItem> ParseMidi()
         {
             // Getting the tempo map to convert ticks to time
@@ -1413,28 +1422,78 @@ namespace GH_Toolkit_Core.MIDI
                 {
                     var allNotes = trackChunk.GetNotes().ToList();
                     var singNotes = new Dictionary<long, MidiData.Note>();
-                    var phraseNotes = new Dictionary<long, int>();
+                    var phraseNotes = new Dictionary<long, VocalPhrase>();
                     var freeformNotes = new Dictionary<long, int>();
+                    var lyrics = new Dictionary<long, string>();
+                    foreach (var textData in textEvents)
+                    {
+                        string eventText = textData.Event switch
+                        {
+                            TextEvent textEvent => textEvent.Text,
+                            LyricEvent lyricEvent => lyricEvent.Text,
+                            _ => null
+                        };
+
+                        if (eventText != null)
+                        {
+                            var (eventType, eventData) = songQb.GetEventData(eventText);
+                            var eventTime = textData.Time;
+                            if (eventType == LYRIC)
+                            {
+                                lyrics[eventTime] = eventText; // Use indexer for potential overwrite instead of Add to avoid duplicate key errors
+                            }
+                        }
+                    }
+                    var lyricTimeList = lyrics.Keys.ToList();
+                    lyricTimeList.Sort();
+                    var slideTimeList = new List<long>();
                     var noteRangeMin = 127;
                     var noteRangeMax = 0;
+                    var allLyrics = new List<string>();
+                    bool nextJoin = false;
                     foreach (MidiData.Note note in allNotes)
                     {
                         if (note.NoteNumber >= VocalMin && note.NoteNumber <= VocalMax)
                         {
                             if (singNotes.ContainsKey(note.Time))
                             {
-                                throw new Exception("Duplicate note found");
+                                songQb.AddTimedError("Duplicate vocal note found", "PART VOCALS", note.Time);
                             }
                             else
                             {
-                                singNotes.Add(note.Time, note);
-                                if (note.NoteNumber < noteRangeMin)
+                                if (lyrics.TryGetValue(note.Time, out string? lyric))
                                 {
-                                    noteRangeMin = note.NoteNumber;
+                                    if (nextJoin && lyric != SLIDE_LYRIC)
+                                    {
+                                        lyric = HYPHEN_LYRIC + lyric;
+                                        nextJoin = false;
+                                    }
+                                    switch (lyric)
+                                    {
+                                        case SLIDE_LYRIC:
+                                            var prevTime = lyricTimeList.IndexOf(note.Time) - 1;
+                                            var prevNote = singNotes[lyricTimeList[prevTime]];
+                                            var newNote = new MidiData.Note((SevenBitNumber)2, note.Time-prevNote.EndTime, prevNote.EndTime);
+                                            singNotes.Add(newNote.Time, newNote);
+                                            slideTimeList.Add(note.Time);
+                                            break;
+                                        case var o when o.EndsWith(HYPHEN_LYRIC):
+                                            lyric = lyric.Substring(0, lyric.Length - 1) + JOIN_LYRIC;
+                                            nextJoin = true;
+                                            goto default;
+                                        case var o when o.EndsWith(JOIN_LYRIC):
+                                            lyric = lyric.Substring(0, lyric.Length - 1);
+                                            nextJoin = true;
+                                            goto default;
+                                        default:
+                                            allLyrics.Add(lyric);
+                                            break;
+                                    }
+                                    singNotes.Add(note.Time, note);
                                 }
-                                if (note.NoteNumber > noteRangeMax)
+                                else
                                 {
-                                    noteRangeMax = note.NoteNumber;
+                                    songQb.AddTimedError("Vocal note found without lyrics", "PART VOCALS", note.Time);
                                 }
                             }
                         }
@@ -1443,11 +1502,11 @@ namespace GH_Toolkit_Core.MIDI
                             var player = note.NoteNumber - (PhraseMin - 1);
                             if (phraseNotes.ContainsKey(note.Time))
                             {
-                                phraseNotes[note.Time] += player;
+                                phraseNotes[note.Time].Player += player;
                             }
                             else
                             {
-                                phraseNotes.Add(note.Time, player);
+                                phraseNotes.Add(note.Time, new VocalPhrase(note.Time, note.EndTime, player));
                             }
                         }
                         else if (note.NoteNumber == FreeformNote)
@@ -1458,10 +1517,24 @@ namespace GH_Toolkit_Core.MIDI
                             }
                             else
                             {
-                                throw new Exception("Duplicate freeform note found");
+                                songQb.AddTimedError("Duplicate freeform note found", "PART VOCALS", note.Time);
                             }
                         }
                     }
+                    foreach (var time in slideTimeList)
+                    {
+                        lyrics.Remove(time);
+                        lyricTimeList.Remove(time);
+                    }
+                    var allPhrases = new List<string>();
+                    lyrics.OrderBy(n => n.Key);
+                    foreach (var phrase in phraseNotes.Values)
+                    {
+                        var notesInPhrase = lyrics.Where(n => n.Key >= phrase.Time && n.Key < phrase.EndTime);
+                        //phrase.SetText(MakePhrases(notesInPhrase));
+                        allPhrases.Add(phrase.ToString());
+                    }
+                    allLyrics = allLyrics.Distinct().ToList();
                     /*
                     Notes = MakeVocalNotes(trackChunk, songQb);
                     Freeform = MakeFreeformStarPower(trackChunk, songQb);
@@ -1470,6 +1543,59 @@ namespace GH_Toolkit_Core.MIDI
                     Markers = MakeMarkers(trackChunk, songQb);
                     */
                 }
+            }
+            private static string MakePhrases(Dictionary<long, string> dictionary)
+            {
+                StringBuilder result = new StringBuilder();
+                string previousValue = string.Empty; // To hold the modified value of the previous iteration
+
+                // Sort the dictionary by keys
+                var sortedDictionary = dictionary.OrderBy(pair => pair.Key);
+
+                foreach (var pair in sortedDictionary)
+                {
+                    string value = pair.Value;
+
+                    // If previousValue is not empty, it means it has been modified and should be used
+                    if (!string.IsNullOrEmpty(previousValue))
+                    {
+                        value = previousValue + value;
+                        previousValue = string.Empty; // Reset for the next iteration
+                    }
+
+                    // Check if the value ends with "-" and prepare for the next iteration
+                    if (value.EndsWith("-"))
+                    {
+                        previousValue = value.Substring(0, value.Length - 1);
+                        continue; // Skip the current iteration to merge with the next value
+                    }
+
+                    // Check if the value ends with "=" and prepare it for the next iteration
+                    if (value.EndsWith("="))
+                    {
+                        previousValue = value.Substring(0, value.Length - 1) + "-";
+                        continue; // Skip the current iteration to merge with the next value
+                    }
+
+                    // Append the value to the result with a space, if it's not the first value
+                    if (result.Length > 0)
+                    {
+                        result.Append(" ");
+                    }
+                    result.Append(value);
+                }
+
+                // Handle the case where the last value in the dictionary needed merging
+                if (!string.IsNullOrEmpty(previousValue))
+                {
+                    if (result.Length > 0)
+                    {
+                        result.Append(" ");
+                    }
+                    result.Append(previousValue);
+                }
+
+                return result.ToString();
             }
         }
         public List<PlayNote> MakeGuitar(List<MidiData.Chord> chords, List<MidiData.Note> forceOn, List<MidiData.Note> forceOff, Dictionary<MidiTheory.NoteName, int> noteDict)
@@ -2028,17 +2154,24 @@ namespace GH_Toolkit_Core.MIDI
         }
         public class VocalPhrase
         {
-            public int Time { get; set; }
+            public long Time { get; set; }
+            public long EndTime { get; set; }
             public int Player { get; set; }
-            public VocalPhrase(int time, int player)
+            public string Text { get; set; }
+            public VocalPhrase(long time, long endTime, int player)
             {
                 Time = time;
+                EndTime = endTime;
                 Player = player;
                 // Can be 0, 1, 2, or 3
                 // 0 = No player
                 // 1 = Player 1
                 // 2 = Player 2
                 // 3 = Both players
+            }
+            public void SetText(string text)
+            {
+                Text = text;
             }
         }
         [DebuggerDisplay("{(float)Time/1000, nq}: {Length} ms long")]
