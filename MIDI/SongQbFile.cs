@@ -98,6 +98,7 @@ namespace GH_Toolkit_Core.MIDI
         internal TempoMap SongTempoMap { get; set; }
         private int TPB { get; set; }
         private int HopoThreshold { get; set; }
+        private long LastEventTick { get; set; }
         public static string? PerfOverride { get; set; }
         public static string? SongScriptOverride { get; set; }
         public static string? VenueSource { get; set; }
@@ -171,7 +172,7 @@ namespace GH_Toolkit_Core.MIDI
                         Aux.MakeInstrument(trackChunk, this);
                         break;
                     case PARTVOCALS:
-                        Vocals.MakeInstrument(trackChunk, this);
+                        Vocals.MakeInstrument(trackChunk, this, LastEventTick);
                         break;
                     case CAMERAS:
                         ProcessCameras(trackChunk);
@@ -258,6 +259,7 @@ namespace GH_Toolkit_Core.MIDI
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_crowd", CrowdScripts));
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_drums", DrumsScripts));
                 gameQb.Add(CombinePerformanceScripts($"{SongName}_performance"));
+                gameQb.AddRange(Vocals.AddVoxToQb(SongName));
             }
             return gameQb;
         }
@@ -1398,18 +1400,54 @@ namespace GH_Toolkit_Core.MIDI
         public class VocalsInstrument
         {
             public List<(int, QBStructData)> PerformanceScript { get; set; } = new List<(int, QBStructData)>();
-            public List<PlayNote>? Notes { get; set; } = new List<PlayNote>();
-            public List<StarPower>? Freeform { get; set; } = new List<StarPower>();
+            public List<PlayNote> Notes { get; set; } = new List<PlayNote>();
+            public List<Freeform> FreeformPhrases { get; set; } = new List<Freeform>();
             public List<VocalPhrase>? VocalPhrases { get; set; } = new List<VocalPhrase>();
             public (int, int)? NoteRange { get; set; } = (60, 60);
-            public List<QBArrayNode>? Lyrics { get; set; } = new List<QBArrayNode>();
+            public List<VocalLyrics> Lyrics { get; set; } = new List<VocalLyrics>();
             public List<QBArrayNode>? Markers { get; set; } = new List<QBArrayNode>();
+            private string Name { get; set; }
             // GHWT stuff to come later
             public VocalsInstrument()
             {
 
             }
-            public void MakeInstrument(TrackChunk trackChunk, SongQbFile songQb)
+            public List<QBItem> AddVoxToQb(string name)
+            {
+                Name = name;
+                var voxQb = new List<QBItem>();
+                voxQb.Add(MakeVocalNotes());
+
+
+                return voxQb;
+            }
+            private QBItem MakeVocalNotes()
+            {
+                string qbName = $"{Name}_song_vocals";
+                var qb = new QBItem();
+                qb.SetName(qbName);
+                qb.SetInfo(ARRAY);
+                QBArrayNode entry = new QBArrayNode();
+
+                if (Notes.Count == 0)
+                {
+                    qb.MakeEmpty();
+                    return qb;
+                }
+                else
+                {
+                    foreach (PlayNote note in Notes)
+                    {
+                        
+                        entry.AddIntToArray(note.Time);
+                        entry.AddIntToArray(note.Length);
+                        entry.AddIntToArray(note.Note);
+                    }
+                }
+                qb.SetData(entry);
+                return qb;
+            }
+            public void MakeInstrument(TrackChunk trackChunk, SongQbFile songQb, long lastEvent)
             {
                 if (trackChunk == null || songQb == null)
                 {
@@ -1468,25 +1506,49 @@ namespace GH_Toolkit_Core.MIDI
                                         lyric = HYPHEN_LYRIC + lyric;
                                         nextJoin = false;
                                     }
+
+                                    // Use the method to trim the lyric if it ends with specific suffixes
+                                    lyric = TrimEndIfMatched(lyric, RANGE_SHIFT_LYRIC, UNKNOWN_LYRIC, TALKIE_LYRIC, TALKIE_LYRIC2);
+
+                                    // After trimming, check if the specific cases for setting the note number need to be handled
+                                    if (lyric.EndsWith(TALKIE_LYRIC) || lyric.EndsWith(TALKIE_LYRIC2))
+                                    {
+                                        note.NoteNumber = (SevenBitNumber)26;
+                                    }
+                                    // Use the opportunity to set the note range since it must exclude the talkie notes
+                                    else if (note.NoteNumber < noteRangeMin)
+                                    {
+                                        noteRangeMin = note.NoteNumber;
+                                    }
+                                    else if (note.NoteNumber > noteRangeMax)
+                                    {
+                                        noteRangeMax = note.NoteNumber;
+                                    }
+
+                                    // Handle the replacement for LINKED_LYRIC
+                                    if (lyric.Contains(LINKED_LYRIC))
+                                    {
+                                        lyric = lyric.Replace(LINKED_LYRIC, " ");
+                                    }
                                     switch (lyric)
                                     {
                                         case SLIDE_LYRIC:
                                             var prevTime = lyricTimeList.IndexOf(note.Time) - 1;
                                             var prevNote = singNotes[lyricTimeList[prevTime]];
-                                            var newNote = new MidiData.Note((SevenBitNumber)2, note.Time-prevNote.EndTime, prevNote.EndTime);
+                                            var newNote = new MidiData.Note((SevenBitNumber)2, note.Time- prevNote.EndTime, prevNote.EndTime);
                                             singNotes.Add(newNote.Time, newNote);
                                             slideTimeList.Add(note.Time);
                                             break;
                                         case var o when o.EndsWith(HYPHEN_LYRIC):
-                                            lyric = lyric.Substring(0, lyric.Length - 1) + JOIN_LYRIC;
+                                            lyric = lyric.Substring(0, (int)(lyric.Length - 1)) + JOIN_LYRIC;
                                             nextJoin = true;
                                             goto default;
                                         case var o when o.EndsWith(JOIN_LYRIC):
-                                            lyric = lyric.Substring(0, lyric.Length - 1);
+                                            lyric = lyric.Substring(0, (int)(lyric.Length - 1));
                                             nextJoin = true;
                                             goto default;
                                         default:
-                                            allLyrics.Add(lyric);
+                                            allLyrics.Add((string)lyric);
                                             break;
                                     }
                                     singNotes.Add(note.Time, note);
@@ -1514,6 +1576,10 @@ namespace GH_Toolkit_Core.MIDI
                             if (!freeformNotes.ContainsKey(note.Time))
                             {
                                 freeformNotes.Add(note.Time, note.Channel);
+                                int noteTime = (int)songQb.TicksToMilliseconds(note.Time);
+                                int noteLength = (int)(songQb.TicksToMilliseconds(note.EndTime) - noteTime);
+                                int points = note.Channel == 1 ? 0 : noteLength/6;
+                                FreeformPhrases.Add(new Freeform(noteTime, noteLength, points));
                             }
                             else
                             {
@@ -1526,23 +1592,66 @@ namespace GH_Toolkit_Core.MIDI
                         lyrics.Remove(time);
                         lyricTimeList.Remove(time);
                     }
-                    var allPhrases = new List<string>();
+                    var allMarkers = new List<VocalPhrase>();
                     lyrics.OrderBy(n => n.Key);
                     foreach (var phrase in phraseNotes.Values)
                     {
-                        var notesInPhrase = lyrics.Where(n => n.Key >= phrase.Time && n.Key < phrase.EndTime);
-                        //phrase.SetText(MakePhrases(notesInPhrase));
-                        allPhrases.Add(phrase.ToString());
+                        var notesInPhrase = lyrics.Where(n => n.Key >= phrase.Time && n.Key < phrase.EndTime).ToDictionary(n => n.Key, n => n.Value);
+                        phrase.SetText(MakePhrases(notesInPhrase));
+                        if (phrase.Text == string.Empty)
+                        {
+                            if (freeformNotes.TryGetValue(phrase.Time, out int freeform))
+                            {
+                                phrase.SetType(VocalPhraseType.Freeform);
+                                phrase.SetPlayer(3);
+                                phrase.SetText(freeform == 1 ? "Hype" : "Freeform");
+                                allMarkers.Add(phrase);
+                            }
+                        }
+                        else
+                        {
+                            phrase.SetType(VocalPhraseType.Lyrics);
+                            allMarkers.Add(phrase);
+                        }
+                    }
+                    var singTimes = singNotes.Keys.ToList();
+                    singTimes.Sort();
+                    foreach (var time in singTimes)
+                    {
+                        var note = singNotes[time];
+                        
+                        Notes.Add(new PlayNote((int)songQb.TicksToMilliseconds(note.Time), (int)note.NoteNumber, (int)(songQb.TicksToMilliseconds(note.EndTime) - songQb.TicksToMilliseconds(note.Time)), "Vocals"));
+                    }
+                    var lyricTimes = lyrics.Keys.ToList();
+                    lyricTimes.Sort();
+                    foreach (var time in lyricTimes)
+                    {
+                        var lyric = lyrics[time];
+                        Lyrics.Add(new VocalLyrics((int)songQb.TicksToMilliseconds(time), $"\\L{lyric}"));
+                    }
+                    var sortedPhrases = MakeDummyPhrases(phraseNotes, songQb.TPB, lastEvent);
+                    foreach (var phrase in sortedPhrases)
+                    {
+                        phrase.SetTimeMills((int)songQb.TicksToMilliseconds(phrase.Time));
+                        VocalPhrases.Add(phrase);
+                    }
+                    if (noteRangeMax != 0)
+                    {
+                        NoteRange = (noteRangeMin, noteRangeMax);
                     }
                     allLyrics = allLyrics.Distinct().ToList();
-                    /*
-                    Notes = MakeVocalNotes(trackChunk, songQb);
-                    Freeform = MakeFreeformStarPower(trackChunk, songQb);
-                    VocalPhrases = MakeVocalPhrases(trackChunk, songQb);
-                    Lyrics = MakeLyrics(trackChunk, songQb);
-                    Markers = MakeMarkers(trackChunk, songQb);
-                    */
                 }
+            }
+            private string TrimEndIfMatched(string lyric, params string[] suffixes)
+            {
+                foreach (var suffix in suffixes)
+                {
+                    if (lyric.EndsWith(suffix))
+                    {
+                        return lyric.Substring(0, lyric.Length - 1);
+                    }
+                }
+                return lyric;
             }
             private static string MakePhrases(Dictionary<long, string> dictionary)
             {
@@ -1596,6 +1705,61 @@ namespace GH_Toolkit_Core.MIDI
                 }
 
                 return result.ToString();
+            }
+            private List<VocalPhrase> MakeDummyPhrases(Dictionary<long, VocalPhrase> keyValuePairs, long tpb = 480, long lastEventTime = 0)
+            {
+                long timeDivisor = tpb * 16; // About 4 measures.
+                var phraseTimes = keyValuePairs.Keys.ToList();
+                phraseTimes.Sort();
+                long prevEndTime = 0;
+
+                // Initial dummy phrase at tick 0 if necessary
+                if (!keyValuePairs.ContainsKey(0))
+                {
+                    long firstPhraseTime = phraseTimes.Count > 0 ? phraseTimes[0] : Math.Min(timeDivisor, lastEventTime);
+                    long gap = firstPhraseTime;
+                    FillGapWithDummyPhrases(0, gap, keyValuePairs, timeDivisor);
+                    prevEndTime = firstPhraseTime;
+                }
+
+                // Fill in gaps between existing phrases
+                foreach (var time in phraseTimes)
+                {
+                    var phrase = keyValuePairs[time];
+                    var gap = phrase.Time - prevEndTime;
+                    if (gap > timeDivisor)
+                    {
+                        FillGapWithDummyPhrases(prevEndTime, gap, keyValuePairs, timeDivisor);
+                    }
+                    prevEndTime = phrase.EndTime;
+                }
+
+                // Fill in the gap after the final phrase until the last event time, if necessary
+                if (prevEndTime < lastEventTime)
+                {
+                    long finalGap = lastEventTime - prevEndTime;
+                    FillGapWithDummyPhrases(prevEndTime, finalGap, keyValuePairs, timeDivisor);
+                }
+
+                return keyValuePairs.OrderBy(kvp => kvp.Key).Select(kvp => kvp.Value).ToList();
+            }
+            private void FillGapWithDummyPhrases(long start, long gap, Dictionary<long, VocalPhrase> keyValuePairs, long timeDivisor)
+            {
+                if (gap <= 0) return; // No gap to fill
+
+                var phraseCount = (int)Math.Ceiling((double)gap / timeDivisor);
+                var gapForEachPhrase = gap / phraseCount;
+
+                for (int i = 0; i < phraseCount; i++)
+                {
+                    var newPhraseTime = start + i * gapForEachPhrase;
+                    var newPhraseEndTime = (i + 1) == phraseCount ? start + gap : start + (i + 1) * gapForEachPhrase;
+                    var newPhrase = new VocalPhrase(newPhraseTime, newPhraseEndTime, 0);
+                    if (!keyValuePairs.ContainsKey(newPhraseTime)) // Ensure not to overwrite existing phrases
+                    {
+                        keyValuePairs.Add(newPhraseTime, newPhrase);
+                    }
+                }
             }
         }
         public List<PlayNote> MakeGuitar(List<MidiData.Chord> chords, List<MidiData.Note> forceOn, List<MidiData.Note> forceOff, Dictionary<MidiTheory.NoteName, int> noteDict)
@@ -2106,6 +2270,19 @@ namespace GH_Toolkit_Core.MIDI
                 NoteCount = noteCount;
             }
         }
+        [DebuggerDisplay("{(float)Time/1000, nq}: {Length} ms long ({Points} Points)")]
+        public class Freeform
+        {
+            public int Time { get; set; }
+            public int Length { get; set; }
+            public int Points { get; set; }
+            public Freeform(int time, int length, int points)
+            {
+                Time = time;
+                Length = length;
+                Points = points;
+            }
+        }
         [DebuggerDisplay("{(float)Time/1000, nq}: {NoteColor, nq} - {Length} ms long (Hopo: {IsHopo}, Force On: {ForcedOn}, Force Off: {ForcedOff})")]
         public class PlayNote
         {
@@ -2117,30 +2294,38 @@ namespace GH_Toolkit_Core.MIDI
             public bool ForcedOn { get; set; }
             public bool ForcedOff { get; set; }
             public bool IsHopo { get; set; } // A natural Hopo from being within a certain distance of another note
-
+            public string Type { get; set; }
 
             // Property to get color name
             public string NoteColor
             {
                 get
                 {
-                    List<string> colors = new List<string>();
-                    foreach (Colours color in Enum.GetValues(typeof(Colours)))
+                    if (Type == "Vocals")
                     {
-                        if ((Note & (int)color) == (int)color)
-                        {
-                            colors.Add(color.ToString());
-                        }
+                        return $"{Note}";
                     }
+                    else
+                    {
+                        List<string> colors = new List<string>();
+                        foreach (Colours color in Enum.GetValues(typeof(Colours)))
+                        {
+                            if ((Note & (int)color) == (int)color)
+                            {
+                                colors.Add(color.ToString());
+                            }
+                        }
 
-                    return colors.Count > 0 ? string.Join("+", colors) : "None";
+                        return colors.Count > 0 ? string.Join("+", colors) : "None";
+                    }
                 }
             }
-            public PlayNote(int time, int note, int length)
+            public PlayNote(int time, int note, int length, string type = "")
             {
                 Time = time;
                 Note = note;
                 Length = length;
+                Type = type;
             }
         }
         public class KickNote
@@ -2152,12 +2337,16 @@ namespace GH_Toolkit_Core.MIDI
                 EndTimeTicks = endTimeTicks;
             }
         }
+        [DebuggerDisplay("{Time} - {Text}")]
         public class VocalPhrase
         {
+
             public long Time { get; set; }
             public long EndTime { get; set; }
+            public int TimeMills { get; set; }
             public int Player { get; set; }
             public string Text { get; set; }
+            public VocalPhraseType Type { get; set; }
             public VocalPhrase(long time, long endTime, int player)
             {
                 Time = time;
@@ -2169,8 +2358,35 @@ namespace GH_Toolkit_Core.MIDI
                 // 2 = Player 2
                 // 3 = Both players
             }
+            public void SetTimeMills(int time)
+            {
+                TimeMills = time;
+            }
+            public void SetPlayer(int player)
+            {
+                Player = player;
+            }
             public void SetText(string text)
             {
+                Text = text;
+                if (text == string.Empty)
+                {
+                    SetPlayer(0);
+                }
+            }
+            public void SetType(VocalPhraseType type)
+            {
+                Type = type;
+            }
+        }
+        [DebuggerDisplay("{Time} - {Text}")]
+        public class VocalLyrics
+        {
+            public long Time { get; set; }
+            public string Text { get; set; }
+            public VocalLyrics(long time, string text)
+            {
+                Time = time;
                 Text = text;
             }
         }
@@ -2273,6 +2489,7 @@ namespace GH_Toolkit_Core.MIDI
         private void CalculateFretbars()
         {
             long lastEventTick = SongMidiFile.GetTimedEvents().Max(e => e.Time);
+            LastEventTick = lastEventTick;
             var beatsInMilliseconds = new List<double>();
 
             var timeSignatureEvents = SongMidiFile.GetTrackChunks()

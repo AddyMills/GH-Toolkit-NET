@@ -19,6 +19,11 @@ namespace GH_Toolkit_Core.MIDI
 {
     public class MidiDefs
     {
+        public enum VocalPhraseType
+        {
+            Lyrics,
+            Freeform
+        }
         public const int GH3FORCE = 32;
 
         // Define constants for note ranges
@@ -52,6 +57,9 @@ namespace GH_Toolkit_Core.MIDI
         public const int DrumHiHatLeft = 30;
         public const int DrumAnimEnd = 51;
 
+        public const int FreeformChannel = 0;
+        public const int HypeChannel = 1;
+
         public const string GUITAR_NAME = "";
         public const string RHYTHM_NAME = "_rhythm";
         public const string GUITARCOOP_NAME = "_guitarcoop";
@@ -69,6 +77,11 @@ namespace GH_Toolkit_Core.MIDI
         public const string SLIDE_LYRIC = "+";
         public const string JOIN_LYRIC = "-";
         public const string HYPHEN_LYRIC = "=";
+        public const string TALKIE_LYRIC = "#";
+        public const string TALKIE_LYRIC2 = "^";
+        public const string RANGE_SHIFT_LYRIC = "%";
+        public const string UNKNOWN_LYRIC = "$";
+        public const string LINKED_LYRIC = "§";
 
         // Rock Band crowd names
         public const string INTENSE = "intense";
