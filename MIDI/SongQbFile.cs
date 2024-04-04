@@ -14,6 +14,7 @@ using Melanchall.DryWetMidi.MusicTheory;
 using static GH_Toolkit_Core.MIDI.SongQbFile;
 using System.Collections.Specialized;
 using System.Text;
+using GH_Toolkit_Core.Checksum;
 
 /*
  * This file contains all the logic for creating a QB file from a MIDI file
@@ -106,6 +107,7 @@ namespace GH_Toolkit_Core.MIDI
         public static string? Game { get; set; }
         public static string? SongName { get; set; }
         public static string? Console { get; set; }
+        public Dictionary<string, string> QsList { get; set; } = new Dictionary<string, string>();
         private List<string> ErrorList { get; set; } = new List<string>();
         public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "", string venueSource = "", bool rhythmTrack = false)
         {
@@ -188,6 +190,7 @@ namespace GH_Toolkit_Core.MIDI
                 }
             }
             List<QBItem> gameQb = new List<QBItem>();
+           
             if (Game == GAME_GH3 || Game == GAME_GHA)
             {
                 if (Guitar == null)
@@ -259,7 +262,9 @@ namespace GH_Toolkit_Core.MIDI
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_crowd", CrowdScripts));
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_drums", DrumsScripts));
                 gameQb.Add(CombinePerformanceScripts($"{SongName}_performance"));
-                gameQb.AddRange(Vocals.AddVoxToQb(SongName));
+                var (voxQb, QsDict) = Vocals.AddVoxToQb(SongName);
+                QsList = QsDict;
+                gameQb.AddRange(voxQb);
             }
             return gameQb;
         }
@@ -1412,14 +1417,29 @@ namespace GH_Toolkit_Core.MIDI
             {
 
             }
-            public List<QBItem> AddVoxToQb(string name)
+            public (List<QBItem>, Dictionary<string, string>) AddVoxToQb(string name)
             {
                 Name = name;
                 var voxQb = new List<QBItem>();
                 voxQb.Add(MakeVocalNotes());
+                voxQb.Add(MakeVocalFreeform());
+                var (phraseQb, markerQb, markerDict) = MakeVocalPhrases();
+                voxQb.Add(phraseQb);
+                voxQb.Add(MakeNoteRange());
+                var (lyricQb, lyricDict) = MakeLyrics();
+                voxQb.Add(lyricQb);
+                voxQb.Add(markerQb);
+
+                foreach (var (key, value) in markerDict)
+                {
+                    if (!lyricDict.ContainsKey(key))
+                    {
+                        lyricDict[key] = value;
+                    }
+                }
 
 
-                return voxQb;
+                return (voxQb, lyricDict);
             }
             private QBItem MakeVocalNotes()
             {
@@ -1446,6 +1466,138 @@ namespace GH_Toolkit_Core.MIDI
                 }
                 qb.SetData(entry);
                 return qb;
+            }
+            private QBItem MakeVocalFreeform()
+            {
+                string qbName = $"{Name}_vocals_freeform";
+                var qb = new QBItem();
+                qb.SetName(qbName);
+                qb.SetInfo(ARRAY);
+                QBArrayNode entry = new QBArrayNode();
+
+                if (FreeformPhrases.Count == 0)
+                {
+                    qb.MakeEmpty();
+                    return qb;
+                }
+                else
+                {
+                    foreach (Freeform phrase in FreeformPhrases)
+                    {
+                        QBArrayNode phraseEntry = new QBArrayNode();
+                        phraseEntry.AddIntToArray(phrase.Time);
+                        phraseEntry.AddIntToArray(phrase.Length);
+                        phraseEntry.AddIntToArray(phrase.Points);
+                        entry.AddArrayToArray(phraseEntry);
+                    }
+                }
+                qb.SetData(entry);
+                return qb;
+            }
+            private (QBItem, QBItem, Dictionary<string, string>) MakeVocalPhrases()
+            {
+                string qbNamePhrase = $"{Name}_vocals_phrases";
+                string qbNameMarker = $"{Name}_vocals_markers";
+
+                var qbPhrase = new QBItem();
+                qbPhrase.SetName(qbNamePhrase);
+                qbPhrase.SetInfo(ARRAY);
+                QBArrayNode entryPhrase = new QBArrayNode();
+
+                var qbMarker = new QBItem();
+                qbMarker.SetName(qbNameMarker);
+                qbMarker.SetInfo(ARRAY);
+                QBArrayNode entryMarker = new QBArrayNode();
+
+                var markerDict = new Dictionary<string, string>();
+
+                if (VocalPhrases.Count == 0)
+                {
+                    qbPhrase.MakeEmpty();
+                    qbMarker.MakeEmpty();
+                    return (qbPhrase, qbMarker, markerDict);
+                }
+                else
+                {
+                    foreach (VocalPhrase phrase in VocalPhrases)
+                    {
+                        entryPhrase.AddIntToArray(phrase.TimeMills);
+                        entryPhrase.AddIntToArray(phrase.Player);
+                        if (phrase.Player != 0)
+                        {
+                            QBStructData markerData = new QBStructData();
+                            markerData.AddIntToStruct("time", phrase.TimeMills);
+                            string markerType = phrase.Type == VocalPhraseType.Freeform ? QBKEY : QSKEY;
+                            string markerText;
+                            if (markerType == QBKEY)
+                            {
+                                markerText = $"vocal_marker_{phrase.Text}";
+                            }
+                            else
+                            {
+                                markerText = $"\\L{phrase.Text}";
+                                string qsKey = CRC.QBKeyQs(markerText);
+                                if (!markerDict.ContainsKey(qsKey))
+                                {
+                                    markerDict[qsKey] = markerText;
+                                }
+                                markerText = qsKey;
+                            }
+                            markerData.AddVarToStruct("marker", markerText, markerType);
+                            entryMarker.AddStructToArray(markerData);
+                        }
+                    }
+                }
+                qbPhrase.SetData(entryPhrase);
+                qbMarker.SetData(entryMarker);
+                return (qbPhrase, qbMarker, markerDict);
+            }
+            private QBItem MakeNoteRange()
+            {
+                string qbName = $"{Name}_vocals_note_range";
+                var qb = new QBItem();
+                qb.SetName(qbName);
+                qb.SetInfo(ARRAY);
+                QBArrayNode entry = new QBArrayNode();
+                entry.AddIntToArray(NoteRange!.Value.Item1);
+                entry.AddIntToArray(NoteRange!.Value.Item2);
+                qb.SetData(entry);
+                return qb;
+            }
+            private (QBItem, Dictionary<string, string>) MakeLyrics()
+            {
+                string qbName = $"{Name}_lyrics";
+                var qbLyrics = new QBItem();
+                qbLyrics.SetName(qbName);
+                qbLyrics.SetInfo(ARRAY);
+                QBArrayNode entryLyric = new QBArrayNode();
+
+                var lyricDict = new Dictionary<string, string>();
+
+                if (Lyrics.Count == 0)
+                {
+                    qbLyrics.MakeEmpty();
+                    return (qbLyrics, lyricDict);
+                }
+                else
+                {
+                    foreach (VocalLyrics lyric in Lyrics)
+                    {
+                        QBStructData lyricData = new QBStructData();
+                        lyricData.AddIntToStruct("time", lyric.Time);
+                        string lyricText = lyric.Text;
+                        string qsKey = CRC.QBKeyQs(lyricText);
+                        if (!lyricDict.ContainsKey(qsKey))
+                        {
+                            lyricDict[qsKey] = lyricText;
+                        }
+                        lyricText = qsKey;
+                        lyricData.AddVarToStruct("lyric", lyricText, QSKEY);
+                        entryLyric.AddStructToArray(lyricData);
+                    }
+                }
+                qbLyrics.SetData(entryLyric);
+                return (qbLyrics, lyricDict);
             }
             public void MakeInstrument(TrackChunk trackChunk, SongQbFile songQb, long lastEvent)
             {
@@ -2382,9 +2534,9 @@ namespace GH_Toolkit_Core.MIDI
         [DebuggerDisplay("{Time} - {Text}")]
         public class VocalLyrics
         {
-            public long Time { get; set; }
+            public int Time { get; set; }
             public string Text { get; set; }
-            public VocalLyrics(long time, string text)
+            public VocalLyrics(int time, string text)
             {
                 Time = time;
                 Text = text;

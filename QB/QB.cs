@@ -655,6 +655,10 @@ namespace GH_Toolkit_Core.QB
                     {
                         data = data.Substring(1);
                     }
+                    if (type == QSKEY)
+                    {
+                        return CRC.QBKeyQs(data);
+                    }
                     return CRC.QBKey(data);
                 case WORINTEGER:
                 case WORFLOAT:

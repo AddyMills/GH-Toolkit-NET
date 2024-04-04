@@ -961,6 +961,12 @@ namespace GH_Toolkit_Core.PAK
                     File.WriteAllBytes(ps2SkaScriptSave, skaScripts);
                 }
             }
+            var qsList = midiFile.QsList;
+            if (qsList.Count > 0)
+            {
+                string qsSave = Path.Combine(songFolder, songName + $".qs{consoleExt}");
+                
+            }
             var pakCompiler = new PAK.PakCompiler(game: game, console: gameConsole);
             var (pakData, pabData, otherData) = pakCompiler.CompilePAK(saveName);
             string songPrefix = gameConsole == CONSOLE_PS2 ? "" : "_song";
