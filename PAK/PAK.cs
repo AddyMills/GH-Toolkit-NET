@@ -14,6 +14,8 @@ using GH_Toolkit_Core.MIDI;
 using GH_Toolkit_Core.SKA;
 using System.Text.RegularExpressions;
 using System.Security.Policy;
+using System.Xml;
+using System.Text;
 
 /*
  * * This file is intended to be a collection of custom methods to read and create PAK files
@@ -81,7 +83,7 @@ namespace GH_Toolkit_Core.PAK
             }
             public void SetExtension(string extension)
             {
-                if (FullFlagPath != null && FullFlagPath!.IndexOf(DOT_MID_QS) != -1)
+                if (FullFlagPath != null && FullFlagPath!.IndexOf(DOT_MID_QS) != -1 && !FullFlagPath!.EndsWith(DOT_QS))
                 {
                     Extension = $"{DOT_QS}{extension}";
                 }
@@ -206,7 +208,7 @@ namespace GH_Toolkit_Core.PAK
         }
         public static List<PakEntry>? PakEntriesFromFilepath(string file)
         {
-            string fileName = Path.GetFileName(file);
+            string fileName = Path.GetFileName(file).ToLower();
             if (fileName.IndexOf(".pab", 0, fileName.Length, StringComparison.CurrentCultureIgnoreCase) != -1)
             {
                 return null;
@@ -945,7 +947,7 @@ namespace GH_Toolkit_Core.PAK
                     }
                     else if (game == GAME_GHWT)
                     {
-                        convertedSka = skaTest.WriteGh3StyleSka(skaType, skaMultiplier);
+                        convertedSka = skaTest.WriteModernStyleSka(skaType, game, skaMultiplier);
                         skaSave = Path.Combine(saveName, Path.GetFileName(skaFile));
                     }
                     else
@@ -964,8 +966,25 @@ namespace GH_Toolkit_Core.PAK
             var qsList = midiFile.QsList;
             if (qsList.Count > 0)
             {
-                string qsSave = Path.Combine(songFolder, songName + $".qs{consoleExt}");
-                
+                string qsSave = Path.Combine(songFolder, songName + $".mid.qs{consoleExt}");
+                var sortedKeys = qsList.OrderBy(entry => entry.Value)
+                                               .Select(entry => entry.Key)
+                                               .ToList();
+                // Creating a StreamWriter to write to the file with UTF-16 encoding
+                using (StreamWriter writer = new StreamWriter(qsSave, false, Encoding.Unicode))
+                {
+                    foreach (var key in sortedKeys)
+                    {
+                        // Formatting the key as specified
+                        string modifiedKey = key.Substring(2).PadLeft(8, '0');
+
+                        // Building the line with the modified key and its value
+                        string line = $"{modifiedKey} {qsList[key]}";
+
+                        // Writing the line to the file
+                        writer.WriteLine(line);
+                    }
+                }
             }
             var pakCompiler = new PAK.PakCompiler(game: game, console: gameConsole);
             var (pakData, pabData, otherData) = pakCompiler.CompilePAK(saveName);

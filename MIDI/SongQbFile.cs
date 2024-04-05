@@ -1420,9 +1420,11 @@ namespace GH_Toolkit_Core.MIDI
             public (List<QBItem>, Dictionary<string, string>) AddVoxToQb(string name)
             {
                 Name = name;
-                var voxQb = new List<QBItem>();
-                voxQb.Add(MakeVocalNotes());
-                voxQb.Add(MakeVocalFreeform());
+                var voxQb = new List<QBItem>
+                {
+                    MakeVocalNotes(),
+                    MakeVocalFreeform()
+                };
                 var (phraseQb, markerQb, markerDict) = MakeVocalPhrases();
                 voxQb.Add(phraseQb);
                 voxQb.Add(MakeNoteRange());
@@ -1527,9 +1529,9 @@ namespace GH_Toolkit_Core.MIDI
                         {
                             QBStructData markerData = new QBStructData();
                             markerData.AddIntToStruct("time", phrase.TimeMills);
-                            string markerType = phrase.Type == VocalPhraseType.Freeform ? QBKEY : QSKEY;
+                            string markerType = phrase.Type == VocalPhraseType.Freeform ? POINTER : QSKEY;
                             string markerText;
-                            if (markerType == QBKEY)
+                            if (markerType == POINTER)
                             {
                                 markerText = $"vocal_marker_{phrase.Text}";
                             }
@@ -1700,6 +1702,7 @@ namespace GH_Toolkit_Core.MIDI
                                             nextJoin = true;
                                             goto default;
                                         default:
+                                            lyrics[note.Time] = lyric;
                                             allLyrics.Add((string)lyric);
                                             break;
                                     }
@@ -1808,52 +1811,43 @@ namespace GH_Toolkit_Core.MIDI
             private static string MakePhrases(Dictionary<long, string> dictionary)
             {
                 StringBuilder result = new StringBuilder();
-                string previousValue = string.Empty; // To hold the modified value of the previous iteration
 
                 // Sort the dictionary by keys
                 var sortedDictionary = dictionary.OrderBy(pair => pair.Key);
 
+                var addSpace = new List<bool>();
+
                 foreach (var pair in sortedDictionary)
                 {
-                    string value = pair.Value;
-
-                    // If previousValue is not empty, it means it has been modified and should be used
-                    if (!string.IsNullOrEmpty(previousValue))
+                    if (pair.Value.StartsWith("="))
                     {
-                        value = previousValue + value;
-                        previousValue = string.Empty; // Reset for the next iteration
+                        addSpace.Add(false);
                     }
-
-                    // Check if the value ends with "-" and prepare for the next iteration
-                    if (value.EndsWith("-"))
+                    else
                     {
-                        previousValue = value.Substring(0, value.Length - 1);
-                        continue; // Skip the current iteration to merge with the next value
+                        addSpace.Add(true);
                     }
-
-                    // Check if the value ends with "=" and prepare it for the next iteration
-                    if (value.EndsWith("="))
-                    {
-                        previousValue = value.Substring(0, value.Length - 1) + "-";
-                        continue; // Skip the current iteration to merge with the next value
-                    }
-
-                    // Append the value to the result with a space, if it's not the first value
-                    if (result.Length > 0)
-                    {
-                        result.Append(" ");
-                    }
-                    result.Append(value);
                 }
 
-                // Handle the case where the last value in the dictionary needed merging
-                if (!string.IsNullOrEmpty(previousValue))
+                for (int i = 0; i < sortedDictionary.Count(); i++)
                 {
-                    if (result.Length > 0)
+                    var pair = sortedDictionary.ElementAt(i);
+                    var value = pair.Value;
+                    if (value.StartsWith("="))
                     {
-                        result.Append(" ");
+                        result.Append(value.Substring(1));
                     }
-                    result.Append(previousValue);
+                    else
+                    {
+                        result.Append(value);
+                    }
+                    if (i < sortedDictionary.Count() - 1)
+                    {
+                        if (addSpace[i + 1])
+                        {
+                            result.Append(" ");
+                        }
+                    }
                 }
 
                 return result.ToString();

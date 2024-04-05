@@ -36,6 +36,7 @@ namespace GH_Toolkit_Core.SKA
         private const byte POINTER_BLOCK_AMOUNT = 20;
         private const int VERSION_PS2 = 0x28;
         private const int VERSION_OLD = 0x48;
+        private const int VERSION_NEW = 0x68;
         private const int SKA_BOUNDARY = 0x80;
         private const int ANIM_BOUNDARY = 0x4;
         private const int ANIM_START = 0x20;
@@ -1451,10 +1452,53 @@ namespace GH_Toolkit_Core.SKA
             {
                 bool compressedData = game == GAME_GHWT;
                 QuatDataToBytes(quatBytes, quatBoneCountBytes, newQuatData, newAnimFlags, compressedData);
+                TransDataToBytes(transBytes, transBoneCountBytes, newTransData, newAnimFlags, compressedData);
+                MakePartialAnim(partialAnimBytes, newAnimFlags);
 
-            }
+                int totalFileSize = (SKA_BOUNDARY * 2) + (int)quatBytes.Length + (int)transBytes.Length + (int)quatBoneCountBytes.Length + (int)transBoneCountBytes.Length + (int)partialAnimBytes.Length;
+                int partialPos = totalFileSize - (int)partialAnimBytes.Length;
+                int transSizePos = partialPos - (int)transBoneCountBytes.Length;
+                int quatSizePos = transSizePos - (int)quatBoneCountBytes.Length;
+                int transDataPos = quatSizePos - (int)transBytes.Length;
+                int quatDataPos = transDataPos - (int)quatBytes.Length;
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(totalFileSize));
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(ANIM_START));
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(0)); // Should be int
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(-1)); // BonePointer number
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(-1)); // Unk_b number
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(-1)); // Unk_c number
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(partialPos));
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(-1)); // Unk_d number
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(VERSION_NEW));
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(NewFlags));
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(Duration));
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex((ushort)NewBones));
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex((ushort)quatFrames));
+                foreach (var floatPair in floatValues)
+                {
+                    foreach (var floatValue in floatPair)
+                    {
+                        _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(floatValue));
+                    }
+                }
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex((ushort)transFrames));
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex((ushort)customKeys));
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(-1)); // Custom Keys, not supported yet
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(quatDataPos));
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(transDataPos));
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(quatSizePos));
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(transSizePos));
 
-            return new byte[] { 0 }; // Placeholder
+                _rw.PadStreamTo(totalFile, SKA_BOUNDARY);
+
+                ReadWrite.AppendStream(totalFile, quatBytes);
+                ReadWrite.AppendStream(totalFile, transBytes);
+                ReadWrite.AppendStream(totalFile, quatBoneCountBytes);
+                ReadWrite.AppendStream(totalFile, transBoneCountBytes);
+                ReadWrite.AppendStream(totalFile, partialAnimBytes);
+
+                return totalFile.ToArray();
+            }            
         }
     }
 }
