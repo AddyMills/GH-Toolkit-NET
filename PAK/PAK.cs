@@ -78,8 +78,8 @@ namespace GH_Toolkit_Core.PAK
                 EntryData = [0xAB, 0xAB, 0xAB, 0xAB];
                 FileSize = (uint)EntryData.Length;
                 SetExtension(lastType);
-                SetNameNoExt("0x0");
-                SetFullName("0x0");
+                SetNameNoExt("0x6AF98ED1");
+                SetFullName("0x897ABB4A");
             }
             public void SetExtension(string extension)
             {

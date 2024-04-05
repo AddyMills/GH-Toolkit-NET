@@ -15,6 +15,7 @@ using static GH_Toolkit_Core.MIDI.SongQbFile;
 using System.Collections.Specialized;
 using System.Text;
 using GH_Toolkit_Core.Checksum;
+using System.Security.Policy;
 
 /*
  * This file contains all the logic for creating a QB file from a MIDI file
@@ -1166,10 +1167,10 @@ namespace GH_Toolkit_Core.MIDI
                     AnimNotes = InstrumentAnims(allNotes, DrumAnimStart, DrumAnimEnd, drumAnimDict, songQb, true);
                     DrumFill = ProcessDrumFills(drumFillNotes, songQb);
                     // Process notes for each difficulty level
-                    Easy.ProcessDifficultyDrums(allNotes, EasyNoteMin, EasyNoteMax, noteDict, 0, songQb, StarPowerPhrases, BattleStarPhrases, FaceOffStarPhrases);
-                    Medium.ProcessDifficultyDrums(allNotes, MediumNoteMin, MediumNoteMax, noteDict, 0, songQb, StarPowerPhrases, BattleStarPhrases);
-                    Hard.ProcessDifficultyDrums(allNotes, HardNoteMin, HardNoteMax, noteDict, 0, songQb, StarPowerPhrases, BattleStarPhrases);
-                    Expert.ProcessDifficultyDrums(allNotes, ExpertNoteMin, ExpertNoteMax, noteDict, openNotes, songQb, StarPowerPhrases, BattleStarPhrases);
+                    Easy.ProcessDifficultyDrums(allNotes, EasyNoteMin, EasyNoteMax + 1, noteDict, 0, songQb, StarPowerPhrases, BattleStarPhrases, FaceOffStarPhrases);
+                    Medium.ProcessDifficultyDrums(allNotes, MediumNoteMin, MediumNoteMax + 1, noteDict, 0, songQb, StarPowerPhrases, BattleStarPhrases);
+                    Hard.ProcessDifficultyDrums(allNotes, HardNoteMin, HardNoteMax + 1, noteDict, 0, songQb, StarPowerPhrases, BattleStarPhrases);
+                    Expert.ProcessDifficultyDrums(allNotes, ExpertNoteMin, ExpertNoteMax + 1, noteDict, openNotes, songQb, StarPowerPhrases, BattleStarPhrases);
 
                 }
                 FaceOffStar = Easy.FaceOffStar;
@@ -1594,7 +1595,7 @@ namespace GH_Toolkit_Core.MIDI
                             lyricDict[qsKey] = lyricText;
                         }
                         lyricText = qsKey;
-                        lyricData.AddVarToStruct("lyric", lyricText, QSKEY);
+                        lyricData.AddVarToStruct("text", lyricText, QSKEY);
                         entryLyric.AddStructToArray(lyricData);
                     }
                 }
@@ -2002,6 +2003,11 @@ namespace GH_Toolkit_Core.MIDI
                     }
                     note.Accents = currNote.Accents;
                 }
+                if (currNote.Accents == currNote.Note)
+                {
+                    // If the accents are the same as the note, there are no accents
+                    currNote.Accents = AllAccents;
+                }
             }
         }
         public List<PlayNote> MakeDrums(List<MidiData.Chord> chords, Dictionary<MidiTheory.NoteName, int> noteDict)
@@ -2396,7 +2402,7 @@ namespace GH_Toolkit_Core.MIDI
             }
             public QBStructData ToStruct(string console = CONSOLE_XBOX)
             {
-                string markerType = console == CONSOLE_XBOX ? WIDESTRING : STRING;
+                string markerType = console == CONSOLE_PS2 ? STRING : WIDESTRING;
                 QBStructData marker = new QBStructData();
                 marker.AddIntToStruct("Time", Time);
                 marker.AddVarToStruct("Marker", Text, markerType);
