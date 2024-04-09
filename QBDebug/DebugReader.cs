@@ -173,6 +173,14 @@ namespace GH_Toolkit_Core.Debug
             {
                 // If name does not contain "dlc", just use the original logic or handle accordingly
                 headers = CreateCustomDict(name);
+                if (name.StartsWith("a")) // Mainly for WTDE, may use a little more memory, but it's fine
+                {
+                    var otherHeaders = CreateCustomDict(name.Substring(1));
+                    foreach (var header in otherHeaders)
+                    {
+                        headers.Add(header.Key, header.Value);
+                    }
+                }
             }
 
             return headers;

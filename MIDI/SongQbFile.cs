@@ -1459,9 +1459,16 @@ namespace GH_Toolkit_Core.MIDI
                 }
                 else
                 {
-                    foreach (PlayNote note in Notes)
+                    for (int i = 0; i < Notes.Count; i++)
                     {
-                        
+                        PlayNote note = Notes[i];
+                        if (note.Note == 2)
+                        {
+                            PlayNote prevNote = Notes[i - 1];
+                            PlayNote nextNote = Notes[i + 1];
+                            note.Time = prevNote.Time + prevNote.Length;
+                            note.Length = nextNote.Time - note.Time;
+                        }
                         entry.AddIntToArray(note.Time);
                         entry.AddIntToArray(note.Length);
                         entry.AddIntToArray(note.Note);
@@ -1542,7 +1549,7 @@ namespace GH_Toolkit_Core.MIDI
                                 string qsKey = CRC.QBKeyQs(markerText);
                                 if (!markerDict.ContainsKey(qsKey))
                                 {
-                                    markerDict[qsKey] = markerText;
+                                    markerDict[qsKey] = $"\"{markerText}\"";
                                 }
                                 markerText = qsKey;
                             }
@@ -1592,7 +1599,7 @@ namespace GH_Toolkit_Core.MIDI
                         string qsKey = CRC.QBKeyQs(lyricText);
                         if (!lyricDict.ContainsKey(qsKey))
                         {
-                            lyricDict[qsKey] = lyricText;
+                            lyricDict[qsKey] = $"\"{lyricText}\"";
                         }
                         lyricText = qsKey;
                         lyricData.AddVarToStruct("text", lyricText, QSKEY);
@@ -1671,13 +1678,16 @@ namespace GH_Toolkit_Core.MIDI
                                         note.NoteNumber = (SevenBitNumber)26;
                                     }
                                     // Use the opportunity to set the note range since it must exclude the talkie notes
-                                    else if (note.NoteNumber < noteRangeMin)
+                                    else
                                     {
-                                        noteRangeMin = note.NoteNumber;
-                                    }
-                                    else if (note.NoteNumber > noteRangeMax)
-                                    {
-                                        noteRangeMax = note.NoteNumber;
+                                        if (note.NoteNumber < noteRangeMin)
+                                        {
+                                            noteRangeMin = note.NoteNumber;
+                                        }
+                                        if (note.NoteNumber > noteRangeMax)
+                                        {
+                                            noteRangeMax = note.NoteNumber;
+                                        }
                                     }
 
                                     // Handle the replacement for LINKED_LYRIC
@@ -1690,7 +1700,7 @@ namespace GH_Toolkit_Core.MIDI
                                         case SLIDE_LYRIC:
                                             var prevTime = lyricTimeList.IndexOf(note.Time) - 1;
                                             var prevNote = singNotes[lyricTimeList[prevTime]];
-                                            var newNote = new MidiData.Note((SevenBitNumber)2, note.Time- prevNote.EndTime, prevNote.EndTime);
+                                            var newNote = new MidiData.Note((SevenBitNumber)2, note.Time - prevNote.EndTime, prevNote.EndTime);
                                             singNotes.Add(newNote.Time, newNote);
                                             slideTimeList.Add(note.Time);
                                             break;
@@ -1720,7 +1730,7 @@ namespace GH_Toolkit_Core.MIDI
                             var player = note.NoteNumber - (PhraseMin - 1);
                             if (phraseNotes.ContainsKey(note.Time))
                             {
-                                phraseNotes[note.Time].Player += player;
+                                //phraseNotes[note.Time].Player += player;
                             }
                             else
                             {
@@ -1759,7 +1769,7 @@ namespace GH_Toolkit_Core.MIDI
                             if (freeformNotes.TryGetValue(phrase.Time, out int freeform))
                             {
                                 phrase.SetType(VocalPhraseType.Freeform);
-                                phrase.SetPlayer(3);
+                                phrase.SetPlayer(1); // EDIT THIS LATER
                                 phrase.SetText(freeform == 1 ? "Hype" : "Freeform");
                                 allMarkers.Add(phrase);
                             }
@@ -1974,9 +1984,10 @@ namespace GH_Toolkit_Core.MIDI
             {
                 // Get the current note
                 var currNote = notes[i];
-                // Explicitly add bits from currNote.Note that aren't already set in currNote.Accents
-                int bitsNotSet = ~currNote.Accents & currNote.Note;
+
+                // Ensure currNote.Accents has itself (currNote.Note) set
                 currNote.Accents |= currNote.Note;
+
                 // Get the notes that are contained within the current note
                 var containedNotes = notes.Where(n => n.Time > currNote.Time && n.Time < (currNote.Time + currNote.Length)).ToList();
                 foreach (var note in containedNotes)
@@ -1986,13 +1997,20 @@ namespace GH_Toolkit_Core.MIDI
                         currNote.Length = note.Time - currNote.Time;
                         break;
                     }
+                    /*
                     // Only add bits from note.Note that aren't already set in currNote.Accents
                     // First, determine which bits are not yet set in currNote.Accents
                     int bitsNotSetExtend = ~currNote.Accents & note.Note;
                     // Then, add those bits to currNote.Accents
-                    currNote.Accents |= bitsNotSetExtend;
-                }
+                    currNote.Accents |= bitsNotSetExtend;*/
 
+                    // Unset bits from note.Note that are set in currNote.Accents
+                    int bitsToUnset = ~note.Note & currNote.Accents;
+                    // Then, update currNote.Accents by unsetting these bits
+                    currNote.Accents &= bitsToUnset;
+                    note.Accents &= ~currNote.Note;
+                }
+                /*
                 // Apply updated currNote.Accents to all contained notes that weren't skipped
                 foreach (var note in containedNotes)
                 {
@@ -2001,13 +2019,12 @@ namespace GH_Toolkit_Core.MIDI
                         // This note was beyond the updated range; it should not be updated.
                         break;
                     }
-                    note.Accents = currNote.Accents;
-                }
-                if (currNote.Accents == currNote.Note)
-                {
-                    // If the accents are the same as the note, there are no accents
-                    currNote.Accents = AllAccents;
-                }
+
+                    // Unset bits from note.Accents that are set in currNote.Note
+                    
+
+                    //note.Accents = currNote.Accents;
+                }*/
             }
         }
         public List<PlayNote> MakeDrums(List<MidiData.Chord> chords, Dictionary<MidiTheory.NoteName, int> noteDict)
@@ -2441,7 +2458,7 @@ namespace GH_Toolkit_Core.MIDI
             public int Time { get; set; }
             public int Note { get; set; }
             public int Length { get; set; }
-            public int Accents { get; set; }
+            public int Accents { get; set; } = AllAccents;
             public int Ghosts { get; set; }
             public bool ForcedOn { get; set; }
             public bool ForcedOff { get; set; }
