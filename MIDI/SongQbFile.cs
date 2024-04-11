@@ -123,7 +123,14 @@ namespace GH_Toolkit_Core.MIDI
             VenueSource = venueSource == "" ? Game : venueSource;
             RhythmTrack = rhythmTrack;
             OverrideBeat = overrideBeat;
-            HopoMethod = (HopoType)hopoType;
+            if (Game == GAME_GH3 || Game == GAME_GHA)
+            {
+                HopoMethod = 0;
+            }
+            else
+            {
+                HopoMethod = (HopoType)hopoType;
+            }
             SetMidiInfo(midiPath);
         }
         public string GetGame()
@@ -1993,12 +2000,44 @@ namespace GH_Toolkit_Core.MIDI
                     length = 10; // This is a 1/128th note at 200bpm. Definitely small enough to not overlap even the fastest of notes
                 }
                 PlayNote currNote = new PlayNote(startTime, noteVal, length);
-                if (prevTime != 0 && BitOperations.IsPow2(noteVal) && prevNote != noteVal) // If it's not the first note in the chart and a single note
+                switch (HopoMethod)
                 {
-                    currNote.IsHopo = (currTime - prevTime) < HopoThreshold;
+                    case HopoType.RB:
+                        if (prevTime != 0 && BitOperations.IsPow2(noteVal) && (prevNote & noteVal) != noteVal) // If it's not the first note in the chart and a single note
+                        {
+                            currNote.IsHopo = (currTime - prevTime) < HopoThreshold;
+                        }
+                        currNote.ForcedOn = IsInTimeRange(currTime, forceOn);
+                        currNote.ForcedOff = IsInTimeRange(currTime, forceOff);
+                        break;
+                    case HopoType.GH3:
+                        if (prevTime != 0 && BitOperations.IsPow2(noteVal) && prevNote != noteVal) // If it's not the first note in the chart and a single note
+                        {
+                            currNote.IsHopo = (currTime - prevTime) < HopoThreshold;
+                        }
+                        currNote.ForcedOn = IsInTimeRange(currTime, forceOn);
+                        if (currNote.ForcedOn && currNote.IsHopo)
+                        {
+                            currNote.ForcedOn = false;
+                            currNote.ForcedOff = true;
+                        }
+                        break;
+                    case HopoType.MoonScraper:
+                        if (prevTime != 0 && BitOperations.IsPow2(noteVal) && prevNote != noteVal) // If it's not the first note in the chart and a single note
+                        {
+                            currNote.IsHopo = (currTime - prevTime) < HopoThreshold;
+                        }
+                        currNote.ForcedOn = IsInTimeRange(currTime, forceOn);
+                        currNote.ForcedOff = IsInTimeRange(currTime, forceOff);
+                        break;
+                    case HopoType.GHWT:
+                        currNote.ForcedOn = IsInTimeRange(currTime, forceOn);
+                        currNote.IsHopo = currNote.ForcedOn;
+                        break;
+                    default:
+                        throw new NotImplementedException("Unknown hopo method found");
                 }
-                currNote.ForcedOn = IsInTimeRange(currTime, forceOn);
-                currNote.ForcedOff = IsInTimeRange(currTime, forceOff);
+                
                 prevTime = currTime;
                 prevNote = noteVal;
                 noteList.Add(currNote);
