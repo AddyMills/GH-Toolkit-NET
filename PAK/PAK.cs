@@ -973,6 +973,9 @@ namespace GH_Toolkit_Core.PAK
                 // Creating a StreamWriter to write to the file with UTF-16 encoding
                 using (StreamWriter writer = new StreamWriter(qsSave, false, Encoding.Unicode))
                 {
+                    // Setting the newline character to only '\n'
+                    writer.NewLine = "\n";
+
                     foreach (var key in sortedKeys)
                     {
                         // Formatting the key as specified
@@ -984,6 +987,10 @@ namespace GH_Toolkit_Core.PAK
                         // Writing the line to the file
                         writer.WriteLine(line);
                     }
+
+                    // These are needed otherwise the game will crash.
+                    writer.WriteLine();
+                    writer.WriteLine();
                 }
             }
             var pakCompiler = new PAK.PakCompiler(game: game, console: gameConsole);

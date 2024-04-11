@@ -1730,7 +1730,7 @@ namespace GH_Toolkit_Core.MIDI
                             var player = note.NoteNumber - (PhraseMin - 1);
                             if (phraseNotes.ContainsKey(note.Time))
                             {
-                                //phraseNotes[note.Time].Player += player;
+                                phraseNotes[note.Time].Player += player;
                             }
                             else
                             {
@@ -1769,7 +1769,7 @@ namespace GH_Toolkit_Core.MIDI
                             if (freeformNotes.TryGetValue(phrase.Time, out int freeform))
                             {
                                 phrase.SetType(VocalPhraseType.Freeform);
-                                phrase.SetPlayer(1); // EDIT THIS LATER
+                                phrase.SetPlayer(3);
                                 phrase.SetText(freeform == 1 ? "Hype" : "Freeform");
                                 allMarkers.Add(phrase);
                             }
