@@ -2280,6 +2280,44 @@ namespace GH_Toolkit_Core.MIDI
             var scriptCompiled = CompileQbFile(skaScriptList, qbName, game:GAME_GH3, console:CONSOLE_PS2);
             return scriptCompiled;
         }
+        public byte[]? MakeSongScripts()
+        {
+            if (SongScriptOverride == null)
+            {
+                return null;
+            }
+            if (!File.Exists(SongScriptOverride))
+            {
+                return null;
+            }
+            var songScript = CleanSongScripts(File.ReadAllText(SongScriptOverride));
+            var songScriptsQb = ParseQFile(songScript);
+            var scriptDict = new Dictionary<string, QBItem>();
+            foreach (var script in songScriptsQb)
+            {
+                if (script is QBItem qbItem)
+                {
+                    scriptDict[qbItem.GetName()] = qbItem;
+                }
+            }
+
+            var qbScriptFile = CompileQbFile(songScriptsQb, SongName + "_song_scripts", Game, Console);
+
+            return qbScriptFile;
+        }
+        private string CleanSongScripts(string script)
+        {
+            script = script.ToLower();
+            if (!script.Contains($"{FEMALE_ANIM_STRUCT}_{SongName}"))
+            {
+                script = script.Replace(FEMALE_ANIM_STRUCT, $"{FEMALE_ANIM_STRUCT}_{SongName}");
+            }
+            if (!script.Contains($"{MALE_ANIM_STRUCT}_{SongName}"))
+            {
+                script = script.Replace(MALE_ANIM_STRUCT, $"{MALE_ANIM_STRUCT}_{SongName}");
+            }
+            return script;
+        }
         [DebuggerDisplay("{Time}: {Numerator}/{Denominator}")]
         public class TimeSig
         {

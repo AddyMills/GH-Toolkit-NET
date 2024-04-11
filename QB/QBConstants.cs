@@ -165,6 +165,8 @@ namespace GH_Toolkit_Core.QB
 
         // Compiling Constants
         public const string SONG_PERFORMANCE = "song_performance";
+        public const string FEMALE_ANIM_STRUCT = "car_female_anim_struct";
+        public const string MALE_ANIM_STRUCT = "car_male_anim_struct";
 
         // Byte Constants
         public const byte NEWLINE_BYTE = 0x01;

@@ -73,6 +73,10 @@ namespace GH_Toolkit_Core.QB
             {
                 Name = name;
             }
+            public string GetName()
+            {
+                return Name;
+            }
             public void SetData(object data)
             {
                 Data = data;

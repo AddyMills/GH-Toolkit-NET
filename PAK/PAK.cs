@@ -970,6 +970,18 @@ namespace GH_Toolkit_Core.PAK
                     File.WriteAllBytes(ps2SkaScriptSave, skaScripts);
                 }
             }
+            // Check for song scripts override and make one if we're not compiling a PS2 song
+            if (!string.IsNullOrEmpty(songScripts) && gameConsole != CONSOLE_PS2)
+            {
+                string songScriptsSave = Path.Combine(songFolder, songName + $"_song_scripts.qb{consoleExt}");
+                byte[]? songScriptsQb = midiFile.MakeSongScripts();
+                if (songScriptsQb != null)
+                {
+                    File.WriteAllBytes(songScriptsSave, songScriptsQb);
+                }
+            }
+
+            // Make qs file for GHWT+
             var qsList = midiFile.QsList;
             if (qsList.Count > 0)
             {
