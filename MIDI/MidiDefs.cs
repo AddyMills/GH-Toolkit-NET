@@ -24,6 +24,14 @@ namespace GH_Toolkit_Core.MIDI
             Lyrics,
             Freeform
         }
+
+        public enum HopoType
+        {
+            RB = 0,
+            MoonScraper = 1,
+            GH3 = 2,
+            GHWT = 3
+        }
         public const int GH3FORCE = 32;
 
         // Define constants for note ranges
@@ -59,6 +67,9 @@ namespace GH_Toolkit_Core.MIDI
 
         public const int FreeformChannel = 0;
         public const int HypeChannel = 1;
+
+        public const int DownbeatNote = 12;
+        public const int UpbeatNote = 13;
 
         public const string GUITAR_NAME = "";
         public const string RHYTHM_NAME = "_rhythm";

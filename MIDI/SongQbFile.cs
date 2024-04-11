@@ -108,9 +108,11 @@ namespace GH_Toolkit_Core.MIDI
         public static string? Game { get; set; }
         public static string? SongName { get; set; }
         public static string? Console { get; set; }
+        public static bool OverrideBeat { get; set; }
+        public static HopoType HopoMethod { get; set; }
         public Dictionary<string, string> QsList { get; set; } = new Dictionary<string, string>();
         private List<string> ErrorList { get; set; } = new List<string>();
-        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "", string venueSource = "", bool rhythmTrack = false)
+        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "", string venueSource = "", bool rhythmTrack = false, bool overrideBeat = false, int hopoType = 0)
         {
             Game = game;
             SongName = songName;
@@ -120,6 +122,8 @@ namespace GH_Toolkit_Core.MIDI
             SongScriptOverride = songScriptOverride;
             VenueSource = venueSource == "" ? Game : venueSource;
             RhythmTrack = rhythmTrack;
+            OverrideBeat = overrideBeat;
+            HopoMethod = (HopoType)hopoType;
             SetMidiInfo(midiPath);
         }
         public string GetGame()
@@ -133,6 +137,10 @@ namespace GH_Toolkit_Core.MIDI
         public void AddToErrorList(string error)
         {
             ErrorList.Add(error);
+        }
+        public string GetErrorListAsString()
+        {
+            return string.Join("\n", ErrorList);
         }
         public void AddTimedError(string error, string part, long ticks)
         {
@@ -185,6 +193,12 @@ namespace GH_Toolkit_Core.MIDI
                         break;
                     case EVENTS:
                         ProcessEvents(trackChunk);
+                        break;
+                    case BEAT:
+                        if (OverrideBeat)
+                        {
+                            ProcessBeat(trackChunk);
+                        }
                         break;
                     default:
                         break;
@@ -916,6 +930,39 @@ namespace GH_Toolkit_Core.MIDI
             {
                 Markers = [new Marker(0, "start")];
             }
+        }
+        public void ProcessBeat(TrackChunk trackChunk)
+        {
+            var beatNotes = trackChunk.GetNotes().Where(x => x.NoteNumber == DownbeatNote || x.NoteNumber <= UpbeatNote).ToList();
+
+            int prevDownbeat = 0;
+            int currTsNumerator = 0;
+            int numeratorCount = 0;
+
+            var newFretbars = new List<int>();
+            var newTimeSigs = new List<TimeSig>();
+
+            foreach (MidiData.Note note in beatNotes)
+            {
+                int noteVal = note.NoteNumber;
+                int startTime = GameMilliseconds(note.Time);
+                if (noteVal == DownbeatNote)
+                {
+                    // Add a new time signature if the previous number of beats was not the same as the current number of beats
+                    if ((prevDownbeat != 0 && numeratorCount != currTsNumerator) || (prevDownbeat == 0 && numeratorCount != 0))
+                    {
+                        newTimeSigs.Add(new TimeSig(prevDownbeat, numeratorCount, 4));
+                        currTsNumerator = numeratorCount;
+                    }
+                    prevDownbeat = startTime;
+                    numeratorCount = 0;
+                }
+                newFretbars.Add(startTime);
+                numeratorCount++;
+            }
+
+            Fretbars = newFretbars;
+            TimeSigs = newTimeSigs;
         }
         public static string FormatString(string inputString)
         {
@@ -2128,6 +2175,7 @@ namespace GH_Toolkit_Core.MIDI
             var scriptCompiled = CompileQbFile(skaScriptList, qbName, game:GAME_GH3, console:CONSOLE_PS2);
             return scriptCompiled;
         }
+        [DebuggerDisplay("{Time}: {Numerator}/{Denominator}")]
         public class TimeSig
         {
             public int Time { get; set; }

@@ -16,6 +16,7 @@ using System.Text.RegularExpressions;
 using System.Security.Policy;
 using System.Xml;
 using System.Text;
+using static GH_Toolkit_Core.Methods.Exceptions;
 
 /*
  * * This file is intended to be a collection of custom methods to read and create PAK files
@@ -854,10 +855,16 @@ namespace GH_Toolkit_Core.PAK
                 return relPath; 
             }
         }
-        public static string CreateSongPackage(string midiPath, string savePath, string songName, string game, string gameConsole, int hopoThreshold = 170, string skaPath = "", string perfOverride = "", string songScripts = "", string skaSource = "GHWT", string venueSource = "", bool rhythmTrack = false)
+        public static string CreateSongPackage(string midiPath, string savePath, string songName, string game, string gameConsole, int hopoThreshold = 170, string skaPath = "", string perfOverride = "", string songScripts = "", string skaSource = "GHWT", string venueSource = "", bool rhythmTrack = false, bool overrideBeat = false, int hopoType = 0)
         {
-            var midiFile = new SongQbFile(midiPath, songName: songName, game: game, console: gameConsole, hopoThreshold: hopoThreshold, perfOverride: perfOverride, songScriptOverride: songScripts, venueSource:venueSource, rhythmTrack: rhythmTrack);
+            var midiFile = new SongQbFile(midiPath, songName: songName, game: game, console: gameConsole, hopoThreshold: hopoThreshold, perfOverride: perfOverride, songScriptOverride: songScripts, venueSource:venueSource, rhythmTrack: rhythmTrack, overrideBeat: overrideBeat, hopoType: hopoType);
             var midQb = midiFile.ParseMidiToQb();
+            var errors = midiFile.GetErrorListAsString();
+
+            if (!string.IsNullOrEmpty(errors))
+            {
+                throw new MidiCompileException(errors);
+            }
 
             var saveName = Path.Combine(savePath, $"{songName}_{gameConsole}");
             string pakFolder = gameConsole == CONSOLE_PS2 ? "data\\songs" : "songs";

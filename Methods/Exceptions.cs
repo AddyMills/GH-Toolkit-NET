@@ -20,5 +20,11 @@ namespace GH_Toolkit_Core.Methods
         {
             public FloatParseException(string message) : base(message) { }
         }
+
+        // Custom exception class for MIDI compile errors
+        public class MidiCompileException : Exception
+        {
+            public MidiCompileException(string message) : base(message) { }
+        }
     }
 }
