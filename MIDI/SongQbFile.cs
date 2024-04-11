@@ -596,6 +596,14 @@ namespace GH_Toolkit_Core.MIDI
             }
             perfScripts.AddRange(Vocals.PerformanceScript);
             // Add Perf override function here
+            if (File.Exists(PerfOverride))
+            {
+                var perfOverride = PerformanceOverrideParsing(PerfOverride);
+                if (perfOverride != null)
+                {
+                    perfScripts.AddRange(perfOverride);
+                }
+            }
             perfScripts.Sort((x, y) => x.Item1.CompareTo(y.Item1));
             PerformanceScripts = new QBArrayNode();
             foreach (var script in perfScripts)
@@ -604,6 +612,64 @@ namespace GH_Toolkit_Core.MIDI
             }
             QBItem PerfScriptQb = new QBItem(songName, PerformanceScripts);
             return PerfScriptQb;
+        }
+        public List<(int, QBStructData)>? PerformanceOverrideParsing(string filePath)
+        {
+            string perfText = File.ReadAllText(filePath).Trim();
+            if (perfText == "")
+            {
+                return null;
+            }
+            perfText = CleanPerfOverride(perfText);
+            var qb = ParseQFile(perfText);
+            var perfScripts = new List<(int, QBStructData)>();
+
+            // This nested method looks icky, but I don't feel like refactoring right now.
+            // It works... so it's fine for now.
+            foreach (var qbItem in qb)
+            {
+                if (qbItem is QBItem qbItem2)
+                {
+                    if (qbItem2.Name == $"{SongName}_performance")
+                    {
+                        var qbStructData = qbItem2.Data as QBArrayNode;
+                        if (qbStructData != null)
+                        {
+                            foreach (var perfBlock in qbStructData.Items)
+                            {
+                                var perfEntry = perfBlock as QBStructData;
+                                if (perfEntry != null)
+                                {
+                                    int time = (int)perfEntry["time"];
+                                    perfScripts.Add((time, perfEntry));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return perfScripts;
+        }
+        public string CleanPerfOverride(string perfText)
+        {
+            perfText = perfText.ToLower();
+            if (perfText.StartsWith(LEFTBRACE))
+            {
+                perfText = $"{SongName}_performance = [\n{perfText}\n]";
+            }
+            else if (perfText.StartsWith(SONG_PERFORMANCE))
+            {
+                perfText = perfText.Replace(SONG_PERFORMANCE, $"{SongName}_performance");
+            }
+            else if (perfText.StartsWith($"{SongName}_performance"))
+            {
+                // Nothing to do here
+            }
+            else
+            {
+                throw new FormatException("Invalid performance override format");
+            }
+            return perfText;
         }
         // Method to generate the scripts for the instrument
         public List<(int, QBStructData)> InstrumentScripts(List<TimedEvent> events, string actor)

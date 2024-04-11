@@ -163,6 +163,9 @@ namespace GH_Toolkit_Core.QB
         public const string ANIM = "anim";
         public const string REPEAT_COUNT = "repeat_count";
 
+        // Compiling Constants
+        public const string SONG_PERFORMANCE = "song_performance";
+
         // Byte Constants
         public const byte NEWLINE_BYTE = 0x01;
         public const byte LEFTBRACE_BYTE = 0x03;

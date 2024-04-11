@@ -842,6 +842,15 @@ namespace GH_Toolkit_Core.QB
                         }
                         switch (c)
                         {
+                            case ',':
+                                if (currLevel.LevelType == ARRAY)
+                                {
+                                    continue;
+                                }
+                                else
+                                {
+                                    throw new Exception($"Comma found outside of array at {tmpKey}");
+                                }
                             case '\r':
                             case '\n':
                             case ' ':
@@ -1076,6 +1085,7 @@ namespace GH_Toolkit_Core.QB
                             case '\n':
                             case ' ':
                             case '\t':
+                            case ',':
                                 break;
                             case '{':
                                 AddLevel(ref currLevel, ref currItem, ParseState.inStruct, STRUCT, ref tmpKey);
