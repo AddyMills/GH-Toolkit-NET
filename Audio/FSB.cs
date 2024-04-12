@@ -50,6 +50,11 @@ namespace GH_Toolkit_Core.Audio
                 )
                 .ProcessAsynchronously();
             }
+            catch (FileNotFoundException ex)
+            {
+                File.Copy(audioPad48k128kbps, outputPath, true);
+                
+            }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error during conversion: {ex.Message}");
@@ -64,12 +69,26 @@ namespace GH_Toolkit_Core.Audio
         }
         public async Task MixFiles(string[] paths, string outputPath, string customArgument = "", string customPipe = "")
         {
-            if (paths.Length < 2)
+            if (paths.Length == 0)
+            {
+                File.Copy(audioPad48k128kbps, outputPath, true);
+            }
+            else if (paths.Length == 1)
             {
                 await ConvertToMp3(paths[0], outputPath); 
             }
             else
             {
+                List<string> files = new List<string>();
+                foreach (string path in paths)
+                {
+                    FileInfo fileInfo = new FileInfo(path);
+                    if (fileInfo.Length > 384)
+                    {
+                        files.Add(path);
+                    }
+                }
+                paths = files.ToArray();
                 // Build the FFmpeg arguments for mixing audio files.
                 // We use the amix filter to mix audio inputs into a single output.
                 string audioStreams = string.Join("", paths.Select((item, index) => $"[{index}:0]"));
@@ -148,11 +167,9 @@ namespace GH_Toolkit_Core.Audio
             File.WriteAllBytes(inputPath, paddedAudio);
             //return audio;
         }
-        public (string, string) CombineFSB3File(IEnumerable<string> audioFiles, string output)
+        public (int, List<FileInfo>) GetPaddedAudio(IEnumerable<string> audioFiles)
         {
             long maxSize = 0;
-            string fsbOut = output + ".fsb";
-            string datOut = output + ".dat";
             foreach (var file in audioFiles)
             {
                 // Create a new FileInfo object
@@ -169,6 +186,7 @@ namespace GH_Toolkit_Core.Audio
             {
                 throw new Exception("The input files are not CBR MP3 files.");
             }
+
             var filesThatExist = new List<FileInfo>();
             int totalSize = 0;
             foreach (var file in audioFiles)
@@ -191,6 +209,15 @@ namespace GH_Toolkit_Core.Audio
                 filesThatExist.Add(fileInfo);
                 totalSize += (int)fileInfo.Length;
             }
+            return (totalSize, filesThatExist);
+        }
+        public (string, string) CombineFSB3File(IEnumerable<string> audioFiles, string output)
+        {
+
+            string fsbOut = output + ".fsb";
+            string datOut = output + ".dat";
+
+            var (totalSize, filesThatExist) = GetPaddedAudio(audioFiles);
 
             using (var fsb = new FileStream(fsbOut, FileMode.Create, FileAccess.Write))
             using (var dat = new FileStream(datOut, FileMode.Create, FileAccess.Write))
@@ -235,7 +262,107 @@ namespace GH_Toolkit_Core.Audio
             return (fsbOut, datOut);
 
         }
-        public void FsbEntry(FileInfo file, Stream fsb, Stream audioBytes)
+        public string[] CombineFSB4File(IEnumerable<string> drumFiles, IEnumerable<string> otherFiles, IEnumerable<string> backingFiles, IEnumerable<string> previewFile, string output, bool encrypt = false)
+        {
+            string drumOut = output + "_1";
+            string otherOut = output + "_2";
+            string backingOut = output + "_3";
+            string previewOut = output + "_preview";
+
+            var outList = new List<string>() { drumOut, otherOut, backingOut, previewOut };
+
+            var fsbDict = new Dictionary<string, IEnumerable<string>>()
+            {
+                { drumOut, drumFiles },
+                { otherOut, otherFiles },
+                { backingOut, backingFiles },
+                { previewOut, previewFile }
+            };
+
+            var allFiles = drumFiles.Concat(otherFiles).Concat(backingFiles);
+            GetPaddedAudio(allFiles);
+
+            List<string> processed = new List<string>();
+
+            foreach (string outFile in outList)
+            {
+                string interleavedFile = outFile + "_interleaved.mp3";
+                string fsbOut = outFile + ".fsb";
+                var toInterleave = fsbDict[outFile].ToArray();
+                InterleaveMp3Files(toInterleave, interleavedFile);
+                FileInfo fileInfo = new FileInfo(interleavedFile);
+                using (var fsb = new FileStream(fsbOut, FileMode.Create, FileAccess.Write))
+                using (var fsbBytes = new MemoryStream())
+                using (var mp3Bytes = new MemoryStream())
+                {
+                    int fileCount = 1;
+                    fsbBytes.Write(Encoding.ASCII.GetBytes("FSB4"));
+                    int dirLength = FILEENTRYLEN;
+                    int fsbSize = (int)fileInfo.Length;
+
+                    fsb_writer.WriteInt32(fsbBytes, fileCount);
+                    fsb_writer.WriteInt32(fsbBytes, dirLength);
+
+                    fsb_writer.WriteInt32(fsbBytes, fsbSize);
+                    fsb_writer.WriteInt16(fsbBytes, 0); // Unknown flag, always 0
+                    fsb_writer.WriteInt16(fsbBytes, 4); // FSB type flag, always 4 for FSB4
+                    fsb_writer.WriteInt32(fsbBytes, 0); // Flags, always 0 for FSB4?
+                    fsb_writer.WriteInt32(fsbBytes, 0); // NullA, always 0
+                    fsb_writer.WriteInt32(fsbBytes, 0); // NullB, always 0
+
+                    fsbBytes.Write(Encoding.ASCII.GetBytes("--Made By Addy--"));
+
+                    FsbEntry(fileInfo, fsbBytes, mp3Bytes, true, (ushort)(toInterleave.Length * 2));
+                    
+                    fsbBytes.Write(mp3Bytes.ToArray());
+
+                    var fsbData = fsbBytes.ToArray();
+
+                    if (encrypt)
+                    {
+                        // Encrypt the FSB4 file
+                    }
+                    fsb.Write(fsbData);
+                }
+                processed.Add(fsbOut);
+                File.Delete(interleavedFile);
+            }
+            return processed.ToArray();
+        }
+        public static void InterleaveMp3Files(string[] filePaths, string outputFileName)
+        {
+            const int frameSize = 384; // For now. I may add support for other frame sizes later.
+            FileStream[] fileStreams = filePaths.Select(path => new FileStream(path, FileMode.Open, FileAccess.Read)).ToArray();
+            byte[] buffer = new byte[frameSize];
+            bool completed = false;
+
+            try
+            {
+                using (FileStream output = new FileStream(outputFileName, FileMode.Create, FileAccess.Write))
+                {
+                    while (!completed)
+                    {
+                        completed = true;
+                        foreach (var stream in fileStreams)
+                        {
+                            if (stream.Read(buffer, 0, frameSize) == frameSize)
+                            {
+                                output.Write(buffer, 0, frameSize);
+                                completed = false;
+                            }
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                foreach (var stream in fileStreams)
+                {
+                    stream.Close();
+                }
+            }
+        }
+        public void FsbEntry(FileInfo file, Stream fsb, Stream audioBytes, bool fsb4 = false, ushort channels = 2)
         {
             var fileName = file.Name;
             if (fileName.Length < 30)
@@ -249,12 +376,11 @@ namespace GH_Toolkit_Core.Audio
             int fileSize = (int)file.Length;
             int samplesLength = (int)file.Length / FRAMEBYTESIZE * FRAMESAMPLESIZE;
             int loopStart = 0;
-            int loopEnd = samplesLength - 1;
-            int mode = 576;
+            int loopEnd = fsb4 ? samplesLength - 878 : samplesLength - 1;
+            int mode = fsb4 ? 67109376 : 576;
             int sampleRate = 48000;
             (ushort volume, ushort priority) = (255, 255);
             ushort pan = 128;
-            ushort channels = 2;
             float minDistance = 1.0f;
             float maxDistance = 10000.0f;
             (int varFreq, ushort varVol, ushort varPan) = (0, 0, 0);

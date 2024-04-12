@@ -2282,6 +2282,7 @@ namespace GH_Toolkit_Core.MIDI
         }
         public byte[]? MakeSongScripts()
         {
+            // For non-ps2 games
             if (SongScriptOverride == null)
             {
                 return null;
@@ -2308,13 +2309,13 @@ namespace GH_Toolkit_Core.MIDI
         private string CleanSongScripts(string script)
         {
             script = script.ToLower();
-            if (!script.Contains($"{FEMALE_ANIM_STRUCT}_{SongName}"))
+            if (!script.Contains($"{FEMALE_ANIM_STRUCT}_{SongName} ="))
             {
-                script = script.Replace(FEMALE_ANIM_STRUCT, $"{FEMALE_ANIM_STRUCT}_{SongName}");
+                script = script.Replace($"{FEMALE_ANIM_STRUCT} =", $"{FEMALE_ANIM_STRUCT}_{SongName} =");
             }
             if (!script.Contains($"{MALE_ANIM_STRUCT}_{SongName}"))
             {
-                script = script.Replace(MALE_ANIM_STRUCT, $"{MALE_ANIM_STRUCT}_{SongName}");
+                script = script.Replace($"{MALE_ANIM_STRUCT} =", $"{MALE_ANIM_STRUCT}_{SongName} =");
             }
             return script;
         }
