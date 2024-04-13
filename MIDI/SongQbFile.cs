@@ -1267,10 +1267,14 @@ namespace GH_Toolkit_Core.MIDI
 
                 int openNotes = Game == GAME_GH3 || Game == GAME_GHA ? 0 : 1;
                 int drumsMode = !drums ? 0 : 1;
+                // Create performance scripts for the instrument
+                var timedEvents = trackChunk.GetTimedEvents().ToList();
+                var textEvents = timedEvents.Where(e => e.Event is TextEvent).ToList();
 
                 Dictionary<MidiTheory.NoteName, int> noteDict;
                 Dictionary<int, int> animDict = new Dictionary<int, int>();
                 Dictionary<int, int> drumAnimDict = new Dictionary<int, int>();
+                List<TimedEvent>? sysExEvents = null;
 
                 if (Game == GAME_GH3 || Game == GAME_GHA)
                 {
@@ -1292,6 +1296,7 @@ namespace GH_Toolkit_Core.MIDI
                 }
                 else
                 {
+                    sysExEvents = timedEvents.Where(e => e.Event is NormalSysExEvent).ToList();
                     noteDict = Gh4Notes;
                     try
                     {
@@ -1302,6 +1307,11 @@ namespace GH_Toolkit_Core.MIDI
                         animDict = leftHandMappingsWt[""];
                     }
 
+                }
+
+                if (sysExEvents != null)
+                {
+                    SplitSysEx(sysExEvents);
                 }
 
                 // Extract all notes from the track once
@@ -1316,9 +1326,7 @@ namespace GH_Toolkit_Core.MIDI
                 
                 // TapNotes = ProcessOtherSections(tapNotes, songQb, isTapNote:true);
 
-                // Create performance scripts for the instrument
-                var timedEvents = trackChunk.GetTimedEvents().ToList();
-                var textEvents = timedEvents.Where(e => e.Event is TextEvent).ToList();
+                
 
                 // Create performance scripts for the instrument, excludes the drummer if GH3 or GHA
                 if (((Game == GAME_GH3 || Game == GAME_GHA) && TrackName != DRUMS_NAME) || (Game != GAME_GH3 && Game != GAME_GHA))
@@ -1367,7 +1375,12 @@ namespace GH_Toolkit_Core.MIDI
                     Expert.ProcessDifficultyDrums(allNotes, ExpertNoteMin, ExpertNoteMax + 1, noteDict, openNotes, songQb, StarPowerPhrases, BattleStarPhrases);
 
                 }
+
                 FaceOffStar = Easy.FaceOffStar;
+            }
+            private void SplitSysEx(List<TimedEvent>? sysExEvents)
+            {
+
             }
             private List<AnimNote> InstrumentAnims(List<MidiData.Note> allNotes, int minNote, int maxNote, Dictionary<int, int> animDict, SongQbFile songQb, bool allowMultiTime = false)
             {
@@ -2432,7 +2445,7 @@ namespace GH_Toolkit_Core.MIDI
             {
                 diffName = name;
             }
-            public void ProcessDifficultyGuitar(List<MidiData.Note> allNotes, int minNote, int maxNote, Dictionary<MidiTheory.NoteName, int> noteDict, int openNotes, SongQbFile songQb, List<MidiData.Note> StarPowerPhrases, List<MidiData.Note> BattleStarPhrases, List<MidiData.Note> FaceOffStarPhrases = null)
+            public void ProcessDifficultyGuitar(List<MidiData.Note> allNotes, int minNote, int maxNote, Dictionary<MidiTheory.NoteName, int> noteDict, int openNotes, SongQbFile songQb, List<MidiData.Note> StarPowerPhrases, List<MidiData.Note> BattleStarPhrases, List<MidiData.Note> FaceOffStarPhrases = null, List<NormalSysExEvent>? sysExEvents = null)
             {
                 var notes = allNotes.Where(n => n.NoteNumber >= (minNote - openNotes) && n.NoteNumber <= maxNote).ToList();
                 //var chords = notes.GetChords().ToList();
@@ -2460,7 +2473,6 @@ namespace GH_Toolkit_Core.MIDI
                 var tapNotes = allNotes.Where(x => x.NoteNumber == TapNote).ToList();
                 foreach (var note in tapNotes)
                 {
-                    var tapUnder = chords.Where(x => x.Time >= note.Time && x.Time < note.EndTime).ToList();
                     var currTime = note.Time;
                     int startTime;
                     int endTime;
@@ -2468,6 +2480,7 @@ namespace GH_Toolkit_Core.MIDI
                     int noteCount = 0;
                     if (filterChords)
                     {
+                        var tapUnder = chords.Where(x => x.Time >= note.Time && x.Time < note.EndTime).ToList();
                         for (int i = 0; i < tapUnder.Count; i++)
                         {
                             var chord = tapUnder[i];
