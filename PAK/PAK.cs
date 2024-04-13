@@ -1017,6 +1017,12 @@ namespace GH_Toolkit_Core.PAK
             string songPrefix = gameConsole == CONSOLE_PS2 ? "" : "_song";
             var pakSave = Path.Combine(savePath, songName + $"{songPrefix}.pak{consoleExt}");
             File.WriteAllBytes(pakSave, pakData);
+
+            // Clean up the compile folder, just in case they want to compile for other games
+            // The games are grossly incompatible with each other
+            // Deleting the folder is safer
+            Directory.Delete(saveName, true);
+
             return pakSave;
         }
     }

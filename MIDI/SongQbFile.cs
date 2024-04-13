@@ -536,7 +536,21 @@ namespace GH_Toolkit_Core.MIDI
             }
 
             var cameraNotes = trackChunk.GetNotes().Where(x => x.NoteNumber >= minCamera && x.NoteNumber <= maxCamera).ToList();
-            if (Game != VenueSource)
+            
+            // The following checks are to normalize the game and venue source names
+            // Since GHWT and GHWoR are the same in terms of cameras
+            var venue = VenueSource;
+            if (venue == GAME_GHWOR) 
+            {                 
+                venue = GAME_GHWT;      
+            }
+            var game = Game;
+            if (game == GAME_GHWOR)
+            {
+                game = GAME_GHWT;
+            }
+
+            if (game != venue)
             {
                 Dictionary<int, int> cameraMap;
                 try
@@ -544,10 +558,13 @@ namespace GH_Toolkit_Core.MIDI
                     switch (Game)
                     {
                         case GAME_GH3:
-                            cameraMap = cameraToGh3[VenueSource];
+                            cameraMap = cameraToGh3[venue];
                             break;
                         case GAME_GHA:
-                            cameraMap = cameraToGha[VenueSource];
+                            cameraMap = cameraToGha[venue];
+                            break;
+                        case GAME_GHWT:
+                            cameraMap = cameraToGhwt[venue];
                             break;
                         default:
                             throw new NotImplementedException("Unknown game found");
@@ -758,7 +775,36 @@ namespace GH_Toolkit_Core.MIDI
         }
         public void ProcessLights(TrackChunk trackChunk)
         {
+            // The following checks are to normalize the game and venue source names
+            // Since GHWT and GHWoR are the same in terms of lights
+            // As are GH3 and GHA
+            var venue = VenueSource;
+            if (venue == GAME_GHWOR)
+            {
+                venue = GAME_GHWT;
+            }
+            else if (venue == GAME_GHA)
+            {
+                venue = GAME_GH3;
+            }
+
+            var game = Game;
+            if (game == GAME_GHWOR)
+            {
+                game = GAME_GHWT;
+            }
+            else if (game == GAME_GHA)
+            {
+                game = GAME_GH3;
+            }
+
             var lightNotes = trackChunk.GetNotes().ToList();
+
+            if (game != venue)
+            {
+                lightNotes = SwapLights(lightNotes, game);
+            }
+
             var textEvents = trackChunk.GetTimedEvents().ToList();
             bool hasNote107 = lightNotes.Any(x => x.NoteNumber == 107);
             List<AnimNote> lightAnimNotes = new List<AnimNote>();
@@ -803,6 +849,34 @@ namespace GH_Toolkit_Core.MIDI
                 LightshowScripts = lightArray;
             }
 
+        }
+        private List<MidiData.Note> SwapLights(List<MidiData.Note> notes, string game)
+        {
+            var toLights = lightSwapDict[game];
+            var newNotes = new List<MidiData.Note>();
+
+            bool isGh3 = game == GAME_GH3;
+            bool isPyro = false;
+            long prevTime = 0;
+
+            foreach(var note in notes)
+            {
+                if (toLights.TryGetValue(note.NoteNumber, out int newNote))
+                {
+                    if (isGh3 && isPyro && note.Time == prevTime)
+                    {
+                        continue;
+                    }
+                    isPyro = false;
+                    newNotes.Add(new MidiData.Note((SevenBitNumber)newNote, note.Length, note.Time));
+                    if (newNote == 56)
+                    {
+                        isPyro = true;
+                    }
+                    prevTime = note.Time;
+                }
+            }
+            return newNotes;
         }
         private QBArrayNode Gh3LightsNote107(List<MidiData.Note> notes)
         {
@@ -1305,6 +1379,10 @@ namespace GH_Toolkit_Core.MIDI
                 var prevNote = 0;
                 foreach (MidiData.Note note in notes)
                 {
+                    if (!animDict.ContainsKey(note.NoteNumber))
+                    {
+                        continue;
+                    }
                     int noteVal = animDict[note.NoteNumber];
                     int practiceNote = 0;
                     if (note.NoteNumber == DrumHiHatLeft || note.NoteNumber == DrumHiHatRight)
@@ -2128,6 +2206,14 @@ namespace GH_Toolkit_Core.MIDI
                 var currNote = notes[i];
                 // Get the notes that are contained within the current note
                 var containedNotes = notes.Where(n => n.Time > currNote.Time && n.Time < (currNote.Time + currNote.Length)).ToList();
+     
+
+                if (containedNotes.Count > 0)
+                {
+                    // If there are notes contained within the current note, adjust the length of the current note
+                    // to end at the start of the first contained note
+                    currNote.Length = containedNotes[0].Time - currNote.Time;
+                }
             }
         }
         private void MakeExtendedNotes(List<PlayNote> notes)
@@ -2421,6 +2507,10 @@ namespace GH_Toolkit_Core.MIDI
             }
             public void ProcessDifficultyDrums(List<MidiData.Note> allNotes, int minNote, int maxNote, Dictionary<MidiTheory.NoteName, int> noteDict, int openNotes, SongQbFile songQb, List<MidiData.Note> StarPowerPhrases, List<MidiData.Note> BattleStarPhrases, List<MidiData.Note> FaceOffStarPhrases = null)
             {
+                if (songQb.GetGame() == GAME_GH3 || songQb.GetGame() == GAME_GHA)
+                {
+                    return;
+                }
                 var notes = allNotes.Where(n => n.NoteNumber >= (minNote - openNotes) && n.NoteNumber <= maxNote);
 
                 //var chords = notes.GetChords().ToList();
@@ -2487,7 +2577,10 @@ namespace GH_Toolkit_Core.MIDI
                     notes.AddIntToArray(playNote.Length);
                     if ((!playNote.IsHopo && playNote.ForcedOn) || (playNote.IsHopo && playNote.ForcedOff))
                     {
-                        playNote.Note += GH3FORCE;
+                        if (BitOperations.IsPow2(playNote.Note)) // Can't have chords being hopos
+                        {
+                            playNote.Note += GH3FORCE;
+                        }  
                     }
                     notes.AddIntToArray(playNote.Note);
                 }
@@ -2507,7 +2600,7 @@ namespace GH_Toolkit_Core.MIDI
                 {
                     notes.AddIntToArray(playNote.Time);
 
-                    int noteData = playNote.Accents;  // Starts as the 8 MSBs.
+                    int noteData = playNote.Accents;
                     noteData <<= 1;  // Shift left to make space for hopoFlag.
                     noteData |= (playNote.IsHopo || playNote.ForcedOn) && !playNote.ForcedOff ? 1 : 0; // Add hopoFlag.
                     noteData <<= 6;  // Shift left to make space for noteString.
