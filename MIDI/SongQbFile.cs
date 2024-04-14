@@ -101,7 +101,7 @@ namespace GH_Toolkit_Core.MIDI
         public static bool RhythmTrack { get; set; }
         public static string? Game { get; set; }
         public static string? SongName { get; set; }
-        public static string? Console { get; set; }
+        public static string? GamePlatform { get; set; }
         public static bool OverrideBeat { get; set; }
         public static HopoType HopoMethod { get; set; }
         public Dictionary<string, string> QsList { get; set; } = new Dictionary<string, string>();
@@ -110,7 +110,7 @@ namespace GH_Toolkit_Core.MIDI
         {
             Game = game;
             SongName = songName;
-            Console = console;
+            GamePlatform = console;
             HopoThreshold = hopoThreshold;
             PerfOverride = perfOverride;
             SongScriptOverride = songScriptOverride;
@@ -133,7 +133,7 @@ namespace GH_Toolkit_Core.MIDI
         }
         public string GetConsole()
         {
-            return Console!;
+            return GamePlatform!;
         }
         public void AddToErrorList(string error)
         {
@@ -146,6 +146,14 @@ namespace GH_Toolkit_Core.MIDI
         public void AddTimedError(string error, string part, long ticks)
         {
             AddToErrorList($"{part}: {error} found at {TicksToMilliseconds(ticks) / 1000}");
+        }
+        private void WriteUsedTrack(string trackName)
+        {
+            Console.WriteLine($"Processing track: {trackName}");
+        }
+        private void SkipTrack(string trackName)
+        {
+            Console.WriteLine($"Skipping track: {trackName}");
         }
         public List<QBItem> ParseMidi()
         {
@@ -161,6 +169,7 @@ namespace GH_Toolkit_Core.MIDI
                 switch (trackName)
                 {
                     case PARTDRUMS:
+                        WriteUsedTrack(trackName);
                         Drums.MakeInstrument(trackChunk, this, drums: true);
                         if (Drums.AnimNotes.Count > 0)
                         {
@@ -169,47 +178,63 @@ namespace GH_Toolkit_Core.MIDI
                         }
                         break;
                     case PARTBASS:
+                        WriteUsedTrack(trackName);
                         Rhythm.MakeInstrument(trackChunk, this);
                         break;
                     case PARTGUITAR:
+                        WriteUsedTrack(trackName);
                         Guitar.MakeInstrument(trackChunk, this);
                         break;
                     case PARTGUITARCOOP:
+                        WriteUsedTrack(trackName);
                         GuitarCoop.MakeInstrument(trackChunk, this);
                         break;
                     case PARTRHYTHM:
+                        WriteUsedTrack(trackName);
                         RhythmCoop.MakeInstrument(trackChunk, this);
                         break;
                     case PARTAUX:
+                        WriteUsedTrack(trackName);
                         noAux = false;
                         Aux.MakeInstrument(trackChunk, this);
                         break;
                     case PARTVOCALS:
+                        WriteUsedTrack(trackName);
                         Vocals.MakeInstrument(trackChunk, this, LastEventTick);
                         break;
                     case CAMERAS:
+                        WriteUsedTrack(trackName);
                         ProcessCameras(trackChunk);
                         HasCameras = true;
                         break;
                     case LIGHTSHOW:
+                        WriteUsedTrack(trackName);
                         ProcessLights(trackChunk);
                         HasLights = true;
                         break;
                     case EVENTS:
+                        WriteUsedTrack(trackName);
                         ProcessEvents(trackChunk);
                         break;
                     case BEAT:
                         if (OverrideBeat)
                         {
+                            Console.WriteLine("Overriding fretbars with BEAT track");
                             ProcessBeat(trackChunk);
+                        }
+                        else
+                        {
+                            SkipTrack(trackName);
                         }
                         break;
                     default:
+                        SkipTrack(trackName);
                         break;
                 }
             }
             if (!HasCameras)
             {
+                Console.WriteLine("No camera track found, generating cameras");
                 var cameraGen = new CameraGenerator();
                 // create a slice of Fretbars grabbing every 8th entry
                 var cameraFretbars = Fretbars.Where((x, i) => i % 8 == 0).ToList();
@@ -217,11 +242,13 @@ namespace GH_Toolkit_Core.MIDI
             }
             if (!HasLights)
             {
+                Console.WriteLine("No lightshow track found, generating lightshow");
                 var lightGen = new LightShowGenerator();
                 LightshowNotes = lightGen.AutoGenLightshow(Fretbars, Markers, (Game == GAME_GH3 || Game == GAME_GHA));
             }
             if (!HasDrumAnims && (Game != GAME_GH3 || Game != GAME_GHA))
             {
+                Console.WriteLine("No drum animations found, generating drum animations");
                 var drumGen = new DrumAnimGenerator();
                 DrumsNotes = drumGen.AutoGenDrumAnims(Drums.Expert);
             }
@@ -341,7 +368,7 @@ namespace GH_Toolkit_Core.MIDI
         {
             var gameQb = ParseMidi();
             string songMid;
-            if (Console == CONSOLE_PS2)
+            if (GamePlatform == CONSOLE_PS2)
             {
                 songMid = $"data\\songs\\{SongName}.mid.qb";
             }
@@ -349,7 +376,7 @@ namespace GH_Toolkit_Core.MIDI
             {
                 songMid = $"songs\\{SongName}.mid.qb";
             }
-            byte[] bytes = CompileQbFile(gameQb, songMid, Game, Console);
+            byte[] bytes = CompileQbFile(gameQb, songMid, Game, GamePlatform);
             return bytes;
         }
         public List<QBItem> MakeBossBattleQb()
@@ -475,7 +502,7 @@ namespace GH_Toolkit_Core.MIDI
             QBArrayNode markerArray = new QBArrayNode();
             foreach (Marker marker in Markers)
             {
-                QBStructData markerEntry = marker.ToStruct(Console);
+                QBStructData markerEntry = marker.ToStruct(GamePlatform);
                 markerArray.AddStructToArray(markerEntry);
             }
             string markerName;
@@ -711,7 +738,7 @@ namespace GH_Toolkit_Core.MIDI
         {
             bool isOldGame = Game == GAME_GH3 || Game == GAME_GHA;
             bool isGtrOrSinger = actor == GUITARIST || actor == VOCALIST;
-            bool isGtrAndPs2 = actor == GUITARIST && Console == CONSOLE_PS2;
+            bool isGtrAndPs2 = actor == GUITARIST && GamePlatform == CONSOLE_PS2;
             var scriptArray = new List<(int, QBStructData)>();
             foreach (var timedEvent in events)
             {
@@ -1039,7 +1066,7 @@ namespace GH_Toolkit_Core.MIDI
         private QBStructData MakeNewWalkScript(int eventTime, string actor, string nodeType, string flagParams)
         {
             QBStructData? animParams = new QBStructData();
-            animParams.MakeWalkToNode(actor, nodeType, Console!);
+            animParams.MakeWalkToNode(actor, nodeType, GamePlatform!);
             if (flagParams != EMPTYSTRING)
             {
                 animParams.AddFlags(flagParams);
@@ -2242,11 +2269,12 @@ namespace GH_Toolkit_Core.MIDI
                                     }
 
                                     // Use the method to trim the lyric if it ends with specific suffixes
-                                    lyric = TrimEndIfMatched(lyric, RANGE_SHIFT_LYRIC, UNKNOWN_LYRIC, TALKIE_LYRIC, TALKIE_LYRIC2);
+                                    lyric = TrimEndIfMatched(lyric, RANGE_SHIFT_LYRIC, UNKNOWN_LYRIC);
 
                                     // After trimming, check if the specific cases for setting the note number need to be handled
                                     if (lyric.EndsWith(TALKIE_LYRIC) || lyric.EndsWith(TALKIE_LYRIC2))
                                     {
+                                        lyric = lyric.Substring(0, lyric.Length - 1);
                                         note.NoteNumber = (SevenBitNumber)26;
                                     }
                                     // Use the opportunity to set the note range since it must exclude the talkie notes
@@ -2766,7 +2794,7 @@ namespace GH_Toolkit_Core.MIDI
                 }
             }
 
-            var qbScriptFile = CompileQbFile(songScriptsQb, SongName + "_song_scripts", Game, Console);
+            var qbScriptFile = CompileQbFile(songScriptsQb, SongName + "_song_scripts", Game, GamePlatform);
 
             return qbScriptFile;
         }

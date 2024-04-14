@@ -53,12 +53,15 @@ namespace GH_Toolkit_Core.Audio
             }
             catch (FileNotFoundException ex)
             {
+                var outNoExt = Path.GetFileNameWithoutExtension(outputPath);
+                var textAfterUnderscore = outNoExt.Split('_').Last();
+                var properTitle = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(textAfterUnderscore);
+                Console.WriteLine($"{properTitle} track not found. Using blank audio.");
                 File.Copy(audioPad48k128kbps, outputPath, true);
-                
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error during conversion: {ex.Message}");
+                Console.WriteLine($"Error during conversion:\n{ex.Message}");
                 throw; // Rethrow the exception to handle it further up the call stack
             }
             
