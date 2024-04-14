@@ -62,9 +62,9 @@ namespace GH_Toolkit_Core.Audio
             }
             
         }
-        public async Task MakePreview(string[] paths, string outputPath, decimal startTime = 0, decimal trimDuration = 30, decimal fadeIn = 1, decimal fadeOut = 1)
+        public async Task MakePreview(string[] paths, string outputPath, decimal startTime = 0, decimal trimDuration = 30, decimal fadeIn = 1, decimal fadeOut = 1, decimal volume = -7)
         {
-            string trimFilter = $"[mixout]atrim=start={startTime}:duration={trimDuration},afade=t=in:st={startTime}:d={fadeIn},afade=t=out:st={startTime + trimDuration - 1}:d={fadeOut},volume=-7.0dB[final]";
+            string trimFilter = $"[mixout]atrim=start={startTime}:duration={trimDuration},afade=t=in:st={startTime}:d={fadeIn},afade=t=out:st={startTime + trimDuration - 1}:d={fadeOut},volume={volume}dB[final]";
             await MixFiles(paths, outputPath, trimFilter, "mixout");
         }
         public async Task MixFiles(string[] paths, string outputPath, string customArgument = "", string customPipe = "")

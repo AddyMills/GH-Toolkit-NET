@@ -79,6 +79,18 @@ namespace GH_Toolkit_Core.MIDI
         public const string DRUMS_NAME = "_drum";
         public const string VOCALS_NAME = "vocals";
 
+        public const string PARTDRUMS = "PART DRUMS";
+        public const string PARTGUITAR = "PART GUITAR";
+        public const string PARTRHYTHM = "PART RHYTHM";
+        public const string PARTGUITARCOOP = "PART GUITAR COOP";
+        public const string PARTBASS = "PART BASS";
+        public const string PARTAUX = "PART AUX";
+        public const string PARTVOCALS = "PART VOCALS";
+        public const string EVENTS = "EVENTS";
+        public const string BEAT = "BEAT";
+        public const string CAMERAS = "CAMERAS";
+        public const string LIGHTSHOW = "LIGHTSHOW";
+
         public const string GUITARIST = "guitarist";
         public const string BASSIST = "bassist";
         public const string DRUMMER = "drummer";
@@ -264,7 +276,16 @@ namespace GH_Toolkit_Core.MIDI
             {58, 84},
             {59, 84}
         };
-
+        public static Dictionary<string, string> trackNames = new Dictionary<string, string>
+        {
+            {GUITAR_NAME, PARTGUITAR},
+            {RHYTHM_NAME, PARTBASS},
+            {GUITARCOOP_NAME, PARTGUITARCOOP},
+            {RHYTHMCOOP_NAME, PARTRHYTHM},
+            {DRUMS_NAME, PARTDRUMS},
+            {VOCALS_NAME, PARTVOCALS},
+            {AUX_NAME, PARTAUX}
+        };
         public static Dictionary<string, Dictionary<int, int>> leftHandMappingsGh3 = new Dictionary<string, Dictionary<int, int>>
         {
             {GUITAR_NAME, leftHandGtr_gh3},
@@ -989,6 +1010,7 @@ namespace GH_Toolkit_Core.MIDI
             {GAME_GH3, wt_to_gh3_lights},
             {GAME_GHWT, gh3_to_wt_lights}
         };
+
 
         public enum Colours
         {

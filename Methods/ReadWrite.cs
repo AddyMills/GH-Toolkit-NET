@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using GH_Toolkit_Core.Checksum;
 using GH_Toolkit_Core.QB;
+using Ude;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using static GH_Toolkit_Core.QB.QBConstants;
 using static GH_Toolkit_Core.QB.QBScript;
@@ -866,6 +867,54 @@ namespace GH_Toolkit_Core.Methods
             else
             {
                 throw new NotSupportedException("The stream does not support seeking.");
+            }
+        }
+        public static string ReadFileWithCharsetGuess(string filePath)
+        {
+            CharsetDetector cdet = new CharsetDetector();
+            using (FileStream fs = File.OpenRead(filePath))
+            {
+                cdet.Feed(fs);
+                cdet.DataEnd();
+            }
+
+            if (cdet.Charset != null)
+            {
+                Console.WriteLine("Charset: {0}, confidence: {1}", cdet.Charset, cdet.Confidence);
+                using (StreamReader sr = new StreamReader(filePath, Encoding.GetEncoding(cdet.Charset)))
+                {
+                    return sr.ReadToEnd();
+                }
+            }
+            else
+            {
+                Console.WriteLine("Detection failed.");
+                return null;
+            }
+        }
+        public static string ReadFileContent(string filePath)
+        {
+            // First, try reading with UTF-8 encoding, if there are accented characters
+            // written as ANSI, it will default to '�' allowing for easier checking.
+            Encoding encoding = Encoding.UTF8;
+            string content = ReadWithEncoding(filePath, encoding);
+
+            // Check for �
+            if (content.Contains('�'))
+            {
+                // If misread characters are found, try using Default encoding (ANSI)
+                encoding = Encoding.Latin1;
+                content = ReadWithEncoding(filePath, encoding);
+            }
+
+            return content;
+        }
+
+        private static string ReadWithEncoding(string filePath, Encoding encoding)
+        {
+            using (var reader = new StreamReader(filePath, encoding))
+            {
+                return reader.ReadToEnd();
             }
         }
     }
