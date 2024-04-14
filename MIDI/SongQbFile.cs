@@ -1075,7 +1075,7 @@ namespace GH_Toolkit_Core.MIDI
                     {
                         case SECTION_EVENT:
                             bool inDict = SectionNames.SectionNamesDict.TryGetValue(eventData, out string? sectionName);
-                            string markerName = inDict ? sectionName! : FormatString(eventData);
+                            string markerName = inDict ? sectionName! : MakeMarkerNameFromVariable(eventData);
                             Markers.Add(new Marker(eventTime, markerName));
                             break;
                         case CROWD_EVENT:
@@ -1086,6 +1086,11 @@ namespace GH_Toolkit_Core.MIDI
                                 {
                                     CrowdNotes.Add(new AnimNote(eventTime, crowdDict[SURGE_FAST], 100, 100));
                                 }
+                                
+                            }
+                            if (eventData == THE_END && Game != GAME_GH3)
+                            {
+                                Markers.Add(new Marker(eventTime, "_ENDOFSONG"));
                             }
                             break;
                     }
@@ -1129,7 +1134,7 @@ namespace GH_Toolkit_Core.MIDI
             Fretbars = newFretbars;
             TimeSigs = newTimeSigs;
         }
-        public static string FormatString(string inputString)
+        public static string MakeMarkerNameFromVariable(string inputString)
         {
             string formattedString = inputString.Replace("_", " ");
             formattedString = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(formattedString.ToLower());
