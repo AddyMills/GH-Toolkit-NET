@@ -1433,6 +1433,10 @@ namespace GH_Toolkit_Core.MIDI
                         {16, 80},
                         {32, 73}
                     };
+                    if (drums.PlayNotes == null)
+                    {
+                        return drumAnims;
+                    }
                     foreach (var drumNote in drums.PlayNotes)
                     {
                         foreach (var note in zeroToFive)
