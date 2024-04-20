@@ -3463,7 +3463,11 @@ namespace GH_Toolkit_Core.MIDI
         }
         private void SetMidiInfo(string midiPath)
         {
-            SongMidiFile = MidiFile.Read(midiPath);
+            ReadingSettings readingSettings = new ReadingSettings
+            {
+                TextEncoding = Encoding.Latin1
+            };
+            SongMidiFile = MidiFile.Read(midiPath, readingSettings);
             var timeDivision = SongMidiFile.TimeDivision;
             if (timeDivision is TicksPerQuarterNoteTimeDivision ticksPerQuarterNoteTimeDivision)
             {
