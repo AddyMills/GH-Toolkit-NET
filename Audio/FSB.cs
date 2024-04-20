@@ -387,12 +387,12 @@ namespace GH_Toolkit_Core.Audio
                 fileName = fileName.Substring(0, 30);
             }
             int fileSize = (int)file.Length;
-            int samplesLength = (int)file.Length / FRAMEBYTESIZE * FRAMESAMPLESIZE;
+            int samplesLength = (int)file.Length / FRAMEBYTESIZE * FRAMESAMPLESIZE / (channels / 2);
             int loopStart = 0;
             int loopEnd = fsb4 ? samplesLength - 878 : samplesLength - 1;
             int mode = fsb4 ? 67109376 : 576;
             int sampleRate = 48000;
-            (ushort volume, ushort priority) = (255, 255);
+            (ushort volume, ushort priority) = (255, 128);
             ushort pan = 128;
             float minDistance = 1.0f;
             float maxDistance = 10000.0f;
