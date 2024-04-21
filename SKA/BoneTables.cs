@@ -794,6 +794,13 @@ namespace GH_Toolkit_Core.SKA
             {127, "bone_ik_hand_slave_r"}
         };
 
+        public static readonly Dictionary<int, string> CAMERA_NUM = new Dictionary<int, string>
+        {
+            {0, "control_root"},
+            {1, "camera1"},
+            {2, "camera2"}
+        };
+
         public static readonly Dictionary<string, int> GH3_SINGER_NAME = GH3_SINGER_NUM.ToDictionary(kv => kv.Value, kv => kv.Key);
         public static readonly Dictionary<string, int> GH3_SINGER_PS2_NAME = GH3_SINGER_PS2_NUM.ToDictionary(kv => kv.Value, kv => kv.Key);
         public static readonly Dictionary<string, int> GH3_GUITARIST_NAME = GH3_GUITARIST_NUM.ToDictionary(kv => kv.Value, kv => kv.Key);
@@ -801,6 +808,7 @@ namespace GH_Toolkit_Core.SKA
         public static readonly Dictionary<string, int> STEVE_NAME = STEVE_NUM.ToDictionary(kv => kv.Value, kv => kv.Key);
         public static readonly Dictionary<string, int> DMC_NAME = DMC_NUM.ToDictionary(kv => kv.Value, kv => kv.Key);
         public static readonly Dictionary<string, int> WT_NAME = WT_NUM.ToDictionary(kv => kv.Value, kv => kv.Key);
+        public static readonly Dictionary<string, int> CAMERA_NAME = CAMERA_NUM.ToDictionary(kv => kv.Value, kv => kv.Key);
 
         public static readonly (Dictionary<int, string> bonesNum, Dictionary<string, int> bonesName) GH3_SINGER_DATA = (GH3_SINGER_NUM, GH3_SINGER_NAME);
         public static readonly (Dictionary<int, string> bonesNum, Dictionary<string, int> bonesName) GH3_SINGER_PS2_DATA = (GH3_SINGER_PS2_NUM, GH3_SINGER_PS2_NAME);
@@ -809,6 +817,7 @@ namespace GH_Toolkit_Core.SKA
         public static readonly (Dictionary<int, string> bonesNum, Dictionary<string, int> bonesName) STEVE_DATA = (STEVE_NUM, STEVE_NAME);
         public static readonly (Dictionary<int, string> bonesNum, Dictionary<string, int> bonesName) DMC_DATA = (DMC_NUM, DMC_NAME);
         public static readonly (Dictionary<int, string> bonesNum, Dictionary<string, int> bonesName) WT_DATA = (WT_NUM, WT_NAME);
+        public static readonly (Dictionary<int, string> bonesNum, Dictionary<string, int> bonesName) CAMERA_DATA = (CAMERA_NUM, CAMERA_NAME);
 
         public static readonly Dictionary<string, (Dictionary<int, string> bonesNum, Dictionary<string, int> bonesName)> ALL_DATA = new Dictionary<string, (Dictionary<int, string> bonesNum, Dictionary<string, int> bonesName)>
         {
@@ -818,7 +827,8 @@ namespace GH_Toolkit_Core.SKA
             {SKELETON_GHA_SINGER, GHA_SINGER_DATA},
             {SKELETON_STEVE, STEVE_DATA},
             {SKELETON_DMC_SINGER, DMC_DATA},
-            {SKELETON_WT_ROCKER, WT_DATA}
+            {SKELETON_WT_ROCKER, WT_DATA},
+            {SKELETON_CAMERA, CAMERA_DATA}
         };
     }
 }

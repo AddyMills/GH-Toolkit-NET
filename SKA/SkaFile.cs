@@ -97,6 +97,7 @@ namespace GH_Toolkit_Core.SKA
         internal float UnknownFloatC { get; set; }
         internal int NewBones { get; set; }
         internal uint NewFlags { get; set; }
+        internal Dictionary<int, Dictionary<ushort, int>> NewBonePointers { get; set; } = new Dictionary<int, Dictionary<ushort, int>>();
 
         public SkaFile()
         {
@@ -201,6 +202,17 @@ namespace GH_Toolkit_Core.SKA
                 if (HasPartialAnim)
                 {
                     ReadPartialAnim(stream);
+                }
+                else if (SkeletonType == SKELETON_CAMERA)
+                {
+                    for (int i = 0; i < NumBones; i++)
+                    {
+                        AnimFlags.Add(i);
+                    }
+                }
+                else
+                {
+                    throw new NotImplementedException("Partial anim data not found.");
                 }
                 ReadQuatData(stream);
                 ReadTransData(stream);
@@ -469,11 +481,13 @@ namespace GH_Toolkit_Core.SKA
                         {
                             quatTime = _rw.ReadUInt16(stream);
                             (quatX, quatY, quatZ) = ReadQuatUncompXYZ(stream);
+                            if (quatTime == DEADDEAD)
+                            {
+                                boneEnd += 8; // For all bytes just read
+                                continue;
+                            }
                         }
-                        if (quatTime != DEADDEAD)
-                        {
-                            QuatData[i].Add(new BoneFrameQuat((ushort)quatTime, quatX, quatY, quatZ));
-                        }
+                        QuatData[i].Add(new BoneFrameQuat((ushort)quatTime, quatX, quatY, quatZ));
                     }
                 }
             }
@@ -705,12 +719,56 @@ namespace GH_Toolkit_Core.SKA
                 else
                 {
                     keyMod = 0;
-                    throw new NotImplementedException("Other key types not yet supported.");
+                    throw new NotImplementedException($"Camera key type {keyType} not yet supported.");
                 }
                 CustomKeys.Add(new CustomKey(keyTime, keyType, keyValue, keyMod));
             }
         }
+        /// <summary>
+        /// Create the Custom Keys for the SKA file and writes them to a stream.
+        /// </summary>
+        /// <param name="stream"></param>
+        /// <exception cref="NotImplementedException"></exception>
+        public void MakeCustomKeys(MemoryStream stream)
+        {
+            foreach (var key in CustomKeys)
+            {
+                _rw.WriteFloat(stream, key.KeyTime);
+                _rw.WriteInt32(stream, key.KeyType);
+                _rw.WriteInt32(stream, key.KeyValue);
+                if (key.KeyType == 1)
+                {
+                    _rw.WriteFloat(stream, key.KeyMod);
+                }
+                else
+                {
+                    throw new NotImplementedException($"Camera key type {key.KeyType} not yet supported.");
+                }
+            }
+        }
 
+        private void WritePointerBlock(MemoryStream stream, int headerOffset)
+        {
+            int baseOffset = 80;
+            List<int> pointerBlockOffsets = new List<int>();
+            List<int> pointerData = new List<int>();
+            for (int i = 0; i < POINTER_BLOCK_AMOUNT; i++)
+            {
+                pointerBlockOffsets.Add(i * NumBones * 4 + baseOffset);
+                for (int j = 0; j < NewBones; j++)
+                {
+                    var oldPointerBone = BonePointerData[j][i].frame;
+                    var newPointerValue = NewBonePointers[j][oldPointerBone];
+                    pointerData.Add(newPointerValue);
+                }
+            }
+            pointerBlockOffsets.AddRange(pointerData);
+            foreach (var offset in pointerBlockOffsets)
+            {
+                _rw.WriteInt32(stream, offset);
+            }
+
+        }
         /// <summary>
         /// Checks the flags of the SKA file.
         /// </summary>
@@ -1103,9 +1161,13 @@ namespace GH_Toolkit_Core.SKA
 
             foreach (var bone in newAnimBones)
             {
+                NewBonePointers[bone] = new Dictionary<ushort, int>();
+                var boneEntry = NewBonePointers[bone];
+                
                 long boneStart = quatStream.Length;
                 foreach (var frame in quatData[bone])
                 {
+                    boneEntry[frame.FrameTime] = (int)quatStream.Length;
                     if (compressedData)
                     {
                         WriteCompressedQuat(quatStream, frame);
@@ -1317,6 +1379,11 @@ namespace GH_Toolkit_Core.SKA
         {
             var oldBones = ALL_DATA[SkeletonType];
             var newBones = ALL_DATA[convertTo];
+            if (SkeletonType == SKELETON_CAMERA)
+            {
+                newBones = ALL_DATA[SKELETON_CAMERA];
+            }
+            
             int newBonesCount = newBones.bonesNum.Count;
 
             var newAnimFlags = new List<int>();
@@ -1339,6 +1406,10 @@ namespace GH_Toolkit_Core.SKA
         }
         public byte[]? WriteGh3StyleSka(string convertTo, float quatMultiplier = 1) // For GH3 and GHA
         {
+            if (SkeletonType == SKELETON_CAMERA)
+            {
+                return [];
+            }
             var (newQuatData, newTransData, newAnimFlags, newBones, quatFrames, transFrames, customKeys) = InitializeAnimationData(convertTo, quatMultiplier);
 
             NewBones = newBones;
@@ -1420,13 +1491,24 @@ namespace GH_Toolkit_Core.SKA
 
             NewBones = newBones;
 
-            var floatValues = new float[][]
+
+            float[][] floatValues;
+            
+            // Use the float values provided, or use the default values if they are not provided
+            if (FloatValues.Length == 4)
             {
-                [0f, 0f, 0f, 1f],
-                [-0.5f, -0.5f, -0.5f, 0.5f],
-                [0f, 0f, 0f, 1f],
-                [-0.5f, -0.5f, -0.5f, 0.5f]
-            };
+                floatValues = FloatValues;
+            }
+            else
+            {
+                floatValues =
+                [
+                    [0f, 0f, 0f, 1f],
+                    [-0.5f, -0.5f, -0.5f, 0.5f],
+                    [0f, 0f, 0f, 1f],
+                    [-0.5f, -0.5f, -0.5f, 0.5f]
+                ];
+            }
 
             if (game == GAME_GHWT)
             {
@@ -1448,23 +1530,69 @@ namespace GH_Toolkit_Core.SKA
             using (var quatBoneCountBytes = new MemoryStream())
             using (var transBytes = new MemoryStream())
             using (var transBoneCountBytes = new MemoryStream())
+            using (var customKeyBytes = new MemoryStream())
+            using (var bonePointerBytes = new MemoryStream())
             using (var partialAnimBytes = new MemoryStream()) // No camera support yet, so it's always assumed to have one
             {
+                int headerLen = SKA_BOUNDARY * 2;
                 bool compressedData = game == GAME_GHWT;
                 QuatDataToBytes(quatBytes, quatBoneCountBytes, newQuatData, newAnimFlags, compressedData);
                 TransDataToBytes(transBytes, transBoneCountBytes, newTransData, newAnimFlags, compressedData);
-                MakePartialAnim(partialAnimBytes, newAnimFlags);
+                if (HasPartialAnim)
+                {
+                    MakePartialAnim(partialAnimBytes, newAnimFlags);
+                }
+                MakeCustomKeys(customKeyBytes);
+                if (BonePointerData.Count > 0)
+                {
+                    WritePointerBlock(bonePointerBytes, headerLen);
+                }
 
-                int totalFileSize = (SKA_BOUNDARY * 2) + (int)quatBytes.Length + (int)transBytes.Length + (int)quatBoneCountBytes.Length + (int)transBoneCountBytes.Length + (int)partialAnimBytes.Length;
-                int partialPos = totalFileSize - (int)partialAnimBytes.Length;
-                int transSizePos = partialPos - (int)transBoneCountBytes.Length;
+                int quatLen = (int)quatBytes.Length;
+                int transLen = (int)transBytes.Length;
+                int quatBoneCountLen = (int)quatBoneCountBytes.Length;
+                int transBoneCountLen = (int)transBoneCountBytes.Length;
+                int partialAnimLen = (int)partialAnimBytes.Length;
+                int customKeyLen = (int)customKeyBytes.Length;
+                int bonePointerLen = (int)bonePointerBytes.Length;
+
+                int totalFileSize = headerLen + quatLen + transLen + quatBoneCountLen + transBoneCountLen + partialAnimLen + customKeyLen + bonePointerLen;
+
+                int currPos = totalFileSize;
+
+                currPos -= bonePointerLen;
+
+                int bonePointPos = currPos;
+                if (bonePointerLen == 0)
+                {
+                    bonePointPos = -1;
+                }
+
+                currPos -= partialAnimLen;
+
+                int partialPos = currPos;
+                if (partialAnimLen == 0)
+                {
+                    partialPos = -1;
+                }
+
+                currPos -= customKeyLen;
+
+                int customKeysPos = currPos;
+                if (customKeys == 0)
+                {
+                    customKeysPos = -1;
+                }
+
+                currPos -= transBoneCountLen;
+                int transSizePos = currPos;
                 int quatSizePos = transSizePos - (int)quatBoneCountBytes.Length;
                 int transDataPos = quatSizePos - (int)transBytes.Length;
                 int quatDataPos = transDataPos - (int)quatBytes.Length;
                 _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(totalFileSize));
                 _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(ANIM_START));
                 _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(0)); // Should be int
-                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(-1)); // BonePointer number
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(bonePointPos)); // BonePointer number
                 _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(-1)); // Unk_b number
                 _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(-1)); // Unk_c number
                 _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(partialPos));
@@ -1483,7 +1611,7 @@ namespace GH_Toolkit_Core.SKA
                 }
                 _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex((ushort)transFrames));
                 _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex((ushort)customKeys));
-                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(-1)); // Custom Keys, not supported yet
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(customKeysPos));
                 _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(quatDataPos));
                 _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(transDataPos));
                 _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(quatSizePos));
@@ -1495,7 +1623,9 @@ namespace GH_Toolkit_Core.SKA
                 ReadWrite.AppendStream(totalFile, transBytes);
                 ReadWrite.AppendStream(totalFile, quatBoneCountBytes);
                 ReadWrite.AppendStream(totalFile, transBoneCountBytes);
+                ReadWrite.AppendStream(totalFile, customKeyBytes);
                 ReadWrite.AppendStream(totalFile, partialAnimBytes);
+                ReadWrite.AppendStream(totalFile, bonePointerBytes);
 
                 return totalFile.ToArray();
             }            
