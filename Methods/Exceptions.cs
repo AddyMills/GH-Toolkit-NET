@@ -26,5 +26,11 @@ namespace GH_Toolkit_Core.Methods
         {
             public MidiCompileException(string message) : base(message) { }
         }
+
+        // Custom exception calss for Q File parsing errors
+        public class QFileParseException : Exception
+        {
+            public QFileParseException(string message) : base(message) { }
+        }
     }
 }
