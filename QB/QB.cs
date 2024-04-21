@@ -758,7 +758,7 @@ namespace GH_Toolkit_Core.QB
                                     HandleStructFlag(ref i, ref tmpKey, currLevel);
                                     break;
                                 }
-                                throw new Exception($"QB Item Key {tmpKey} found without any data!");
+                                throw new QFileParseException($"QB Item Key {tmpKey} found without any data!");
                             case ' ':
                             case '\t':
                                 if (tmpKey == SCRIPTKEY)
@@ -796,7 +796,7 @@ namespace GH_Toolkit_Core.QB
                                     }
                                     else
                                     {
-                                        throw new NotSupportedException($"No equals sign found between two values at {tmpKey}");
+                                        throw new QFileParseException($"No equals sign found between two values at {tmpKey}");
                                     }
                                 }
                                 else
@@ -851,17 +851,22 @@ namespace GH_Toolkit_Core.QB
                                 {
                                     continue;
                                 }
+                                else if (currLevel.LevelType == SCRIPT)
+                                {
+                                    tmpValue += c;
+                                }
                                 else
                                 {
-                                    throw new Exception($"Comma found outside of array at {tmpKey}");
+                                    throw new QFileParseException($"Comma found outside of array or script at character {i}");
                                 }
+                                break;
                             case '\r':
                             case '\n':
                             case ' ':
                             case '\t':
                                 if (tmpValue == "" && currLevel.LevelType != SCRIPT)
                                 {
-                                    throw new Exception($"QB Item Key {tmpKey} found without any data!");
+                                    throw new QFileParseException($"QB Item Key {tmpKey} found without any data!");
                                 }
                                 else if (tmpValue == "" && currLevel.LevelType == SCRIPT)
                                 {
@@ -902,7 +907,7 @@ namespace GH_Toolkit_Core.QB
                                     }
                                     else
                                     {
-                                        throw new NotSupportedException($"Unsupported character '(' in value of {tmpKey}");
+                                        throw new QFileParseException($"Unsupported character '(' in value of {tmpKey}");
                                     }
                                 }
                                 break;
@@ -917,7 +922,7 @@ namespace GH_Toolkit_Core.QB
                                     }
                                     else
                                     {
-                                        throw new NotSupportedException($"'{c}' found where it shouldn't be!");
+                                        throw new QFileParseException($"'{c}' found where it shouldn't be!");
                                     }
                                 }
                                 AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
@@ -964,7 +969,7 @@ namespace GH_Toolkit_Core.QB
                                 }
                                 else
                                 {
-                                    throw new NotSupportedException("Closing bracket } found outside of struct!");
+                                    throw new QFileParseException("Closing bracket } found outside of struct!");
                                 }
                                 
                                 break;
@@ -983,7 +988,7 @@ namespace GH_Toolkit_Core.QB
                                 }
                                 else
                                 {
-                                    throw new NotSupportedException("Closing brace ] found outside of array!");
+                                    throw new QFileParseException("Closing brace ] found outside of array!");
                                 }
                                 break;
                             case '\\':
@@ -993,7 +998,7 @@ namespace GH_Toolkit_Core.QB
                                 }
                                 else
                                 {
-                                    throw new NotSupportedException("\\ character found outside of string or script!");
+                                    throw new QFileParseException("\\ character found outside of string or script!");
                                 }
                                 break;
                             default:
@@ -1071,7 +1076,7 @@ namespace GH_Toolkit_Core.QB
                                     AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
                                     break;
                                 }
-                                throw new NotSupportedException("Unknown value found in Pair/Vector value");
+                                throw new QFileParseException("Unknown value found in Pair/Vector value");
                         }
                         break;
                     case ParseState.inArray:
@@ -1137,7 +1142,7 @@ namespace GH_Toolkit_Core.QB
                             case '"':
                                 if (escaped || currLevel.StringType == StringType.isString)
                                 {
-                                    throw new NotSupportedException("Double quotes cannot appear in strings");
+                                    throw new QFileParseException("Double quotes cannot appear in strings");
                                 }
                                 else
                                 {

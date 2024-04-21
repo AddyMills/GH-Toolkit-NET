@@ -636,7 +636,7 @@ namespace GH_Toolkit_Core.PAK
                     Writer = new ReadWrite("big");
                 }
             }
-            public (byte[]? itemData, byte[]? otherData, string console) CompilePAK(string folderPath, string console = "")
+            public (byte[]? itemData, byte[]? otherData) CompilePAK(string folderPath, string console = "")
             {
                 if (!Directory.Exists(folderPath))
                 {
@@ -681,11 +681,27 @@ namespace GH_Toolkit_Core.PAK
                         string qbName;
                         if (Path.GetExtension(entry) == DOT_Q)
                         {
-                            List<QBItem> qBItems = ParseQFile(entry);
+                            List<QBItem> qBItems;
+                            try
+                            {
+                                qBItems = ParseQFile(entry);
+                                
+                            }
+                            catch (QFileParseException ex)
+                            {
+                                Console.WriteLine($"{relPath}: {ex.Message}");
+                                throw;
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine("Q File compilation failed");
+                                Console.WriteLine($"{relPath}: {ex.Message}");
+                                throw;
+                            }
+                            //AddConsoleExt(ref relPath);
                             relPath += "b";
                             qbName = isPs2 ? DebugReader.Ps2PakString(relPath) : relPath;
                             fileData = CompileQbFile(qBItems, qbName, game: Game, console: ConsoleType!);
-                            //AddConsoleExt(ref relPath);
                         }
                         else if ((Path.GetExtension(entry) == DOT_QB))
                         {
@@ -719,7 +735,7 @@ namespace GH_Toolkit_Core.PAK
                 
                 var (pakData, pabData) = CompilePakEntries(PakEntries);
                 
-                return (pakData, pabData, ConsoleType);
+                return (pakData, pabData);
 
             }
             public (byte[], byte[]?) CompilePakEntries(List<PakEntry> PakEntries)
@@ -1013,7 +1029,7 @@ namespace GH_Toolkit_Core.PAK
                 }
             }
             var pakCompiler = new PAK.PakCompiler(game: game, console: gameConsole);
-            var (pakData, pabData, otherData) = pakCompiler.CompilePAK(saveName);
+            var (pakData, pabData) = pakCompiler.CompilePAK(saveName);
             string songPrefix = gameConsole == CONSOLE_PS2 ? "" : "_song";
             var pakSave = Path.Combine(savePath, songName + $"{songPrefix}.pak{consoleExt}");
             File.WriteAllBytes(pakSave, pakData);
