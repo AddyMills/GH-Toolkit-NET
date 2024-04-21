@@ -977,7 +977,10 @@ namespace GH_Toolkit_Core.PAK
                     {
                         throw new NotImplementedException("Game type not supported yet.");
                     }
-                    File.WriteAllBytes(skaSave, convertedSka);
+                    if (convertedSka.Length > 0)
+                    {
+                        File.WriteAllBytes(skaSave, convertedSka);
+                    }
                 }
 
                 if (skaScripts != null)
