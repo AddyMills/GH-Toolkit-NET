@@ -871,7 +871,22 @@ namespace GH_Toolkit_Core.PAK
                 return relPath; 
             }
         }
-        public static string CreateSongPackage(string midiPath, string savePath, string songName, string game, string gameConsole, int hopoThreshold = 170, string skaPath = "", string perfOverride = "", string songScripts = "", string skaSource = "GHWT", string venueSource = "", bool rhythmTrack = false, bool overrideBeat = false, int hopoType = 0)
+        public static string CreateSongPackage(string midiPath, 
+            string savePath, 
+            string songName, 
+            string game, 
+            string gameConsole,  
+            string skaPath = "", 
+            string perfOverride = "", 
+            string songScripts = "", 
+            string skaSource = "GHWT", 
+            string venueSource = "",
+            int hopoThreshold = 170,
+            int hopoType = 0,
+            bool rhythmTrack = false, 
+            bool overrideBeat = false,
+            bool isSteven = false
+            )
         {
             var midiFile = new SongQbFile(midiPath, songName: songName, game: game, console: gameConsole, hopoThreshold: hopoThreshold, perfOverride: perfOverride, songScriptOverride: songScripts, venueSource:venueSource, rhythmTrack: rhythmTrack, overrideBeat: overrideBeat, hopoType: hopoType);
             var midQb = midiFile.ParseMidiToQb();
@@ -937,7 +952,7 @@ namespace GH_Toolkit_Core.PAK
                             }
                             break;
                         case GAME_GHA:
-                            skaType = isGuitarist ? SKELETON_GH3_GUITARIST : SKELETON_GHA_SINGER;
+                            skaType = isGuitarist ? SKELETON_GH3_GUITARIST : (isSteven ? SKELETON_STEVE : SKELETON_GHA_SINGER);
                             break;
                         case GAME_GHWT:
                             skaType = SKELETON_WT_ROCKER;
