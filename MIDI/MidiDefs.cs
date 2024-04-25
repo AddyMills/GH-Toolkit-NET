@@ -126,7 +126,10 @@ namespace GH_Toolkit_Core.MIDI
 
         // Guitar Hero 3 crowd names
         public const string SURGE_FAST = "surge_fast";
+        public const string SURGE_FAST_OVERRIDE = "surge_fast_override";
         public const string SURGE_SLOW = "surge_slow";
+        public const string SURGE_SLOW_OVERRIDE = "surge_slow_override";
+        public const string APPLAUSE_OVERRIDE = "applause_override";
 
         // Common Crowd names
         public const string APPLAUSE = "applause";
@@ -485,8 +488,11 @@ namespace GH_Toolkit_Core.MIDI
         public static Dictionary<string, int> crowdMapGh3 = new Dictionary<string, int>
         {
             {APPLAUSE, 75},
+            {APPLAUSE_OVERRIDE, 72 },
             {SURGE_FAST, 76},
+            {SURGE_FAST_OVERRIDE, 73 },
             {SURGE_SLOW, 77},
+            {SURGE_SLOW_OVERRIDE, 74},
             {MUSIC_END, 75},
             {MUSIC_START, 76},
             {CODA, 79},
@@ -506,8 +512,11 @@ namespace GH_Toolkit_Core.MIDI
         public static Dictionary<string, int> crowdMapWt = new Dictionary<string, int>
         {
             {APPLAUSE, 83},
+            {APPLAUSE_OVERRIDE, 83 },
             {SURGE_FAST, 87},
+            {SURGE_FAST_OVERRIDE, 87 },
             {SURGE_SLOW, 89},
+            {SURGE_SLOW_OVERRIDE, 89},
             {MUSIC_END, 84},
             {MUSIC_START, 76},
             {CODA, 87},

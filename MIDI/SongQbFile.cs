@@ -85,6 +85,7 @@ namespace GH_Toolkit_Core.MIDI
         public List<(int, QBStructData)> CameraTimedScripts { get; set; } = new List<(int, QBStructData)>();
         public QBArrayNode? LightshowScripts { get; set; }
         public QBArrayNode? CrowdScripts { get; set; }
+        public List<(int, QBStructData)> CrowdTimedScripts { get; set; } = new List<(int, QBStructData)>();
         public QBArrayNode? DrumsScripts { get; set; }
         public QBArrayNode? PerformanceScripts { get; set; }
         public List<Marker>? Markers { get; set; }
@@ -712,6 +713,7 @@ namespace GH_Toolkit_Core.MIDI
                 }
             }
             perfScripts.AddRange(CameraTimedScripts);
+            perfScripts.AddRange(CrowdTimedScripts);
             perfScripts.Sort((x, y) => x.Item1.CompareTo(y.Item1));
             PerformanceScripts = new QBArrayNode();
             foreach (var script in perfScripts)
@@ -1104,6 +1106,10 @@ namespace GH_Toolkit_Core.MIDI
             for (int i = 0; i < dataSplit.Length; i++)
             {
                 var data = dataSplit[i];
+                if (string.IsNullOrEmpty(data))
+                {
+                    continue;
+                }
                 char last_char = data[data.Length - 1];
                 // check if last_char is a letter
                 if (char.IsLetter(last_char))
@@ -1252,34 +1258,38 @@ namespace GH_Toolkit_Core.MIDI
                                     CrowdNotes.Add(new AnimNote(eventTime, crowdDict[SURGE_FAST], 100, 100));
                                 }
                             }
-                            switch (eventData)
+                            else
                             {
-                                case THE_END:
-                                    if (Game != GAME_GH3)
-                                    {
-                                        Markers.Add(new Marker(eventTime, "_ENDOFSONG"));
-                                    }
-                                    break;
-                                case STARTLIGHTERS:
-                                case STOPLIGHTERS:
-                                    if (Game == GAME_GH3 || Game == GAME_GHA)
-                                    {
-                                        var scriptStruct = new ScriptStruct(eventTime, $"crowd_{eventData}");
-                                        crowdScripts.Add((eventTime, scriptStruct.ToStruct()));
-                                    }
-                                    break;
-                                case STAGEDIVER_JUMP:
-                                    if (Game == GAME_GH3)
-                                    {
-                                        var scriptStruct = new ScriptStruct(eventTime, $"crowd_{eventData}");
-                                        crowdScripts.Add((eventTime, scriptStruct.ToStruct()));
-                                    }
-                                    break;
-                            }
+                                switch (eventData)
+                                {
+                                    case THE_END:
+                                        if (Game != GAME_GH3)
+                                        {
+                                            Markers.Add(new Marker(eventTime, "_ENDOFSONG"));
+                                        }
+                                        break;
+                                    case STARTLIGHTERS:
+                                    case STOPLIGHTERS:
+                                        if (Game == GAME_GH3 || Game == GAME_GHA)
+                                        {
+                                            var scriptStruct = new ScriptStruct(eventTime, $"crowd_{eventData}");
+                                            crowdScripts.Add((eventTime, scriptStruct.ToStruct()));
+                                        }
+                                        break;
+                                    case STAGEDIVER_JUMP:
+                                        if (Game == GAME_GH3)
+                                        {
+                                            var scriptStruct = new ScriptStruct(eventTime, $"crowd_{eventData}");
+                                            crowdScripts.Add((eventTime, scriptStruct.ToStruct()));
+                                        }
+                                        break;
+                                }
+                            } 
                             break;
                     }
                 }
             }
+            CrowdTimedScripts = crowdScripts;
             if (Markers.Count == 0)
             {
                 Markers = [new Marker(0, "start")];
