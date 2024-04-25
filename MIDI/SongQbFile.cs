@@ -82,6 +82,7 @@ namespace GH_Toolkit_Core.MIDI
         public QBArrayNode? AnimScripts { get; set; }
         public QBArrayNode? TriggersScripts { get; set; }
         public QBArrayNode? CamerasScripts { get; set; }
+        public List<(int, QBStructData)> CameraTimedScripts { get; set; } = new List<(int, QBStructData)>();
         public QBArrayNode? LightshowScripts { get; set; }
         public QBArrayNode? CrowdScripts { get; set; }
         public QBArrayNode? DrumsScripts { get; set; }
@@ -145,7 +146,11 @@ namespace GH_Toolkit_Core.MIDI
         }
         public void AddTimedError(string error, string part, long ticks)
         {
-            AddToErrorList($"{part}: {error} found at {TicksToMilliseconds(ticks) / 1000}");
+            AddToErrorList($"{part}: {error} found at {TicksToMilliseconds(ticks) / 1000f}s");
+        }        
+        public void AddTimedError(string error, string part, int eventTime)
+        {
+            AddToErrorList($"{part}: {error} found at {eventTime / 1000f}s");
         }
         private void WriteUsedTrack(string trackName)
         {
@@ -232,7 +237,7 @@ namespace GH_Toolkit_Core.MIDI
                         break;
                 }
             }
-            if (!HasCameras)
+            if (CamerasNotes == null || CamerasNotes.Count == 0)
             {
                 Console.WriteLine("No camera track found, generating cameras");
                 var cameraGen = new CameraGenerator();
@@ -240,7 +245,7 @@ namespace GH_Toolkit_Core.MIDI
                 var cameraFretbars = Fretbars.Where((x, i) => i % 8 == 0).ToList();
                 CamerasNotes = cameraGen.AutoGenCamera(cameraFretbars, Game, VenueSource);
             }
-            if (!HasLights)
+            if (LightshowNotes == null || LightshowNotes.Count == 0)
             {
                 Console.WriteLine("No lightshow track found, generating lightshow");
                 var lightGen = new LightShowGenerator();
@@ -575,6 +580,8 @@ namespace GH_Toolkit_Core.MIDI
                 default:
                     throw new NotImplementedException("Unknown game found");
             }
+            var timedEvents = trackChunk.GetTimedEvents().ToList();
+            var textEvents = timedEvents.Where(e => e.Event is TextEvent || e.Event is LyricEvent).ToList();
 
             var cameraNotes = trackChunk.GetNotes().Where(x => x.NoteNumber >= minCamera && x.NoteNumber <= maxCamera).ToList();
             
@@ -626,6 +633,44 @@ namespace GH_Toolkit_Core.MIDI
                 cameraAnimNotes.Add(new AnimNote(startTime, noteVal, length, velocity));
             }
             CamerasNotes = cameraAnimNotes;
+
+            if (Game != GAME_GH3 && Game != GAME_GHA)
+            {
+                var cameraScripts = new List<(int, QBStructData)>();
+                foreach (var timedEvent in textEvents)
+                {
+                    string eventText;
+                    if (timedEvent.Event is TextEvent textEvent)
+                    {
+                        eventText = textEvent.Text;
+                        var (eventType, eventData) = GetEventData(eventText);
+                        int eventTime = GameMilliseconds(timedEvent.Time);
+                        switch (eventType)
+                        {
+                            case ZOOM_IN_QUICK_SMALL:
+                            case ZOOM_IN_QUICK_LARGE:
+                            case ZOOM_OUT_QUICK_SMALL:
+                            case ZOOM_OUT_QUICK_LARGE:
+                            case ZOOM_IN_SLOW_SMALL:
+                            case ZOOM_IN_SLOW_LARGE:
+                            case ZOOM_OUT_SLOW_SMALL:
+                            case ZOOM_OUT_SLOW_LARGE:
+                            case PULSE1:
+                            case PULSE2:
+                            case PULSE3:
+                            case PULSE4:
+                            case PULSE5:
+                                cameraScripts.Add((eventTime, MakeNewCameraFovScript(eventTime, eventType, eventData)));
+                                break;
+                            case FADEOUTANDIN:
+                            case FADEINANDOUT:
+                                cameraScripts.Add((eventTime, MakeNewFadeOutInScript(eventTime, eventData)));
+                                break;
+                        }
+                    }
+                }
+                CameraTimedScripts = cameraScripts;
+            }
         }
         private static (string, string) NormalizeGameAndVenueSource(string game, string venue)
         {
@@ -666,6 +711,7 @@ namespace GH_Toolkit_Core.MIDI
                     perfScripts.AddRange(perfOverride);
                 }
             }
+            perfScripts.AddRange(CameraTimedScripts);
             perfScripts.Sort((x, y) => x.Item1.CompareTo(y.Item1));
             PerformanceScripts = new QBArrayNode();
             foreach (var script in perfScripts)
@@ -1023,6 +1069,96 @@ namespace GH_Toolkit_Core.MIDI
             // Return the value associated with the closest key, or a default value if no such key was found
             return closestKey != int.MinValue ? blendLookup[closestKey] : default(int);
         }
+        private QBStructData MakeNewCameraFovScript(int eventTime, string eventData, string fovTime)
+        {
+            QBStructData cameraParams = new QBStructData();
+            cameraParams.MakeCameraFovParams(eventData, fovTime);
+            ScriptStruct cameraScript = new ScriptStruct(eventTime, FOVPULSE, cameraParams);
+            return cameraScript.ToStruct();
+        }
+        private QBStructData MakeNewFadeOutInScript(int eventTime, string eventParams)
+        {
+            // Default values for fade parameters
+            // In order: time, delay, zPriority, alpha, initial delay
+            var defaultDict = new Dictionary<string, string>
+            {
+                { "time", "1.0" },
+                { "delay", "0.0" },
+                { "zPriority", "0" },
+                { "alpha", "1.0" },
+                { "initialDelay", "0.0" }
+            };
+            var defaultDictMap = new Dictionary<int, string>
+            {
+                {0, "time" },
+                {1, "delay" },
+                {2, "zPriority" },
+                {3, "alpha" },
+                {4, "initialDelay" }
+            };
+
+            bool isSpecified = false;
+            bool isInOrder = false;
+
+            string[] dataSplit = eventParams.Split(' ');
+            for (int i = 0; i < dataSplit.Length; i++)
+            {
+                var data = dataSplit[i];
+                char last_char = data[data.Length - 1];
+                // check if last_char is a letter
+                if (char.IsLetter(last_char))
+                {
+                    data = data.Substring(0, data.Length - 1);
+                    switch (last_char)
+                    {
+                        case 't':
+                            defaultDict["time"] = data;
+                            isSpecified = true;
+                            break;
+                        case 'd':
+                            defaultDict["delay"] = data;
+                            isSpecified = true;
+                            break;
+                        case 'z':
+                            defaultDict["zPriority"] = data;
+                            isSpecified = true;
+                            break;
+                        case 'a':
+                            defaultDict["alpha"] = data;
+                            isSpecified = true;
+                            break;
+                        case 'i':
+                            defaultDict["initialDelay"] = data;
+                            isSpecified = true;
+                            break;
+                        default:
+                            throw new FormatException($"Invalid fadeoutandin parameter {last_char} found");
+                    }
+                }
+                else
+                {
+                    isInOrder = true;
+                    defaultDict[defaultDictMap[i]] = data;
+                }
+            }
+
+            if (isSpecified && isInOrder)
+            {
+                AddTimedError("Fadeoutandin parameters are in both order and specified format,", "CAMERAS", eventTime);
+            }
+
+            // Ensure that dataSplit has 5 elements, filling in from defaultVals where necessary
+            string[] finalParams = new string[5];
+            for (int i = 0; i < 5; i++)
+            {
+                finalParams[i] = defaultDict[defaultDictMap[i]];
+            }
+            
+            QBStructData fadeParams = new QBStructData();
+            fadeParams.MakeFadeParams(finalParams);
+            ScriptStruct fadeScript = new ScriptStruct(eventTime, FADEOUTANDIN, fadeParams);
+            return fadeScript.ToStruct();
+        }
         private QBStructData MakeNewLightScript(int eventTime, string eventData)
         {
             QBStructData lightParams = new QBStructData();
@@ -1090,6 +1226,8 @@ namespace GH_Toolkit_Core.MIDI
             }
             Markers = new List<Marker>();
 
+            var crowdScripts = new List<(int, QBStructData)>();
+
             foreach (var timedEvent in allEvents)
             {
                 string eventText;
@@ -1113,11 +1251,30 @@ namespace GH_Toolkit_Core.MIDI
                                 {
                                     CrowdNotes.Add(new AnimNote(eventTime, crowdDict[SURGE_FAST], 100, 100));
                                 }
-                                
                             }
-                            if (eventData == THE_END && Game != GAME_GH3)
+                            switch (eventData)
                             {
-                                Markers.Add(new Marker(eventTime, "_ENDOFSONG"));
+                                case THE_END:
+                                    if (Game != GAME_GH3)
+                                    {
+                                        Markers.Add(new Marker(eventTime, "_ENDOFSONG"));
+                                    }
+                                    break;
+                                case STARTLIGHTERS:
+                                case STOPLIGHTERS:
+                                    if (Game == GAME_GH3 || Game == GAME_GHA)
+                                    {
+                                        var scriptStruct = new ScriptStruct(eventTime, $"crowd_{eventData}");
+                                        crowdScripts.Add((eventTime, scriptStruct.ToStruct()));
+                                    }
+                                    break;
+                                case STAGEDIVER_JUMP:
+                                    if (Game == GAME_GH3)
+                                    {
+                                        var scriptStruct = new ScriptStruct(eventTime, $"crowd_{eventData}");
+                                        crowdScripts.Add((eventTime, scriptStruct.ToStruct()));
+                                    }
+                                    break;
                             }
                             break;
                     }
@@ -1260,6 +1417,20 @@ namespace GH_Toolkit_Core.MIDI
             {
                 eventType = BAND_PLAYFACIALANIM;
                 eventText = eventText.Replace(BAND_PLAYFACIALANIM, EMPTYSTRING).TrimStart();
+            }
+            else if (eventText.StartsWith(FADEOUTANDIN))
+            {
+                eventType = FADEOUTANDIN;
+                eventText = eventText.Replace(FADEOUTANDIN, EMPTYSTRING).TrimStart();
+            }
+            else if (Regex.IsMatch(eventText, CAMERA_FX_REGEX))
+            {
+                eventText = "10";
+                if (flagArray.Length > 1 && int.TryParse(flagArray[1], out int _))
+                {
+                    eventText = flagArray[1];
+                }
+                eventType = flagArray[0];
             }
             else
             {
@@ -2854,7 +3025,7 @@ namespace GH_Toolkit_Core.MIDI
                         var toMod = notes.Where(sysexOpens => sysexOpens.Time >= open.Time && sysexOpens.Time < open.Length).ToList();
                         if (toMod.Count != 1)
                         {
-                            songQb.AddTimedError("Open note Sysex event found on chord with more than one note", trackNames[trackName], open.Time);
+                            songQb.AddTimedError("Open note Sysex event found on chord with more than one note", trackNames[trackName], (long)open.Time);
                             continue;
                         }
                         foreach (var mod in toMod)

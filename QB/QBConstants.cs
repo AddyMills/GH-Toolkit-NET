@@ -158,11 +158,23 @@ namespace GH_Toolkit_Core.QB
 
         // Script Constants
         public const string TIME = "time";
+        public const string DELAY = "delay";
+        public const string INITIAL_DELAY = "initial_delay";
+        public const string Z_PRIORITY = "z_priority";
+        public const string ALPHA = "alpha";
         public const string NAME = "name";
         public const string NODE = "node";
         public const string ANIM = "anim";
+        public const string TYPE = "type";
         public const string REPEAT_COUNT = "repeat_count";
 
+        // Default values for fadeoutandin
+        public const string DefaultTime = "2.0";
+        public const string DefaultDelay = "0.0";
+        public const string DefaultZPriority = "0";
+        public const string DefaultAlpha = "1.0";
+        public const string DefaultIDelay = "0.0";
+            
         // Compiling Constants
         public const string SONG_PERFORMANCE = "song_performance";
         public const string FEMALE_ANIM_STRUCT = "car_female_anim_struct";

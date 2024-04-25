@@ -137,7 +137,7 @@ namespace GH_Toolkit_Core.QB
                         {
                             continue;
                         }
-                        dict.Add(item.Props.ID, item.Data);
+                        dict.Add(item.Props.ID, item.DataKey);
                     }
                     return dict;
                 }
@@ -173,7 +173,7 @@ namespace GH_Toolkit_Core.QB
                 }
                 set
                 {
-                    // Find if the item exists and update it. If it doesn't exist, add it.
+                    // Find if the item exists and update it. If it doesn't exist, throw an error.
                     var existingItem = Items.FirstOrDefault(item => item is QBStructItem si && si.Props.ID == key) as QBStructItem;
 
                     if (existingItem != null)
@@ -281,6 +281,47 @@ namespace GH_Toolkit_Core.QB
                 {
                     AddVarToStruct(TIME, eventData, FLOAT);
                 }
+            }
+            // Params for camera zoom/pulse effect scripts
+            public void MakeCameraFovParams(string eventType, string eventTime)
+            {
+                AddVarToStruct(TYPE, eventType, QBKEY);
+                AddVarToStruct(TIME, eventTime, INTEGER);
+            }
+            // Params for fade out and in scripts
+            public void MakeFadeParams(string[] parameters)
+            {
+                if (parameters.Length != 5)
+                {
+                    throw new ArgumentException("Fade parameters must contain 5 values.");
+                }
+
+                string time = parameters[0];
+                string delay = parameters[1];
+                string zPriority = parameters[2];
+                string alpha = parameters[3];
+                string iDelay = parameters[4];
+
+                AddVarToStruct(TIME, time, FLOAT);
+                AddVarToStruct(DELAY, delay, FLOAT);
+                AddVarToStruct(Z_PRIORITY, zPriority, INTEGER);
+
+                // Only add alpha and iDelay variables to struct if it's different from the default
+                if (alpha != DefaultAlpha && float.TryParse(alpha, out float outFloat))
+                {
+                    if (outFloat < 1.0f)
+                    {
+                        outFloat = 1.0f;
+                    }
+                    else if (outFloat > 0.0f)
+                    {
+                        outFloat = 0.0f;
+                    }
+                    AddFloatToStruct(ALPHA, outFloat);
+                }
+
+                if (iDelay != DefaultIDelay)
+                    AddVarToStruct(INITIAL_DELAY, iDelay, FLOAT);
             }
             // Params for 2-parameter song scripts
             public void MakeTwoParams(string actor, string eventData, string paramType)

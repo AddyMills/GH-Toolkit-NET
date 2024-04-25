@@ -143,12 +143,32 @@ namespace GH_Toolkit_Core.MIDI
         public const string GUITAR_START = "guitarist_start";
 
         public const string CROWD_STARTLIGHTERS = "crowd_startlighters";
+        public const string STARTLIGHTERS = "startlighters";
         public const string CROWD_STOPLIGHTERS = "crowd_stoplighters";
-        public const string CROWD_STAGEDIVER_JUMP = "crowd_stagediverjump";
+        public const string STOPLIGHTERS = "stoplighters";
+        public const string CROWD_STAGEDIVER_JUMP = "crowd_stagediver_jump";
+        public const string STAGEDIVER_JUMP = "stagediver_jump";
 
         public const string BAND_PLAYFACIALANIM = "band_playfacialanim";
         public const string LIGHTSHOW_SETTIME = "lightshow_settime";
         public const string SETBLENDTIME = "setblendtime";
+        public const string FOVPULSE = "cameracutseffect_fovpulse";
+
+        public const string ZOOM_IN_QUICK_SMALL = "zoom_in_quick_small";
+        public const string ZOOM_IN_QUICK_LARGE = "zoom_in_quick_large";
+        public const string ZOOM_OUT_QUICK_SMALL = "zoom_out_quick_small";
+        public const string ZOOM_OUT_QUICK_LARGE = "zoom_out_quick_large";
+        public const string ZOOM_IN_SLOW_SMALL = "zoom_in_slow_small";
+        public const string ZOOM_IN_SLOW_LARGE = "zoom_in_slow_large";
+        public const string ZOOM_OUT_SLOW_SMALL = "zoom_out_slow_small";
+        public const string ZOOM_OUT_SLOW_LARGE = "zoom_out_slow_large";
+        public const string PULSE1 = "pulse1";
+        public const string PULSE2 = "pulse2";
+        public const string PULSE3 = "pulse3";
+        public const string PULSE4 = "pulse4";
+        public const string PULSE5 = "pulse5";
+        public const string FADEOUTANDIN = "fadeoutandin";
+        public const string FADEINANDOUT = "fadeinandout";
 
 
         // Guitar Hero 3 Stance Names
@@ -172,6 +192,9 @@ namespace GH_Toolkit_Core.MIDI
         // Guitar Hero 3 Song Anim Flags
         public const string NO_WAIT = "no_wait";
         public const string CYCLE = "cycle";
+
+        // Regular expressions
+        public const string CAMERA_FX_REGEX = @"(zoom_(in|out)_(quick|slow)_(small|large)|pulse[1-5]) [0-9]+";
 
 
         public static Dictionary<MidiTheory.NoteName, int> Gh3Notes = new Dictionary<MidiTheory.NoteName, int>()
