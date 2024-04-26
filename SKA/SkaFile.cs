@@ -464,7 +464,7 @@ namespace GH_Toolkit_Core.SKA
                                 {
                                     quatX = _rw.ReadUInt8(stream);
                                     quatY = _rw.ReadUInt8(stream);
-                                    quatZ = _rw.ReadUInt8(stream);
+                                    quatZ = quatY;
                                     ReadWrite.MoveToModX(stream, 2);
                                 }
                                 else
@@ -757,9 +757,16 @@ namespace GH_Toolkit_Core.SKA
                 pointerBlockOffsets.Add(i * NumBones * 4 + baseOffset);
                 for (int j = 0; j < NewBones; j++)
                 {
-                    var oldPointerBone = BonePointerData[j][i].frame;
-                    var newPointerValue = NewBonePointers[j][oldPointerBone];
-                    pointerData.Add(newPointerValue);
+                    if (BonePointerData.TryGetValue(j, out var bone))
+                    {
+                        var oldPointerBone = bone[i].frame;
+                        var newPointerValue = NewBonePointers[j][oldPointerBone];
+                        pointerData.Add(newPointerValue);
+                    }
+                    else
+                    {
+                        pointerData.Add(-1);
+                    }
                 }
             }
             pointerBlockOffsets.AddRange(pointerData);
@@ -1026,7 +1033,9 @@ namespace GH_Toolkit_Core.SKA
             yBytes = CompressComponent(quatY, ref compFlags, COMP_Y);
             zBytes = CompressComponent(quatZ, ref compFlags, COMP_Z);
 
-            if (quatX == 0 && quatY == 0 && quatZ == 0)
+            bool allZeroes = quatX == 0 && quatY == 0 && quatZ == 0;
+
+            if (allZeroes)
             {
                 compFlags = COMP_FLAG;
             }
@@ -1053,13 +1062,17 @@ namespace GH_Toolkit_Core.SKA
             }
             _rw.WriteAndMaybeFlipBytes(stream, yBytes);
 
-            if (zBytes.Length != 1)
+            if (!allZeroes)
             {
+                if (zBytes.Length != 1)
+                {
+                    _rw.PadStreamTo(stream, 2);
+                }
+                _rw.WriteAndMaybeFlipBytes(stream, zBytes);
+
                 _rw.PadStreamTo(stream, 2);
             }
-            _rw.WriteAndMaybeFlipBytes(stream, zBytes);
-
-            _rw.PadStreamTo(stream, 2);
+            
         }
         private void WritePs2Quat(MemoryStream stream, BoneFrameQuat frame)
         {
