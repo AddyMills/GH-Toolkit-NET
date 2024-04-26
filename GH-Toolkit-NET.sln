@@ -57,7 +57,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SKA-Tester", "..\SKA-Tester
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pak-Decompressor", "..\Pak-Decompressor\Pak-Decompressor.csproj", "{11631A72-B00F-40F6-BEA2-ADD50BCE2D6A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NewSkaTester", "..\NewSkaTester\NewSkaTester.csproj", "{888DBBA6-6BD9-4322-AAF1-3BCCE03F8DB0}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GeneralTester", "..\NewSkaTester\GeneralTester.csproj", "{888DBBA6-6BD9-4322-AAF1-3BCCE03F8DB0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
