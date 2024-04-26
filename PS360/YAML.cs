@@ -39,7 +39,7 @@ namespace GH_Toolkit_Core.PS360
         }
         public static string CreateOnyxYaml(string game = "GH3", string packageName = "")
         {
-            string yamlLocation = Path.Combine(ExeDirectory, "Resources", "repack-stfs.yaml");
+            string yamlLocation = Path.Combine(ExeDirectory, "Resources", "Onyx", "repack-stfs.yaml");
             if (!File.Exists(yamlLocation))
             {
                 Console.WriteLine("YAML file not found.");
