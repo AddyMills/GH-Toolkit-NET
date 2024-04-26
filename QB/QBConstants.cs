@@ -180,6 +180,8 @@ namespace GH_Toolkit_Core.QB
         public const string FEMALE_ANIM_STRUCT = "car_female_anim_struct";
         public const string MALE_ANIM_STRUCT = "car_male_anim_struct";
 
+        public const string COMPILING = "Compiling...";
+
         // Byte Constants
         public const byte NEWLINE_BYTE = 0x01;
         public const byte LEFTBRACE_BYTE = 0x03;
