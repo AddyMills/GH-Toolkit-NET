@@ -10,6 +10,13 @@ namespace GH_Toolkit_Core.PS360
 {
     public class FileCreation
     {
+        private static Dictionary<string, string> KeyLookup = new Dictionary<string, string>
+        {
+            {"GH3", "UP0002-BLUS30074_00" },
+            {"GH5", "UP0002-BLUS30292_00" },
+            {"GHWT", "UP0002-BLUS30164_00" },
+            {"GHWOR", "UP0002-BLUS30487_00" }
+        };
         public static void AddToSonglistGh3(List<QBItem> qbItems, QBStruct.QBStructData songlistData)
         {
             string checksum = (string)songlistData["checksum"];
@@ -33,6 +40,11 @@ namespace GH_Toolkit_Core.PS360
                     itemData.AddStructToStruct(checksum, songlistData);
                 }
             }
+        }
+
+        public static string GetPs3Key(string game)
+        {
+            return KeyLookup[game];
         }
     }
 }
