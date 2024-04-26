@@ -705,6 +705,18 @@ namespace GH_Toolkit_Core.QB
             tmpKey = "";
             tmpValue = "";
         }
+        public static List<QBItem> ParseQFromFile(string data)
+        {
+            if (File.Exists(data))
+            {
+                data = File.ReadAllText(data);
+            }
+            else
+            {
+                throw new FileNotFoundException("File not found", data);
+            }
+            return ParseQFile(data);
+        }
         public static List<QBItem> ParseQFile(string data)
         {
             if (File.Exists(data))
