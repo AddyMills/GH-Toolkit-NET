@@ -58,15 +58,27 @@ namespace GH_Toolkit_Core.QB
             public QBItem(MemoryStream stream)
             {
                 Info = new QBItemInfo(stream);
-                Props = new QBSharedProps(stream, Info.Type);
-                if (ReadWrite.IsSimpleValue(Info.Type))
+                if (Info.isGhtcp)
                 {
-                    Data = Props.DataValue;
+                    Data = new QBStructItem(stream);
+                    var dataStruct = Data as QBStructItem;
+                    var dataProps = dataStruct.Props;
+                    Props = new QBSharedProps(dataProps.ID, dataProps.ID, 0, 0);
+                    Data = dataStruct.Data;
                 }
                 else
                 {
-                    Data = ReadQBData(stream, Info.Type);
+                    Props = new QBSharedProps(stream, Info.Type);
+                    if (ReadWrite.IsSimpleValue(Info.Type))
+                    {
+                        Data = Props.DataValue;
+                    }
+                    else
+                    {
+                        Data = ReadQBData(stream, Info.Type);
+                    }
                 }
+
                 Name = Props.ID;
             }
             public void SetName(string name)
@@ -186,9 +198,19 @@ namespace GH_Toolkit_Core.QB
         [DebuggerDisplay("{Type}")]
         public class QBItemInfo : QBBase
         {
+            public bool isGhtcp = false;
             public QBItemInfo(MemoryStream stream) : base(stream)
             {
-                Type = QbType[(byte)(Info >> 16)];
+                byte typeByte = (byte)(Info >> 16);
+                if (Flags > 0x7f)
+                {
+                    // This should never happen with official files, but it does with GHTCP's QB files
+                    typeByte = (byte)(Flags - 0x80);
+                    Flags = 0x20;
+                    stream.Position -= 4;
+                    isGhtcp = true;
+                }
+                Type = QbType[typeByte];
             }
             public QBItemInfo(string type)
             {
@@ -244,6 +266,13 @@ namespace GH_Toolkit_Core.QB
                 QbName = ReadQBKey(stream);
                 DataValue = ReadQBValue(stream, itemType);
                 NextItem = Reader.ReadUInt32(stream);
+            }
+            public QBSharedProps(string id, string qbName, object dataValue, uint nextItem)
+            {
+                ID = id;
+                QbName = qbName;
+                DataValue = dataValue;
+                NextItem = nextItem;
             }
         }
 
