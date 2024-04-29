@@ -137,7 +137,7 @@ namespace GH_Toolkit_Core.QB
                         {
                             continue;
                         }
-                        dict.Add(item.Props.ID, item.DataKey);
+                        dict.Add(item.Props.ID.ToLower(), item.DataKey);
                     }
                     return dict;
                 }
@@ -151,7 +151,7 @@ namespace GH_Toolkit_Core.QB
                     {
                         if (item.Props.ID == FLAGBYTE)
                         {
-                            flags.Add(item.Data.ToString());
+                            flags.Add(item.Data.ToString().ToLower());
                         }
                     }
                     return flags;
@@ -162,10 +162,11 @@ namespace GH_Toolkit_Core.QB
                 get
                 {
                     // Attempt to get the value from StructDict
-                    if (StructDict.TryGetValue(key, out object value))
+                    if (StructDict.TryGetValue(key.ToLower(), out object value))
                     {
                         return value;
                     }
+
                     else
                     {
                         throw new KeyNotFoundException($"The key '{key}' was not found in the struct.");
@@ -174,7 +175,7 @@ namespace GH_Toolkit_Core.QB
                 set
                 {
                     // Find if the item exists and update it. If it doesn't exist, throw an error.
-                    var existingItem = Items.FirstOrDefault(item => item is QBStructItem si && si.Props.ID == key) as QBStructItem;
+                    var existingItem = Items.FirstOrDefault(item => item is QBStructItem si && si.Props.ID.ToLower() == key.ToLower()) as QBStructItem;
 
                     if (existingItem != null)
                     {
