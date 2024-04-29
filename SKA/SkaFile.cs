@@ -175,8 +175,8 @@ namespace GH_Toolkit_Core.SKA
             public float KeyTime { get; set; }
             public int KeyType { get; set; }
             public int KeyValue { get; set; }
-            public float KeyMod { get; set; }
-            public CustomKey(float keyTime, int keyType, int keyValue, float keyMod)
+            public float? KeyMod { get; set; }
+            public CustomKey(float keyTime, int keyType, int keyValue, float? keyMod)
             {
                 KeyTime = keyTime;
                 KeyType = keyType;
@@ -711,14 +711,17 @@ namespace GH_Toolkit_Core.SKA
                 float keyTime = _rw.ReadFloat(stream);
                 int keyType = _rw.ReadInt32(stream);
                 int keyValue = _rw.ReadInt32(stream);
-                float keyMod;
+                float? keyMod;
                 if (keyType == 1)
                 {
                     keyMod = _rw.ReadFloat(stream);
                 }
+                else if (keyType == 9)
+                {
+                    keyMod = null;
+                }
                 else
                 {
-                    keyMod = 0;
                     throw new NotImplementedException($"Camera key type {keyType} not yet supported.");
                 }
                 CustomKeys.Add(new CustomKey(keyTime, keyType, keyValue, keyMod));
@@ -738,7 +741,12 @@ namespace GH_Toolkit_Core.SKA
                 _rw.WriteInt32(stream, key.KeyValue);
                 if (key.KeyType == 1)
                 {
-                    _rw.WriteFloat(stream, key.KeyMod);
+                    float keyMod = key.KeyMod ?? 0;
+                    _rw.WriteFloat(stream, keyMod);
+                }
+                else if (key.KeyType == 9)
+                {
+                    // Do nothing, but don't throw an exception
                 }
                 else
                 {
@@ -1407,8 +1415,30 @@ namespace GH_Toolkit_Core.SKA
                 string boneName = oldBones.bonesNum[bone];
                 int newBone = newBones.bonesName[boneName];
                 newAnimFlags.Add(newBone);
-                newQuatData[newBone] = WriteNewQuatData(QuatData[bone], quatMultiplier);
-                newTransData[newBone] = WriteNewTransData(TransData[bone]);
+                try
+                {
+                    newQuatData[newBone] = WriteNewQuatData(QuatData[bone], quatMultiplier);
+                }
+                catch
+                {
+                    newQuatData[newBone] =
+                    [
+                        new BoneFrameQuat(0, 0, 0, 0),
+                        new BoneFrameQuat((ushort)DurationFrames, 0, 0, 0),
+                    ];
+                }
+                try
+                {
+                    newTransData[newBone] = WriteNewTransData(TransData[bone]);
+                }
+                catch(KeyNotFoundException ex)
+                {
+                    newTransData[newBone] =
+                    [
+                        new BoneFrameTrans(0, 0, 0, 0),
+                        new BoneFrameTrans((ushort)DurationFrames, 0, 0, 0),
+                    ];
+                }
             }
 
             var quatFrames = newQuatData.Values.Sum(x => x.Count);
