@@ -8,19 +8,26 @@ using System.Text;
 using System.Threading.Tasks;
 using static GH_Toolkit_Core.QB.QBConstants;
 using GH_Toolkit_Core.PS360;
+using System.Diagnostics;
 
 namespace GH_Toolkit_Core.Methods
 {
     public class CreateForGame
     {
-        public class Gh3SongEntry
+        public class GhMetadata
         {
             public string Checksum { get; set; } = "";
+            public string ChecksumConsole { get; set; } = "";
+            public string CompileFolder { get; set; } = "";
             public string Title { get; set; } = "";
             public string Artist { get; set; } = "";
             public string ArtistTextSelect { get; set; } = "";
             public string ArtistTextCustom { get; set; } = "";
             public int Year { get; set; }
+            public string CoverArtist { get; set; } = "";
+            public int CoverYear { get; set; }
+            public string Genre { get; set; } = "";
+            public string ChartAuthor { get; set; } = "";
             public string Bassist { get; set; } = "";
             public string Singer { get; set; } = "";
             public bool IsArtistFamousBy { get; set; }
@@ -102,6 +109,127 @@ namespace GH_Toolkit_Core.Methods
                     entry.AddVarToStruct("bassist", Bassist, QBKEY);
                 }
                 return entry;
+            }
+            public void CreateConsolePackage(string game, string platform, string compilePath, string resources, string onyxPath)
+            {
+                string onyxExe = Path.Combine(onyxPath, "onyx.exe");
+                string toCopyTo;
+                string[] onyxArgs;
+                string fileType;
+                bool hasAudio = false;
+                bool hasDat = game == GAME_GH3 ? false : true;
+                if (platform == CONSOLE_PS3)
+                {
+                    fileType = "PKG";
+                    Console.WriteLine("Compiling PKG file using Onyx CLI");
+                    toCopyTo = Path.Combine(compilePath, "PS3");
+                    string gameFiles = Path.Combine(toCopyTo, "USRDIR", Checksum.ToUpper());
+                    Directory.CreateDirectory(gameFiles);
+                    string ps3Resources = Path.Combine(resources, "PS3");
+                    string currGameResources = Path.Combine(ps3Resources, game);
+                    string vramFile = Path.Combine(ps3Resources, $"VRAM_{game}");
+                    if (!Directory.Exists(ps3Resources) || !Directory.Exists(currGameResources))
+                    {
+                        throw new Exception("Cannot find PS3 Resource folder.\n\nThis should be included with your toolkit.\nPlease re-download the toolkit.");
+                    }
+                    string[] filesToCopy = Directory.GetFiles(compilePath);
+                    foreach (string file in filesToCopy)
+                    {
+                        // Check if each file has an extension, if not skip it
+                        if (!file.Contains("."))
+                        {
+                            continue;
+                        }
+                        if (file.ToLower().EndsWith(".fsb"))
+                        {
+                            hasAudio = true;
+                        }
+                        if (file.ToLower().EndsWith(".dat"))
+                        {
+                            hasDat = true;
+                        }
+                        File.Copy(file, Path.Combine(gameFiles, Path.GetFileName(file).ToUpper() + ".PS3"), true);
+                        string fileExtension = Path.GetExtension(file);
+                        string fileNoExt = Path.GetFileNameWithoutExtension(file).ToLower();
+                        bool localeFile = fileNoExt.Contains("_text") && !fileNoExt.EndsWith("_text");
+                        if (fileExtension.ToLower() == ".pak" && !localeFile)
+                        {
+                            File.Copy(vramFile, Path.Combine(gameFiles, $"{fileNoExt}_VRAM.PAK.PS3").ToUpper(), true);
+                        }
+                    }
+                    foreach (string file in Directory.GetFiles(currGameResources))
+                    {
+                        File.Copy(file, Path.Combine(toCopyTo, Path.GetFileName(file)), true);
+                    }
+                    string pkgSave = Path.Combine(CompileFolder, $"{Checksum}.pkg".ToUpper());
+                    string contentID = FileCreation.GetPs3Key(game) + $"-{Checksum.ToUpper().Replace("_", "").PadLeft(16, '0')}";
+                    onyxArgs = ["pkg", contentID, toCopyTo, "--to", pkgSave];
+                }
+                else
+                {
+                    fileType = "STFS";
+                    Console.WriteLine("Compiling STFS file using Onyx CLI");
+                    string packageName = $"{Title} by {Artist}";
+                    CreateOnyxStfsFolder(game, resources, compilePath, packageName);
+                    toCopyTo = Path.Combine(compilePath, "360");
+                    string[] filesToCopy = Directory.GetFiles(compilePath);
+                    foreach (string file in filesToCopy)
+                    {
+                        // Check if each file has an extension, if not skip it
+                        if (!file.Contains("."))
+                        {
+                            continue;
+                        }
+                        if (file.ToLower().EndsWith(".fsb"))
+                        {
+                            hasAudio = true;
+                        }
+                        if (file.ToLower().EndsWith(".dat"))
+                        {
+                            hasDat = true;
+                        }
+                        File.Copy(file, Path.Combine(toCopyTo, Path.GetFileName(file) + ".xen"), true);
+                    }
+                    string stfsSave = Path.Combine(CompileFolder, Checksum.ToUpper());
+                    onyxArgs = ["stfs", toCopyTo, "--to", stfsSave];
+
+                }
+
+                if (!hasAudio || !hasDat)
+                {
+                    throw new Exception($"Missing audio or dat file for {fileType} creation. Please compile all files first!");
+                }
+                ProcessStartInfo startInfo = new ProcessStartInfo(onyxExe);
+                startInfo.CreateNoWindow = false;
+                startInfo.UseShellExecute = true;
+                // startInfo.RedirectStandardOutput = true;
+
+                startInfo.WindowStyle = ProcessWindowStyle.Normal;
+                startInfo.Arguments = string.Join(" ", onyxArgs);
+                try
+                {
+                    // Start the process with the info we specified.
+                    // Call WaitForExit and then the using statement will close.
+                    using (Process exeProcess = new Process())
+                    {
+                        exeProcess.StartInfo = startInfo;
+                        exeProcess.Start();
+
+                        // StreamReader reader = exeProcess.StandardOutput;
+                        // string output = reader.ReadToEnd();
+                        exeProcess.WaitForExit();
+
+                        // Console.WriteLine(output);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    throw;
+                }
+                finally
+                {
+                    Directory.Delete(toCopyTo, true);
+                }
             }
         }
         public static (byte[] pakData, byte[] pabData) AddToDownloadList(string qbPakLocation, string platform, string checksum, QBStruct.QBStructData songListEntry)
@@ -199,5 +327,25 @@ namespace GH_Toolkit_Core.Methods
             File.WriteAllBytes(scriptSave, scriptData);
             Directory.Delete(pakPath, true);
         }
+
+        public static void CreateOnyxStfsFolder(string game, string resource, string compilePath, string packageName)
+        {
+            string yaml = YAML.CreateOnyxYaml(game, packageName);
+            if (yaml == "Fail")
+            {
+                throw new Exception("Could not find YAML template.\n\nFailed to create Onyx YAML file.");
+            }
+            string onyxResource = Path.Combine(resource, "Onyx");
+            string thumbnailResource = Path.Combine(onyxResource, $"{game}-thumbnail.png");
+            string onyxRepack = Path.Combine(compilePath, "360", "onyx-repack");
+            Directory.CreateDirectory(onyxRepack);
+            string yamlPath = Path.Combine(onyxRepack, $"repack-stfs.yaml");
+            string thumbnailPath = Path.Combine(onyxRepack, "thumbnail.png");
+            string titleThumbnailPath = Path.Combine(onyxRepack, "title-thumbnail.png");
+
+            File.WriteAllText(yamlPath, yaml);
+            File.Copy(thumbnailResource, thumbnailPath, true);
+            File.Copy(thumbnailResource, titleThumbnailPath, true);
+        } 
     }
 }
