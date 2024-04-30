@@ -70,7 +70,9 @@ namespace GH_Toolkit_Core.QB
         public const string DOT_QS = ".qs";
         public const string DOT_MID_QB = ".mid.qb";
         public const string DOT_MID_QS = ".mid.qs";
+        public const string DOT_PAB = ".pab";
         public const string DOT_PAB_XEN = ".pab.xen";
+        public const string DOT_PAK = ".pak";
         public const string DOT_PAK_XEN = ".pak.xen";
         public const string DOT_SKA = ".ska";
 
@@ -181,6 +183,14 @@ namespace GH_Toolkit_Core.QB
         public const string MALE_ANIM_STRUCT = "car_male_anim_struct";
 
         public const string COMPILING = "Compiling...";
+
+        public static string downloadRef = "scripts\\guitar\\guitar_download.qb";
+        public static string gh3DownloadSongs = "gh3_download_songs";
+        public static string songlistRef = "scripts\\guitar\\songlist.qb";
+        public static string downloadSonglist = "download_songlist";
+        public static string gh3Songlist = "gh3_songlist";
+        public static string downloadProps = "download_songlist_props";
+        public static string permanentProps = "permanent_songlist_props";
 
         // Byte Constants
         public const byte NEWLINE_BYTE = 0x01;
