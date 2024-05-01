@@ -9,6 +9,8 @@ using System.Threading.Tasks;
 using static GH_Toolkit_Core.QB.QBConstants;
 using GH_Toolkit_Core.PS360;
 using System.Diagnostics;
+using GH_Toolkit_Core.Checksum;
+using System.Text.RegularExpressions;
 
 namespace GH_Toolkit_Core.Methods
 {
@@ -112,7 +114,6 @@ namespace GH_Toolkit_Core.Methods
             }
             public void CreateConsolePackage(string game, string platform, string compilePath, string resources, string onyxPath)
             {
-                string onyxExe = Path.Combine(onyxPath, "onyx.exe");
                 string toCopyTo;
                 string[] onyxArgs;
                 string fileType;
@@ -199,40 +200,10 @@ namespace GH_Toolkit_Core.Methods
                 {
                     throw new Exception($"Missing audio or dat file for {fileType} creation. Please compile all files first!");
                 }
-                ProcessStartInfo startInfo = new ProcessStartInfo(onyxExe);
-                startInfo.CreateNoWindow = false;
-                startInfo.UseShellExecute = true;
-                // startInfo.RedirectStandardOutput = true;
-
-                startInfo.WindowStyle = ProcessWindowStyle.Normal;
-                startInfo.Arguments = string.Join(" ", onyxArgs);
-                try
-                {
-                    // Start the process with the info we specified.
-                    // Call WaitForExit and then the using statement will close.
-                    using (Process exeProcess = new Process())
-                    {
-                        exeProcess.StartInfo = startInfo;
-                        exeProcess.Start();
-
-                        // StreamReader reader = exeProcess.StandardOutput;
-                        // string output = reader.ReadToEnd();
-                        exeProcess.WaitForExit();
-
-                        // Console.WriteLine(output);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    throw;
-                }
-                finally
-                {
-                    Directory.Delete(toCopyTo, true);
-                }
+                CompileWithOnyx(onyxPath, onyxArgs);
             }
         }
-        public static (byte[] pakData, byte[] pabData) AddToDownloadList(string qbPakLocation, string platform, string checksum, QBStruct.QBStructData songListEntry)
+        public static (byte[] pakData, byte[] pabData) AddToDownloadList(string qbPakLocation, string platform, List<QBStruct.QBStructData> songListEntry)
         {
             var pakCompiler = new PakCompiler(GAME_GH3, platform, split: true);
             var qbPak = PakEntryDictFromFile(qbPakLocation);
@@ -240,18 +211,6 @@ namespace GH_Toolkit_Core.Methods
             var songListEntries = QbEntryDictFromBytes(songList.EntryData, "big");
             var dlSongList = songListEntries[gh3Songlist].Data as QBArray.QBArrayNode;
             var dlSongListProps = songListEntries[permanentProps].Data as QBStruct.QBStructData;
-            var songIndex = dlSongList.GetItemIndex(checksum, QBKEY);
-            if (songIndex == -1)
-            {
-                dlSongList.AddQbkeyToArray(checksum);
-                dlSongListProps.AddStructToStruct(checksum, songListEntry);
-            }
-            else
-            {
-                dlSongListProps[checksum] = songListEntry;
-            }
-            byte[] songlistBytes = CompileQbFromDict(songListEntries, songlistRef,  GAME_GH3, platform);
-            songList.OverwriteData(songlistBytes);
 
             var downloadQb = qbPak[downloadRef];
             var downloadQbEntries = QbEntryDictFromBytes(downloadQb.EntryData, "big");
@@ -259,12 +218,39 @@ namespace GH_Toolkit_Core.Methods
             var tier1 = downloadlist["tier1"] as QBStruct.QBStructData;
             var songArray = tier1["songs"] as QBArray.QBArrayNode;
 
-
-            if (songArray.GetItemIndex(checksum, QBKEY) == -1)
+            foreach (var song in songListEntry)
             {
-                songArray.AddQbkeyToArray(checksum);
-                tier1["defaultunlocked"] = songArray.Items.Count;
+                string checksum = (string)song["checksum"];
+                var songIndex = dlSongList.GetItemIndex(checksum, QBKEY);
+                if (songIndex == -1)
+                {
+                    dlSongList.AddQbkeyToArray(checksum);
+                }
+                else
+                {
+                    dlSongListProps[checksum] = song;
+                }
+
+                if (songArray.GetItemIndex(checksum, QBKEY) == -1)
+                {
+                    songArray.AddQbkeyToArray(checksum);
+                    tier1["defaultunlocked"] = songArray.Items.Count;
+                }
             }
+            /*
+            var songIndex = dlSongList.GetItemIndex(checksum, QBKEY);
+            if (songIndex == -1)
+            {
+                dlSongList.AddQbkeyToArray(checksum);
+                //dlSongListProps.AddStructToStruct(checksum, songListEntry);
+            }
+            else
+            {
+                dlSongListProps[checksum] = songListEntry;
+            }*/
+            byte[] songlistBytes = CompileQbFromDict(songListEntries, songlistRef,  GAME_GH3, platform);
+            songList.OverwriteData(songlistBytes);
+           
             byte[] downloadQbBytes = CompileQbFromDict(downloadQbEntries, downloadRef, GAME_GH3, platform);
             downloadQb.OverwriteData(downloadQbBytes);
 
@@ -328,6 +314,14 @@ namespace GH_Toolkit_Core.Methods
             Directory.Delete(pakPath, true);
         }
 
+        public static uint MakeConsoleChecksum(string[] toCombine)
+        {
+            int minNum = 1000000000;
+            string qbString = string.Concat(toCombine);
+            var qbKey = CRC.QBKeyUInt(qbString);
+            return (uint)(minNum + (qbKey % minNum));
+        }
+
         public static void CreateOnyxStfsFolder(string game, string resource, string compilePath, string packageName)
         {
             string yaml = YAML.CreateOnyxYaml(game, packageName);
@@ -346,6 +340,68 @@ namespace GH_Toolkit_Core.Methods
             File.WriteAllText(yamlPath, yaml);
             File.Copy(thumbnailResource, thumbnailPath, true);
             File.Copy(thumbnailResource, titleThumbnailPath, true);
-        } 
+        }
+        public static string ReplaceNonAlphanumeric(string input)
+        {
+            return Regex.Replace(input, "[^a-zA-Z0-9]", "_");
+        }
+        public static void CompileWithOnyx(string onyxPath, string[] onyxArgs)
+        {
+            string onyxExe = Path.Combine(onyxPath, "onyx.exe");
+            if (onyxArgs.Length == 0)
+            {
+                throw new Exception("No arguments were provided for Onyx compilation.");
+            }
+            else if (!File.Exists(onyxExe))
+            {
+                throw new FileNotFoundException("Onyx executable not found at the specified location.");
+            }
+
+            string compileType = onyxArgs[0];
+            string compileDir;
+            if (compileType == "stfs")
+            {
+                compileDir = onyxArgs[1];
+                onyxArgs[1] = $"\"{onyxArgs[1]}\"";
+                onyxArgs[3] = $"\"{onyxArgs[3]}\"";
+            }
+            else
+            {
+                compileDir = onyxArgs[2];
+                onyxArgs[2] = $"\"{onyxArgs[2]}\"";
+                onyxArgs[4] = $"\"{onyxArgs[4]}\"";
+            }
+            ProcessStartInfo startInfo = new ProcessStartInfo(onyxExe);
+            startInfo.CreateNoWindow = false;
+            startInfo.UseShellExecute = true;
+            // startInfo.RedirectStandardOutput = true;
+
+            startInfo.WindowStyle = ProcessWindowStyle.Normal;
+            startInfo.Arguments = string.Join(" ", onyxArgs);
+            try
+            {
+                // Start the process with the info we specified.
+                // Call WaitForExit and then the using statement will close.
+                using (Process exeProcess = new Process())
+                {
+                    exeProcess.StartInfo = startInfo;
+                    exeProcess.Start();
+
+                    // StreamReader reader = exeProcess.StandardOutput;
+                    // string output = reader.ReadToEnd();
+                    exeProcess.WaitForExit();
+
+                    // Console.WriteLine(output);
+                }
+            }
+            catch (Exception ex)
+            {
+                throw;
+            }
+            finally
+            {
+                Directory.Delete(compileDir, true);
+            }
+        }
     }
 }
