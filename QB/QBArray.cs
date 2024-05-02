@@ -76,8 +76,25 @@ namespace GH_Toolkit_Core.QB
                 // If the parsed item is not found, try to find the item directly
                 index = Items.IndexOf(item);
 
+                if (index == -1)
+                {
+                    // Try to brute force it
+                    return ForceGetItemIndex(item, type);
+                }
+
                 // If the item is not found in either form, return -1
                 return index;
+            }
+            public int ForceGetItemIndex(string item, string type)
+            {
+                for (int i = 0; i < Items.Count; i++)
+                {
+                    if (Items[i].ToString().ToLower() == item.ToLower())
+                    {
+                        return i;
+                    }
+                }
+                return -1;
             }
             public void AddParseToArray(string value, string type)
             {
