@@ -7,6 +7,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using static GH_Toolkit_Core.QB.QBConstants;
+using static GH_Toolkit_Core.QB.QBArray;
+using static GH_Toolkit_Core.QB.QBStruct;
 using GH_Toolkit_Core.PS360;
 using System.Diagnostics;
 using GH_Toolkit_Core.Checksum;
@@ -19,7 +21,6 @@ namespace GH_Toolkit_Core.Methods
         public class GhMetadata
         {
             public string Checksum { get; set; } = "";
-            public string ChecksumConsole { get; set; } = "";
             public string CompileFolder { get; set; } = "";
             public string Title { get; set; } = "";
             public string Artist { get; set; } = "";
@@ -45,11 +46,11 @@ namespace GH_Toolkit_Core.Methods
             public float GtrVol { get; set; }
             public string Countoff { get; set; } = "hihat01";
             public float HopoThreshold { get; set; } // Specifically Neversoft Hopo Threshold, not HMX
-            public QBStruct.QBStructData GenerateGh3SongListEntry(string game, string platform)
+            public QBStructData GenerateGh3SongListEntry(string game, string platform)
             {
                 string STEVEN = "Steven Tyler";
 
-                var entry = new QBStruct.QBStructData();
+                var entry = new QBStructData();
                 string pString = platform == CONSOLE_PS2 ? STRING : WIDESTRING; // Depends on the platform
                 bool artistIsOther = ArtistTextSelect == "Other";
                 string artistText = !artistIsOther ? $"artist_text_{ArtistTextSelect.ToLower().Replace(" ", "_")}" : ArtistTextCustom;
@@ -203,20 +204,31 @@ namespace GH_Toolkit_Core.Methods
                 CompileWithOnyx(onyxPath, onyxArgs);
             }
         }
-        public static (byte[] pakData, byte[] pabData) AddToDownloadList(string qbPakLocation, string platform, List<QBStruct.QBStructData> songListEntry)
+        public static (PakEntry, Dictionary<string, QBItem>, QBArrayNode, QBStructData) GetSongListPak(Dictionary<string, PakEntry> qbPak)
+        {
+            var songList = qbPak[songlistRef];
+            var songListEntries = QbEntryDictFromBytes(songList.EntryData, "big");
+            var dlSongList = songListEntries[gh3Songlist].Data as QBArrayNode;
+            var dlSongListProps = songListEntries[permanentProps].Data as QBStructData;
+            return (songList, songListEntries, dlSongList, dlSongListProps);
+        }
+
+        public static (PakEntry, Dictionary<string, QBItem>, QBStructData) GetDownloadPak(Dictionary<string, PakEntry> qbPak)
+        {
+            var downloadQb = qbPak[downloadRef];
+            var downloadQbEntries = QbEntryDictFromBytes(downloadQb.EntryData, "big");
+            var downloadlist = downloadQbEntries[gh3DownloadSongs].Data as QBStructData;
+            return (downloadQb, downloadQbEntries, downloadlist);
+        }
+        public static (byte[] pakData, byte[] pabData) AddToDownloadList(string qbPakLocation, string platform, List<QBStructData> songListEntry)
         {
             var pakCompiler = new PakCompiler(GAME_GH3, platform, split: true);
             var qbPak = PakEntryDictFromFile(qbPakLocation);
-            var songList = qbPak[songlistRef];
-            var songListEntries = QbEntryDictFromBytes(songList.EntryData, "big");
-            var dlSongList = songListEntries[gh3Songlist].Data as QBArray.QBArrayNode;
-            var dlSongListProps = songListEntries[permanentProps].Data as QBStruct.QBStructData;
+            var (songList, songListEntries, dlSongList, dlSongListProps) = GetSongListPak(qbPak);
 
-            var downloadQb = qbPak[downloadRef];
-            var downloadQbEntries = QbEntryDictFromBytes(downloadQb.EntryData, "big");
-            var downloadlist = downloadQbEntries[gh3DownloadSongs].Data as QBStruct.QBStructData;
-            var tier1 = downloadlist["tier1"] as QBStruct.QBStructData;
-            var songArray = tier1["songs"] as QBArray.QBArrayNode;
+            var (downloadQb, downloadQbEntries, downloadlist) = GetDownloadPak(qbPak);
+            var tier1 = downloadlist["tier1"] as QBStructData;
+            var songArray = tier1["songs"] as QBArrayNode;
 
             foreach (var song in songListEntry)
             {
@@ -225,6 +237,7 @@ namespace GH_Toolkit_Core.Methods
                 if (songIndex == -1)
                 {
                     dlSongList.AddQbkeyToArray(checksum);
+                    dlSongListProps.AddStructToStruct(checksum, song);
                 }
                 else
                 {
@@ -237,17 +250,7 @@ namespace GH_Toolkit_Core.Methods
                     tier1["defaultunlocked"] = songArray.Items.Count;
                 }
             }
-            /*
-            var songIndex = dlSongList.GetItemIndex(checksum, QBKEY);
-            if (songIndex == -1)
-            {
-                dlSongList.AddQbkeyToArray(checksum);
-                //dlSongListProps.AddStructToStruct(checksum, songListEntry);
-            }
-            else
-            {
-                dlSongListProps[checksum] = songListEntry;
-            }*/
+
             byte[] songlistBytes = CompileQbFromDict(songListEntries, songlistRef,  GAME_GH3, platform);
             songList.OverwriteData(songlistBytes);
            
