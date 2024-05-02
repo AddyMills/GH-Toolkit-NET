@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -111,6 +112,11 @@ namespace GH_Toolkit_Core.Debug
         public static string DebugCheck(Dictionary<uint, string> headers, uint check)
         {
             return headers.TryGetValue(check, out string? result) ? result : DbgString(check);
+        }
+        public static string DebugCheck(string checkString)
+        {
+            uint check = uint.Parse(checkString.Substring(2), NumberStyles.HexNumber);
+            return DbgString(check);
         }
         public static string DbgString(uint toCheck)
         {

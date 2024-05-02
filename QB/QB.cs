@@ -161,6 +161,14 @@ namespace GH_Toolkit_Core.QB
                 {
                     SetInfo(ARRAY);
                 }
+                else if (data is QBStructData)
+                {
+                    SetInfo(STRUCT);
+                }
+                else if (data is List<float> floatList)
+                {
+                    SetInfo(MULTIFLOAT);
+                }
                 else
                 {
                     throw new NotImplementedException("This data type is not yet implemented");
@@ -519,6 +527,10 @@ namespace GH_Toolkit_Core.QB
                     if (itemString == "default")
                     {
                         test = $"`{itemString}`";
+                    }
+                    else if (itemString.StartsWith("0x"))
+                    {
+                        test = DebugReader.DebugCheck(itemString);
                     }
                     else if (itemString.IndexOf(" ", 0) == -1)
                     {
