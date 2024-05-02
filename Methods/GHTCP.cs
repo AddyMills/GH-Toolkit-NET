@@ -69,7 +69,7 @@ namespace GH_Toolkit_Core.Methods
 
         private static byte[] PerformCryptography(byte[] data, ICryptoTransform cryptoTransform)
         {
-            using (System.IO.MemoryStream ms = new System.IO.MemoryStream())
+            using (MemoryStream ms = new MemoryStream())
             {
                 using (CryptoStream cs = new CryptoStream(ms, cryptoTransform, CryptoStreamMode.Write))
                 {
@@ -79,7 +79,14 @@ namespace GH_Toolkit_Core.Methods
                 return ms.ToArray();
             }
         }
-
+        public static void MakeUnprotectedZip(string extractPath, string zipPath)
+        {
+            using (ZipFile zip = new ZipFile())
+            {
+                zip.AddDirectory(extractPath);
+                zip.Save(zipPath);
+            }
+        }
         private static void ExtractZip(string zipPath, string extractPath, out bool isEncrypted, string password = "")
         {
             isEncrypted = false;
@@ -107,6 +114,7 @@ namespace GH_Toolkit_Core.Methods
         {
             string songs = "songs.info";
             isEncrypted = false;
+
             using (ZipFile zip = ZipFile.Read(zipPath))
             {
                 var songsFile = zip[songs];
