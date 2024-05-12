@@ -121,7 +121,7 @@ namespace GH_Toolkit_Core.MIDI
             OverrideBeat = overrideBeat;
             if (Game == GAME_GH3 || Game == GAME_GHA)
             {
-                HopoMethod = 0;
+                HopoMethod = HopoType.MoonScraper;
             }
             else
             {
@@ -3032,18 +3032,25 @@ namespace GH_Toolkit_Core.MIDI
                 {
                     foreach (var open in sysexOpens)
                     {
+                        List<long> times = new List<long>();
                         var toMod = notes.Where(sysexOpens => sysexOpens.Time >= open.Time && sysexOpens.Time < open.Length).ToList();
-                        if (toMod.Count != 1)
+                        /*if (toMod.Count != 1)
                         {
                             songQb.AddTimedError("Open note Sysex event found on chord with more than one note", trackNames[trackName], (long)open.Time);
                             continue;
-                        }
+                        }*/
                         foreach (var mod in toMod)
                         {
+                            if (times.Contains(mod.Time))
+                            {
+                                songQb.AddTimedError("Open note Sysex event found on chord with more than one note", trackNames[trackName], (long)open.Time);
+                                continue;
+                            }
                             if (mod.NoteName == NoteName.C)
                             {
                                 mod.NoteNumber -= (SevenBitNumber)1;
-                            }       
+                            }
+                            times.Add(mod.Time);
                         }
                     }
                 }
