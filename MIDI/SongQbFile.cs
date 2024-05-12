@@ -1872,6 +1872,14 @@ namespace GH_Toolkit_Core.MIDI
                     { 3, expertOpens }
                 };
 
+                var currOpenDict = new Dictionary<int, StarPower>()
+                {
+                    { 0, new StarPower()},
+                    { 1, new StarPower()},
+                    { 2, new StarPower()},
+                    { 3, new StarPower()}
+                };
+
                 bool tapOn = false;
 
                 bool easyOn = false;
@@ -1889,7 +1897,6 @@ namespace GH_Toolkit_Core.MIDI
                 };
 
                 var currTap = new StarPower();
-                var currOpen = new StarPower();
                 foreach (var sysEx in sysExEvents)
                 {
                     if (sysEx.Event is NormalSysExEvent normalSysEx)
@@ -1932,15 +1939,15 @@ namespace GH_Toolkit_Core.MIDI
                         {
                             if (dataOn && !openOnDict[diff])
                             {
-                                currOpen.SetTime(time);
-                                opensDict[diff].Add(currOpen);
+                                currOpenDict[diff].SetTime(time);
+                                opensDict[diff].Add(currOpenDict[diff]);
                                 openOnDict[diff] = true;
                             }
                             else if (!dataOn && openOnDict[diff])
                             {
-                                currOpen.SetLength(time);
+                                currOpenDict[diff].SetLength(time);
                                 openOnDict[diff] = false;
-                                currOpen = new StarPower();
+                                currOpenDict[diff] = new StarPower();
                             }
                             else
                             {
