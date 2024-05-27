@@ -315,6 +315,11 @@ namespace GH_Toolkit_Core.Methods
             var scriptSave = $"{pakPath}.pak";
             File.WriteAllBytes(scriptSave, scriptData);
             Directory.Delete(pakPath, true);
+
+            if (platform == "360")
+            {
+                CreateOnyxStfsFolder("GH3", resources, compilePath, $"dl{checksum}", true);
+            }
         }
 
         public static uint MakeConsoleChecksum(string[] toCombine)
@@ -325,7 +330,7 @@ namespace GH_Toolkit_Core.Methods
             return (uint)(minNum + (qbKey % minNum));
         }
 
-        public static void CreateOnyxStfsFolder(string game, string resource, string compilePath, string packageName)
+        public static void CreateOnyxStfsFolder(string game, string resource, string compilePath, string packageName, bool altPath = false)
         {
             string yaml = YAML.CreateOnyxYaml(game, packageName);
             if (yaml == "Fail")
@@ -334,7 +339,15 @@ namespace GH_Toolkit_Core.Methods
             }
             string onyxResource = Path.Combine(resource, "Onyx");
             string thumbnailResource = Path.Combine(onyxResource, $"{game}-thumbnail.png");
-            string onyxRepack = Path.Combine(compilePath, "360", "onyx-repack");
+            string onyxRepack;
+            if (altPath)
+            {
+                onyxRepack = Path.Combine(compilePath, "onyx-repack");
+            }
+            else
+            {
+                onyxRepack = Path.Combine(compilePath, "360", "onyx-repack");
+            }
             Directory.CreateDirectory(onyxRepack);
             string yamlPath = Path.Combine(onyxRepack, $"repack-stfs.yaml");
             string thumbnailPath = Path.Combine(onyxRepack, "thumbnail.png");
