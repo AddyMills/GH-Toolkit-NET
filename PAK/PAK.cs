@@ -885,10 +885,23 @@ namespace GH_Toolkit_Core.PAK
             int hopoType = 0,
             bool rhythmTrack = false, 
             bool overrideBeat = false,
-            bool isSteven = false
+            bool isSteven = false,
+            bool easyOpens = false
             )
         {
-            var midiFile = new SongQbFile(midiPath, songName: songName, game: game, console: gameConsole, hopoThreshold: hopoThreshold, perfOverride: perfOverride, songScriptOverride: songScripts, venueSource:venueSource, rhythmTrack: rhythmTrack, overrideBeat: overrideBeat, hopoType: hopoType);
+            var midiFile = new SongQbFile(
+                midiPath, 
+                songName: songName, 
+                game: game, 
+                console: gameConsole, 
+                hopoThreshold: hopoThreshold, 
+                perfOverride: perfOverride, 
+                songScriptOverride: songScripts, 
+                venueSource:venueSource, 
+                rhythmTrack: rhythmTrack, 
+                overrideBeat: overrideBeat, 
+                hopoType: hopoType,
+                easyOpens: easyOpens);
             var midQb = midiFile.ParseMidiToQb();
             var errors = midiFile.GetErrorListAsString();
 
