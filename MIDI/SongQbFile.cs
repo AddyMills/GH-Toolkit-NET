@@ -1805,6 +1805,7 @@ namespace GH_Toolkit_Core.MIDI
                     }
 
                 }
+
                 var sysexTaps = new List<StarPower>();
                 var sysexOpens = new Dictionary<int, List<StarPower>>
                 {
@@ -1862,7 +1863,7 @@ namespace GH_Toolkit_Core.MIDI
                 {
                     AnimNotes = InstrumentAnims(allNotes, GuitarAnimStart, GuitarAnimEnd, animDict, songQb);
                     // Process notes for each difficulty level
-                    Easy.ProcessDifficultyGuitar(allNotes, EasyNoteMin, EasyNoteMax, noteDict, 0, songQb, StarPowerPhrases, BattleStarPhrases, FaceOffStarPhrases, sysexTaps: sysexTaps, sysexOpens: sysexOpens[0], trackName: TrackName);
+                    Easy.ProcessDifficultyGuitar(allNotes, EasyNoteMin, EasyNoteMax, noteDict, easyOpens, songQb, StarPowerPhrases, BattleStarPhrases, FaceOffStarPhrases, sysexTaps: sysexTaps, sysexOpens: sysexOpens[0], trackName: TrackName);
                     Medium.ProcessDifficultyGuitar(allNotes, MediumNoteMin, MediumNoteMax, noteDict, openNotes, songQb, StarPowerPhrases, BattleStarPhrases, sysexTaps: sysexTaps, sysexOpens: sysexOpens[1], trackName: TrackName);
                     Hard.ProcessDifficultyGuitar(allNotes, HardNoteMin, HardNoteMax, noteDict, openNotes, songQb, StarPowerPhrases, BattleStarPhrases, sysexTaps: sysexTaps, sysexOpens: sysexOpens[2], trackName: TrackName);
                     Expert.ProcessDifficultyGuitar(allNotes, ExpertNoteMin, ExpertNoteMax, noteDict, openNotes, songQb, StarPowerPhrases, BattleStarPhrases, sysexTaps: sysexTaps, sysexOpens: sysexOpens[3], trackName: TrackName);
@@ -1871,17 +1872,19 @@ namespace GH_Toolkit_Core.MIDI
                 {
                     var drumFillNotes = allNotes.Where(x => x.NoteNumber == TapNote).ToList();
                     AnimNotes = InstrumentAnims(allNotes, DrumAnimStart, DrumAnimEnd, drumAnimDict, songQb, true);
-                    DrumFill = ProcessDrumFills(drumFillNotes, songQb);
+                    DrumFill = ProcessStartEndArrays(drumFillNotes, songQb);
                     // Process notes for each difficulty level
                     Easy.ProcessDifficultyDrums(allNotes, EasyNoteMin, EasyNoteMax + 1, noteDict, 0, songQb, StarPowerPhrases, BattleStarPhrases, FaceOffStarPhrases);
                     Medium.ProcessDifficultyDrums(allNotes, MediumNoteMin, MediumNoteMax + 1, noteDict, 0, songQb, StarPowerPhrases, BattleStarPhrases);
                     Hard.ProcessDifficultyDrums(allNotes, HardNoteMin, HardNoteMax + 1, noteDict, 0, songQb, StarPowerPhrases, BattleStarPhrases);
                     Expert.ProcessDifficultyDrums(allNotes, ExpertNoteMin, ExpertNoteMax + 1, noteDict, openNotes, songQb, StarPowerPhrases, BattleStarPhrases);
+                }
 
                 if (Game == GAME_GHWT && GamePlatform == CONSOLE_PC)
                 {
                     SoloMarker = ProcessStartEndArrays(allNotes.Where(x => x.NoteNumber == SoloNote).ToList(), songQb, true);
                 }
+                
 
                 FaceOffStar = Easy.FaceOffStar;
             }
@@ -2236,6 +2239,7 @@ namespace GH_Toolkit_Core.MIDI
 
                 return entries;
             }
+
         }
         public class VocalsInstrument
         {
@@ -3271,7 +3275,7 @@ namespace GH_Toolkit_Core.MIDI
                 {
                     notes.AddIntToArray(playNote.Time);
                     notes.AddIntToArray(playNote.Length);
-                    if ((!playNote.IsHopo && playNote.ForcedOn) || (playNote.IsHopo && playNote.ForcedOff))
+                    if ((playNote.IsHopo || playNote.ForcedOn) && !playNote.ForcedOff)
                     {
                         if (BitOperations.IsPow2(playNote.Note)) // Can't have chords being hopos
                         {
