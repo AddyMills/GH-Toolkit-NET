@@ -2033,7 +2033,7 @@ namespace GH_Toolkit_Core.MIDI
                     {
                         animNotes.Add(new AnimNote(startTime, noteVal, length, note.Velocity));
                     }
-                    if (allowMultiTime && note.NoteNumber >= 22) // Basicailly all notes below 22 do not need to be processed for practice mode
+                    if (allowMultiTime && note.NoteNumber >= 22) // Basically all notes below 22 do not need to be processed for practice mode
                     {
                         (bool addPractice, practiceNote) = AddPracticeNote(animNotes, noteVal);
                         if (addPractice)
