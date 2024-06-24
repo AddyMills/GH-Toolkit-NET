@@ -308,12 +308,12 @@ namespace GH_Toolkit_Core.MIDI
             else if (Game == GAME_GHWT)
             {
                 gameQb.AddRange(MakeFretbarsAndTimeSig());
-                gameQb.AddRange(Guitar.ProcessQbEntriesGHWT(SongName));
-                gameQb.AddRange(Rhythm.ProcessQbEntriesGHWT(SongName));
-                gameQb.AddRange(Drums.ProcessQbEntriesGHWT(SongName));
-                gameQb.AddRange(Aux.ProcessQbEntriesGHWT(SongName));
-                gameQb.AddRange(GuitarCoop.ProcessQbEntriesGHWT(SongName));
-                gameQb.AddRange(RhythmCoop.ProcessQbEntriesGHWT(SongName));
+                gameQb.AddRange(Guitar.ProcessQbEntriesGHWT(SongName, GamePlatform));
+                gameQb.AddRange(Rhythm.ProcessQbEntriesGHWT(SongName, GamePlatform));
+                gameQb.AddRange(Drums.ProcessQbEntriesGHWT(SongName, GamePlatform));
+                gameQb.AddRange(Aux.ProcessQbEntriesGHWT(SongName, GamePlatform));
+                gameQb.AddRange(GuitarCoop.ProcessQbEntriesGHWT(SongName, GamePlatform));
+                gameQb.AddRange(RhythmCoop.ProcessQbEntriesGHWT(SongName, GamePlatform));
                 gameQb.AddRange(MakeBossBattleQb());
                 gameQb.AddRange(ProcessMarkers());
                 gameQb.AddRange(Drums.MakeDrumFillQb(SongName));
@@ -1718,6 +1718,7 @@ namespace GH_Toolkit_Core.MIDI
             public QBArrayNode FaceOffP1 { get; set; }
             public QBArrayNode FaceOffP2 { get; set; }
             public QBArrayNode DrumFill { get; set; }
+            public QBArrayNode SoloMarker { get; set; }
             public List<AnimNote> AnimNotes { get; set; } = new List<AnimNote>();
             public List<(int, QBStructData)> PerformanceScript { get; set; } = new List<(int, QBStructData)>();
             internal List<MidiData.Note> StarPowerPhrases { get; set; }
@@ -1737,7 +1738,7 @@ namespace GH_Toolkit_Core.MIDI
                     throw new ArgumentNullException("trackChunk or songQb is null");
                 }
                 _songQb = songQb;
-                int openNotes = Game == GAME_GH3 || Game == GAME_GHA ? 0 : 1;
+
                 int drumsMode = !drums ? 0 : 1;
                 // Create performance scripts for the instrument
                 var timedEvents = trackChunk.GetTimedEvents().ToList();
@@ -1877,6 +1878,9 @@ namespace GH_Toolkit_Core.MIDI
                     Hard.ProcessDifficultyDrums(allNotes, HardNoteMin, HardNoteMax + 1, noteDict, 0, songQb, StarPowerPhrases, BattleStarPhrases);
                     Expert.ProcessDifficultyDrums(allNotes, ExpertNoteMin, ExpertNoteMax + 1, noteDict, openNotes, songQb, StarPowerPhrases, BattleStarPhrases);
 
+                if (Game == GAME_GHWT && GamePlatform == CONSOLE_PC)
+                {
+                    SoloMarker = ProcessStartEndArrays(allNotes.Where(x => x.NoteNumber == SoloNote).ToList(), songQb, true);
                 }
 
                 FaceOffStar = Easy.FaceOffStar;
@@ -2108,7 +2112,7 @@ namespace GH_Toolkit_Core.MIDI
 
                 return list;
             }
-            public List<QBItem> ProcessQbEntriesGHWT(string name)
+            public List<QBItem> ProcessQbEntriesGHWT(string name, string console = CONSOLE_PC)
             {
                 var list = new List<QBItem>();
                 string playName = $"{name}_song{TrackName}";
@@ -2135,6 +2139,10 @@ namespace GH_Toolkit_Core.MIDI
                 list.Add(Expert.CreateWhammyController(starName));
                 list.Add(Easy.CreateFaceOffStar(starName));
                 list.AddRange(MakeFaceOffQb(SongName));
+                if (console == CONSOLE_PC)
+                {
+                    list.AddRange(CreateSoloMarker(starName));
+                }
                 
                 return list;
             }
@@ -2165,6 +2173,17 @@ namespace GH_Toolkit_Core.MIDI
                 }
                 return list;
             }
+            public List<QBItem> CreateSoloMarker(string name)
+            {
+                List<QBItem> qbItems = new List<QBItem>();
+                string[] diffs = ["Easy", "Medium", "Hard", "Expert"];
+                foreach (string diff in diffs)
+                {
+                    string qbName = $"{name}_{diff}_SoloMarkers";
+                    qbItems.Add(new QBItem(qbName, SoloMarker));
+                }
+                return qbItems;
+            }
             private QBArrayNode ProcessOtherSections(List<MidiData.Note> entryNotes, SongQbFile songQb, bool isTapNote = false)
             {
                 QBArrayNode entries = new QBArrayNode();
@@ -2192,7 +2211,9 @@ namespace GH_Toolkit_Core.MIDI
 
                 return entries;
             }
-            private QBArrayNode ProcessDrumFills(List<MidiData.Note> entryNotes, SongQbFile songQb)
+            // Use this for creating an array of arrays for the start and end times of notes
+            // Set lessOne to true if the end time should be one millisecond less than the end time (e.g. for solo markers)
+            private QBArrayNode ProcessStartEndArrays(List<MidiData.Note> entryNotes, SongQbFile songQb, bool lessOne = false)
             {
                 QBArrayNode entries = new QBArrayNode();
                 if (entryNotes.Count == 0)
