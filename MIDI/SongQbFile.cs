@@ -97,6 +97,7 @@ namespace GH_Toolkit_Core.MIDI
         private bool HasCameras { get; set; } = false;
         private bool HasLights { get; set; } = false;
         private bool HasDrumAnims { get; set; } = false;
+        public bool EasyOpens { get; set; } = false;
         public static string? PerfOverride { get; set; }
         public static string? SongScriptOverride { get; set; }
         public static string? VenueSource { get; set; }
@@ -108,7 +109,7 @@ namespace GH_Toolkit_Core.MIDI
         public static HopoType HopoMethod { get; set; }
         public Dictionary<string, string> QsList { get; set; } = new Dictionary<string, string>();
         private List<string> ErrorList { get; set; } = new List<string>();
-        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "", string venueSource = "", bool rhythmTrack = false, bool overrideBeat = false, int hopoType = 0)
+        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "", string venueSource = "", bool rhythmTrack = false, bool overrideBeat = false, int hopoType = 0, bool easyOpens = false)
         {
             Game = game;
             SongName = songName;
@@ -119,6 +120,7 @@ namespace GH_Toolkit_Core.MIDI
             VenueSource = venueSource == "" ? Game : venueSource;
             RhythmTrack = rhythmTrack;
             OverrideBeat = overrideBeat;
+            EasyOpens = easyOpens;
             if (Game == GAME_GH3 || Game == GAME_GHA)
             {
                 HopoMethod = HopoType.MoonScraper;
@@ -1746,6 +1748,18 @@ namespace GH_Toolkit_Core.MIDI
                 Dictionary<int, int> drumAnimDict = new Dictionary<int, int>();
                 List<TimedEvent>? sysExEvents = null;
 
+                int openNotes = Game == GAME_GH3 || Game == GAME_GHA ? 0 : 1;
+                int easyOpens;
+                if (openNotes == 0)
+                {
+                    easyOpens = 0;
+                }
+                else
+                {
+                    easyOpens = songQb.EasyOpens ? 1 : 0;
+                }
+
+
                 if (Game == GAME_GH3 || Game == GAME_GHA)
                 {
                     noteDict = Gh3Notes;
@@ -1775,6 +1789,18 @@ namespace GH_Toolkit_Core.MIDI
                     catch (KeyNotFoundException)
                     {
                         animDict = leftHandMappingsWt[""];
+                    }
+                    if (easyOpens == 1)
+                    {
+                        try
+                        {
+                            animDict[58] = animDict[59];
+                            animDict.Remove(59);
+                        }
+                        catch
+                        {
+                            // Nothing to do here
+                        }
                     }
 
                 }
