@@ -224,11 +224,16 @@ namespace GH_Toolkit_Core.PAK
             string folderPath = Path.GetDirectoryName(file);
             string NewFolderPath = Path.Combine(folderPath, fileNoExt);
             string songCheck = "_song";
+            string songCheck2 = "_s";
             string songName = "";
             List<PakEntry> pakEntries;
-            if (fileName.Contains(songCheck))
+            if (fileNoExt.EndsWith(songCheck))
             {
-                songName = fileName.Substring(0, fileName.IndexOf(songCheck));
+                songName = fileNoExt.Substring(0, fileNoExt.IndexOf(songCheck));
+            }
+            else if (fileNoExt.EndsWith(songCheck2))
+            {
+                songName = fileNoExt.Substring(0, fileNoExt.IndexOf(songCheck2));
             }
 
             byte[] test_pak = File.ReadAllBytes(file);
@@ -309,9 +314,13 @@ namespace GH_Toolkit_Core.PAK
                 if (convToQ)
                 {
                     string songHeader = "";
-                    if (fileNoExt.IndexOf("_song") != -1)
+                    if (fileNoExt.EndsWith("_song"))
                     {
                         songHeader = fileNoExt.Substring(0, fileNoExt.LastIndexOf("_song"));
+                    }
+                    else if (fileNoExt.EndsWith("_s"))
+                    {
+                        songHeader = fileNoExt.Substring(0, fileNoExt.LastIndexOf("_s"));
                     }
                     List<QBItem> qBItems = DecompileQb(entry.EntryData, GetEndian(fileExt), songHeader);
                     QbToText(qBItems, saveName);
