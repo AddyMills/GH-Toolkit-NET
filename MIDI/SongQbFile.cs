@@ -8,6 +8,8 @@ using static GH_Toolkit_Core.QB.QB;
 using static GH_Toolkit_Core.QB.QBArray;
 using static GH_Toolkit_Core.QB.QBConstants;
 using static GH_Toolkit_Core.QB.QBStruct;
+using static GH_Toolkit_Core.Checksum.CRC;
+using static GH_Toolkit_Core.Methods.ReadWrite;
 using MidiTheory = Melanchall.DryWetMidi.MusicTheory;
 using MidiData = Melanchall.DryWetMidi.Interaction;
 using Melanchall.DryWetMidi.MusicTheory;
@@ -19,6 +21,7 @@ using System.Security.Policy;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using static GH_Toolkit_Core.MIDI.SongQbFile.CameraGenerator;
+using GH_Toolkit_Core.Methods;
 
 /*
  * This file contains all the logic for creating a QB file from a MIDI file
@@ -97,6 +100,7 @@ namespace GH_Toolkit_Core.MIDI
         private bool HasCameras { get; set; } = false;
         private bool HasLights { get; set; } = false;
         private bool HasDrumAnims { get; set; } = false;
+        private bool NoAux { get; set; } = true;
         public bool EasyOpens { get; set; } = false;
         public static string? PerfOverride { get; set; }
         public static string? SongScriptOverride { get; set; }
@@ -163,14 +167,13 @@ namespace GH_Toolkit_Core.MIDI
         {
             Console.WriteLine($"Skipping track: {trackName}");
         }
-        public List<QBItem> ParseMidi()
+        public void ParseMidi()
         {
             // Getting the tempo map to convert ticks to time
             SongTempoMap = SongMidiFile.GetTempoMap();
             var trackChunks = SongMidiFile.GetTrackChunks();
             GetTimeSigs(trackChunks.First());
             CalculateFretbars();
-            bool noAux = true;
             foreach (var trackChunk in trackChunks.Skip(1))
             {
                 string trackName = GetTrackName(trackChunk);
@@ -203,7 +206,7 @@ namespace GH_Toolkit_Core.MIDI
                         break;
                     case PARTAUX:
                         WriteUsedTrack(trackName);
-                        noAux = false;
+                        NoAux = false;
                         Aux.MakeInstrument(trackChunk, this);
                         break;
                     case PARTVOCALS:
@@ -260,8 +263,12 @@ namespace GH_Toolkit_Core.MIDI
                 var drumGen = new DrumAnimGenerator();
                 DrumsNotes = drumGen.AutoGenDrumAnims(Drums.Expert);
             }
+            
+        }
+        private List<QBItem> MakeMidQb()
+        {
             List<QBItem> gameQb = new List<QBItem>();
-           
+
             if (Game == GAME_GH3 || Game == GAME_GHA)
             {
                 if (Guitar == null)
@@ -276,7 +283,7 @@ namespace GH_Toolkit_Core.MIDI
                 gameQb.AddRange(Rhythm.ProcessQbEntriesGH3(SongName));
                 if (Game == GAME_GHA)
                 {
-                    if (noAux)
+                    if (NoAux)
                     {
                         FakeAux();
                     }
@@ -339,6 +346,15 @@ namespace GH_Toolkit_Core.MIDI
             }
             return gameQb;
         }
+        private void MakeNoteAndPerf()
+        {
+            int entries = 0;
+            List<byte> noteFile = [
+                .. Guitar.ProcessNewNotes(ref entries), 
+                .. Rhythm.ProcessNewNotes(ref entries),
+                .. Drums.ProcessNewNotes(ref entries),
+            ];
+        }
         private void GhaRhythmAux(bool noAux)
         {
            // If rhythm_track == 1, Aux is bass, else it's the rhythm guitar
@@ -374,7 +390,12 @@ namespace GH_Toolkit_Core.MIDI
         }
         public byte[] ParseMidiToQb()
         {
-            var gameQb = ParseMidi();
+            ParseMidi();
+            if (Game == GAME_GHWOR)
+            {
+                MakeNoteAndPerf();
+            }
+            var gameQb = MakeMidQb();
             string songMid;
             if (GamePlatform == CONSOLE_PS2)
             {
@@ -604,6 +625,8 @@ namespace GH_Toolkit_Core.MIDI
                             cameraMap = cameraToGha[venue];
                             break;
                         case GAME_GHWT:
+                        case GAME_GH5:
+                        case GAME_GHWOR:
                             cameraMap = cameraToGhwt[venue];
                             break;
                         default:
@@ -2149,6 +2172,30 @@ namespace GH_Toolkit_Core.MIDI
                 
                 return list;
             }
+            public byte[] ProcessNewNotes(ref int entries)
+            {
+                bool ghwor = Game == GAME_GHWOR;
+                string name = TrackName.Replace("_","");
+                switch (name)
+                {
+
+                    case "":
+                        name = "guitar";
+                        break;
+                    case "rhythm":
+                        name = "bass";
+                        break;
+                    case "drum":
+                        name = "drums";
+                        break;
+                }
+                var list = new List<byte>();
+                list.AddRange(Easy.CreateGh5Notes(name, ref entries, ghwor));
+                list.AddRange(Medium.CreateGh5Notes(name, ref entries, ghwor));
+                list.AddRange(Hard.CreateGh5Notes(name, ref entries, ghwor));
+                list.AddRange(Expert.CreateGh5Notes(name, ref entries, ghwor));
+                return list.ToArray();
+            }
             public List<QBItem> MakeFaceOffQb(string name)
             {
                 List<QBItem> qBItems = new List<QBItem>();
@@ -3312,6 +3359,96 @@ namespace GH_Toolkit_Core.MIDI
                 }
                 currItem.SetData(notes);
                 return currItem;
+            }
+            public byte[] CreateGh5Notes(string name, ref int entries, bool ghwor = true)
+            {
+                var readWrite = new ReadWrite("big");
+                var noteData = new List<byte>();
+                uint notesSize = 8; // May need to change if I ever support Wii.
+                uint spSize = 6;
+                uint tapSize = 8;
+
+                bool drums = name == "drums";
+                bool gh6drums = diffName == "Expert" && ghwor && drums;
+                string entryType;
+                if (gh6drums)
+                {
+                    entryType = "gh6_expert_drum_note";
+                    notesSize = 9;
+                }
+                else
+                {
+                    entryType = "gh5_instrument_note";
+                }
+                using (var stream = new MemoryStream())
+                {
+                    string notesName = $"{name}{diffName}instrument";
+                    uint sectionQb = QBKeyUInt(notesName);
+                    string spName = $"{name}{diffName}starpower";
+                    uint spQb = QBKeyUInt(spName);
+                    string tapName = $"{name}{diffName}tapping";
+                    uint tapQb = QBKeyUInt(tapName);
+
+                    readWrite.WriteUInt32(stream, sectionQb);
+                    readWrite.WriteInt32(stream, PlayNotes.Count);
+                    readWrite.WriteUInt32(stream, QBKeyUInt(entryType));
+                    readWrite.WriteUInt32(stream, notesSize);
+                    if (gh6drums)
+                    {
+                        foreach (PlayNote note in PlayNotes)
+                        {
+                            // Unset any bits in note.Note that are also set in note.Ghosts
+                            note.Note &= ~note.Ghosts;
+
+                            readWrite.WriteInt32(stream, note.Time);
+                            readWrite.WriteInt16(stream, (short)note.Length);
+                            readWrite.WriteInt8(stream, (byte)note.Note);
+                            readWrite.WriteInt8(stream, (byte)note.Accents);
+                            readWrite.WriteInt8(stream, (byte)note.Ghosts);
+                        }
+                    }
+                    else
+                    {
+                        foreach (PlayNote note in PlayNotes)
+                        {
+                            readWrite.WriteInt32(stream, note.Time);
+                            readWrite.WriteInt16(stream, (short)note.Length);
+                            readWrite.WriteInt8(stream, (byte)note.Note);
+                            readWrite.WriteInt8(stream, (byte)note.Accents);
+                        }
+                    }
+                    entries++;
+
+                    if (!drums)
+                    {
+                        readWrite.WriteUInt32(stream, tapQb);
+                        readWrite.WriteInt32(stream, TapNotes.Count);
+                        readWrite.WriteUInt32(stream, QBKeyUInt("gh5_tapping_note"));
+                        readWrite.WriteUInt32(stream, tapSize);
+                        foreach (StarPower tap in TapNotes)
+                        {
+                            readWrite.WriteInt32(stream, tap.Time);
+                            readWrite.WriteInt32(stream, tap.Length);
+                        }
+                        entries++;
+                    }
+
+                    readWrite.WriteUInt32(stream, spQb);
+                    readWrite.WriteInt32(stream, StarEntries.Count);
+                    readWrite.WriteUInt32(stream, QBKeyUInt("gh5_star_note"));
+                    readWrite.WriteUInt32(stream, spSize);
+                    foreach (StarPower star in StarEntries)
+                    {
+                        readWrite.WriteInt32(stream, star.Time);
+                        readWrite.WriteInt16(stream, (short)star.Length);
+                    }
+                    entries++;
+
+                    return stream.ToArray();
+                }
+                
+                
+                
             }
             public QBItem CreateStarPowerPhrases(string songName)
             {

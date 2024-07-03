@@ -826,7 +826,7 @@ namespace GH_Toolkit_Core.Methods
         {
             WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes(data));
         }
-        public void WriteUInt8(Stream stream, byte data)
+        public void WriteInt8(Stream stream, byte data)
         {
             stream.WriteByte(data);
         }
