@@ -46,6 +46,7 @@ namespace GH_Toolkit_Core.QB
         public const string GAME_GH3 = "GH3";
         public const string GAME_GHA = "GHA";
         public const string GAME_GHWT = "GHWT";
+        public const string GAME_GH5 = "GH5";
         public const string GAME_GHWOR = "GHWoR";
 
         public const string SKELETON_GH3_SINGER = "gh3_singer";
