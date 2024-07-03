@@ -16,6 +16,8 @@ namespace GH_Toolkit_Core.MIDI
         public ClipCharacter Bassist { get; set; } = new ClipCharacter("Bassist");
         public ClipCharacter Vocalist { get; set; } = new ClipCharacter("Vocalist");
         public ClipCharacter Drummer { get; set; } = new ClipCharacter("Drummer");
+        public List<ClipCamera> Cameras { get; set; } = new List<ClipCamera>();
+        public List<QBStruct.QBStructData> Commands { get; set; } = new List<QBStruct.QBStructData>();
         public SongClip(string name, QBStruct.QBStructData clipStruct)
         {
             Name = name;
@@ -31,7 +33,29 @@ namespace GH_Toolkit_Core.MIDI
                         ParseCharacters(clipStruct.StructDict[key] as QBArray.QBArrayNode);
                         break;
                     case "cameras":
-                        ParseCameras(clipStruct.StructDict[key] as QBArray.QBArrayNode);
+                    case "vocalist_cameras":
+                    case "bassist_cameras":
+                    case "guitarist_cameras":
+                    case "secondary_cameras":
+                        ParseCameras(clipStruct.StructDict[key] as QBArray.QBArrayNode, key);
+                        break;
+                    case "startnodes":
+                        ParseStartnode(clipStruct.StructDict[key] as QBStruct.QBStructData);
+                        break;
+                    case "anims":
+                        ParseAnims(clipStruct.StructDict[key] as QBStruct.QBStructData);
+                        break;
+                    case "arms":
+                        ParseArms(clipStruct.StructDict[key] as QBStruct.QBStructData);
+                        break;
+                    case "events":
+                        ParseEvents(clipStruct.StructDict[key] as QBArray.QBArrayNode, true);
+                        break;
+                    case "commands":
+                        ParseEvents(clipStruct.StructDict[key] as QBArray.QBArrayNode);
+                        break;
+                    case "anim":
+                        // Old data, maybe? Only seems to be in Jimi DLC
                         break;
                     default:
                         break;
@@ -96,12 +120,23 @@ namespace GH_Toolkit_Core.MIDI
                 }
             }
         }
-        private void ParseCameras(QBArray.QBArrayNode cameras)
+        private void ParseCameras(QBArray.QBArrayNode cameras, string cameraType = "cameras")
         {
             if (cameras.FirstItem.Type != "Struct")
             {
                 return;
             }
+            var cameraAdd = new Dictionary<string, int>()
+            {
+                { "cameras", 0 },
+                { "vocalist_cameras", 0 },
+                { "bassist_cameras", 3 },
+                { "guitarist_cameras", 6 },
+                { "secondary_cameras", 9 }
+            };
+
+            int slots = cameraAdd[cameraType];
+
             foreach (QBStruct.QBStructData data in cameras.Items)
             {
                 if (data.StructDict.TryGetValue("name", out object? camera))
@@ -123,6 +158,12 @@ namespace GH_Toolkit_Core.MIDI
                                 throw new Exception($"Unknown camera key: {key}");
                         }
                     }
+                    if (clipCam.GetSlot() == -1)
+                    {
+                        clipCam.SetSlot(slots);
+                        slots++;
+                    }
+                    Cameras.Add(clipCam);
                 }
                 else
                 {
@@ -130,11 +171,87 @@ namespace GH_Toolkit_Core.MIDI
                 }
             }
         }
+        private void ParseStartnode(QBStruct.QBStructData nodeData)
+        {
+            foreach (string key in nodeData.StructDict.Keys)
+            {
+                var character = GetCharacter(key);
+                character.Startnode = nodeData.StructDict[key].ToString();
+            }
+        }
+        private void ParseAnims(QBStruct.QBStructData nodeData)
+        {
+            foreach (string key in nodeData.StructDict.Keys)
+            {
+                string anim = nodeData.StructDict[key].ToString();
+                if (anim.ToLower().Equals("none"))
+                {
+                    continue;
+                }
+                var character = GetCharacter(key);
+                character.Anim = anim;
+            }
+        }
+        private bool OldArmsBoolean(string value)
+        {
+            return value.ToLower().Equals("on");
+        }
+
+        private void ParseArms(QBStruct.QBStructData nodeData)
+        {
+            foreach (string key in nodeData.StructDict.Keys)
+            {
+                var character = GetCharacter(key);
+                var armsData = nodeData.StructDict[key] as QBStruct.QBStructData;
+                foreach (string armKey in armsData.StructDict.Keys)
+                {
+                    switch (armKey)
+                    {
+                        case "ik_targetl":
+                            character.Arms.IKTargetL = armsData.StructDict[armKey].ToString();
+                            break;
+                        case "ik_targetr":
+                            character.Arms.IKTargetR = armsData.StructDict[armKey].ToString();
+                            break;
+                        case "strum":
+                            character.Arms.Strum = OldArmsBoolean(armsData.StructDict[armKey].ToString());
+                            break;
+                        case "fret":
+                            character.Arms.Fret = OldArmsBoolean(armsData.StructDict[armKey].ToString());
+                            break;
+                        case "chord":
+                            character.Arms.Chord = OldArmsBoolean(armsData.StructDict[armKey].ToString());
+                            break;
+                        default:
+                            throw new Exception($"Unknown arm key: {armKey}");
+                    }
+                }
+            }
+        }
+        private void ParseEvents(QBArray.QBArrayNode events, bool ghwt = false)
+        {
+            if (events.FirstItem.Type != "Struct")
+            {
+                return;
+            }
+            foreach (QBStruct.QBStructData data in events.Items)
+            {
+                if (data.StructDict.TryGetValue("time", out object? time))
+                {
+                    if (ghwt)
+                    {
+                        int timeRounded = (int)Math.Round((Convert.ToSingle(time) * 1000f));
+                        data["time"] = timeRounded;
+                    }
+                    Commands.Add(data);
+                }
+            }
+        }
         private ClipCharacter GetCharacter(string character)
         {
             switch (character)
             {
-               case "guitarist":
+                case "guitarist":
                     return Guitarist;
                 case "bassist":
                     return Bassist;
@@ -191,6 +308,7 @@ namespace GH_Toolkit_Core.MIDI
                 }
             }
         }
+        [DebuggerDisplay("Slot {Slot}: {Anim}")]
         public class ClipCamera
         {
             public string? Name { get; set; }
