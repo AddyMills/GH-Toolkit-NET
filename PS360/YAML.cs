@@ -18,14 +18,14 @@ namespace GH_Toolkit_Core.PS360
             { "GH3", gh3Title },
             { "GHWT", ghwtTitle },
             { "GH5", gh5Title },
-            { "GHWOR", ghworTitle }
+            { "GHWoR", ghworTitle }
         };
         private static Dictionary<string, string> gameNames = new Dictionary<string, string>
         {
             { "GH3", "Guitar Hero 3" },
             { "GHWT", "Guitar Hero World Tour" },
             { "GH5", "Guitar Hero 5" },
-            { "GHWOR", "Guitar Hero : Warriors of Rock" }
+            { "GHWoR", "Guitar Hero : Warriors of Rock" }
         };
         public static List<string> MakePackageDescription(string description = "Compiled by Addy's .NET Toolkit")
         {

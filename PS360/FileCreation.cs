@@ -15,7 +15,7 @@ namespace GH_Toolkit_Core.PS360
             {"GH3", "UP0002-BLUS30074_00" },
             {"GH5", "UP0002-BLUS30292_00" },
             {"GHWT", "UP0002-BLUS30164_00" },
-            {"GHWOR", "UP0002-BLUS30487_00" }
+            {"GHWoR", "UP0002-BLUS30487_00" }
         };
         public static void AddToSonglistGh3(List<QBItem> qbItems, List<QBStruct.QBStructData> songlistData)
         {
