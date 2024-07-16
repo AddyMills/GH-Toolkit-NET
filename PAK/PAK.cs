@@ -84,14 +84,15 @@ namespace GH_Toolkit_Core.PAK
             }
             public void SetExtension(string extension)
             {
-                if (FullFlagPath != null && FullFlagPath!.IndexOf(DOT_MID_QS) != -1 && !FullFlagPath!.EndsWith(DOT_QS))
+                Extension = extension;
+                /*if (FullFlagPath != null && FullFlagPath!.IndexOf(DOT_MID_QS) != -1 && !FullFlagPath!.EndsWith(DOT_QS))
                 {
                     Extension = $"{DOT_QS}{extension}";
                 }
                 else
                 {
-                    Extension = extension;
-                }
+                    
+                }*/
             }
             public void SetNameNoExt(string nameNoExt)
             {
@@ -136,9 +137,29 @@ namespace GH_Toolkit_Core.PAK
                 else if (FullFlagPath!.StartsWith(HEXSTART))
                 {
                     FullName = NameNoExt;
-                    if (FullFlagPath.IndexOf($"{HEXSTART}") != -1)
+
+                    // Find the position of the first "0x" in FullFlagPath
+                    int firstIndex = FullFlagPath.IndexOf(HEXSTART);
+
+                    // Find the position of the second "0x" after the first "0x"
+                    int secondIndex = FullFlagPath.IndexOf(HEXSTART, firstIndex + 1);
+
+                    if (secondIndex != -1)
                     {
-                        NameNoExt = FullFlagPath.Substring(FullFlagPath.IndexOf(".") + 1, 10); // Should always be 10 characters since it's a normalized hex value
+                        // Extract the second "0x" portion up to the next dot or end of the string
+                        int endOfSecondPortion = FullFlagPath.IndexOf('.', secondIndex);
+                        string secondPortion;
+
+                        if (endOfSecondPortion != -1)
+                        {
+                            secondPortion = FullFlagPath.Substring(secondIndex, endOfSecondPortion - secondIndex);
+                        }
+                        else
+                        {
+                            secondPortion = FullFlagPath.Substring(secondIndex);
+                        }
+
+                        NameNoExt = secondPortion;
                     }
                     else
                     {
@@ -148,6 +169,23 @@ namespace GH_Toolkit_Core.PAK
                 else if (FullFlagPath.IndexOf(DOT_MID_QS) != -1)
                 {
                     FullName = FullFlagPath.Substring(0, FullFlagPath.IndexOf(DOT_QS) + 3); // Filter out the language portion
+                }
+                else if (FullFlagPath.IndexOf(DOT_QS) != -1)
+                {
+                    var langExt = FullFlagPath.Substring(FullFlagPath.IndexOf(DOT_QS) + 3).ToLower();
+                    switch (langExt)
+                    {
+                        case ".en":
+                        case ".de":
+                        case ".es":
+                        case ".fr":
+                        case ".it":
+                            FullName = FullFlagPath.Substring(0, FullFlagPath.IndexOf(DOT_QS) + 3);
+                            break;
+                        default:
+                            FullName = FullFlagPath;
+                            break;
+                    }
                 }
                 else if (FullFlagPath.IndexOf(DOT_SKA) != -1)
                 {
@@ -838,6 +876,21 @@ namespace GH_Toolkit_Core.PAK
                     case DOTXEN:
                         extension = Path.GetExtension(Path.GetFileNameWithoutExtension(path)).ToLower();
                         break;
+                    case DOTEN:
+                    case DOTDE:
+                    case DOTES:
+                    case DOTIT:
+                    case DOTFR:
+                        if (path.IndexOf(DOT_QS) != -1)
+                        {
+                            extension = $"{DOT_QS}{fileEnd}";
+                        }
+                        else
+                        {
+                            extension = Path.GetExtension(path).ToLower();
+                        }
+                        //extension = $"{DOT_QS}{fileEnd}";
+                        break;
                     default:
                         extension = Path.GetExtension(path).ToLower();
                         break;
@@ -880,7 +933,7 @@ namespace GH_Toolkit_Core.PAK
                 return relPath; 
             }
         }
-        public static string CreateSongPackage(string midiPath, 
+        public static (string pakSavePath, bool doubleKick) CreateSongPackage(string midiPath, 
             string savePath, 
             string songName, 
             string game, 
@@ -910,8 +963,42 @@ namespace GH_Toolkit_Core.PAK
                 rhythmTrack: rhythmTrack, 
                 overrideBeat: overrideBeat, 
                 hopoType: hopoType,
-                easyOpens: easyOpens);
+                easyOpens: easyOpens,
+                skaPath: skaPath);
+
+            var saveName = Path.Combine(savePath, $"{songName}_{gameConsole}");
+            string pakFolder = gameConsole == CONSOLE_PS2 ? "data\\songs" : "songs";
+            var songFolder = Path.Combine(saveName, pakFolder);
+            string consoleExt = gameConsole == CONSOLE_PS2 ? DOTPS2 : DOTXEN;
+            var qbSave = Path.Combine(songFolder, songName + $".mid.qb{consoleExt}");
+
+            byte[]? songScriptsQb;
+
+            Directory.CreateDirectory(songFolder);
+
             var midQb = midiFile.ParseMidiToQb();
+            // Check for song scripts override and make one if we're not compiling a PS2 song
+            if (gameConsole != CONSOLE_PS2)
+            {
+                bool isNew = game == GAME_GH5 || game == GAME_GHWOR;
+                string scriptName = isNew ? ".perf.xml" : "_song_scripts";
+                string songScriptsSave = Path.Combine(songFolder, songName + $"{scriptName}.qb{consoleExt}");
+                songScriptsQb = midiFile.MakeSongScripts();
+                if (songScriptsQb != null)
+                {
+                    File.WriteAllBytes(songScriptsSave, songScriptsQb);
+                }
+            }
+            if (game == GAME_GHWOR || game == GAME_GH5)
+            {
+                var noteBytes = midiFile.MakeGh5Notes();
+                var perfBytes = midiFile.MakeGh5Perf();
+                string noteSave = Path.Combine(songFolder, songName + ".note" + consoleExt);
+                string perfSave = Path.Combine(songFolder, songName + ".perf" + consoleExt);
+                File.WriteAllBytes(noteSave, noteBytes);
+                File.WriteAllBytes(perfSave, perfBytes);
+            }
+
             var errors = midiFile.GetErrorListAsString();
 
             if (!string.IsNullOrEmpty(errors))
@@ -919,12 +1006,6 @@ namespace GH_Toolkit_Core.PAK
                 throw new MidiCompileException(errors);
             }
 
-            var saveName = Path.Combine(savePath, $"{songName}_{gameConsole}");
-            string pakFolder = gameConsole == CONSOLE_PS2 ? "data\\songs" : "songs";
-            var songFolder = Path.Combine(saveName, pakFolder);
-            string consoleExt = gameConsole == CONSOLE_PS2 ? DOTPS2 : DOTXEN;
-            var qbSave = Path.Combine(songFolder, songName + $".mid.qb{consoleExt}");
-            Directory.CreateDirectory(songFolder);
             File.WriteAllBytes(qbSave, midQb);
 
 
@@ -976,11 +1057,9 @@ namespace GH_Toolkit_Core.PAK
                         case GAME_GHA:
                             skaType = isGuitarist ? SKELETON_GH3_GUITARIST : (isSteven ? SKELETON_STEVE : SKELETON_GHA_SINGER);
                             break;
-                        case GAME_GHWT:
+                        default:
                             skaType = SKELETON_WT_ROCKER;
                             break;
-                        default:
-                            throw new NotImplementedException("Game type not supported yet.");
                     }
                     
                     byte[] convertedSka;
@@ -1005,14 +1084,10 @@ namespace GH_Toolkit_Core.PAK
                             skaSave = Path.Combine(saveName, Path.GetFileName(skaFile));
                         }
                     }
-                    else if (game == GAME_GHWT)
+                    else
                     {
                         convertedSka = skaTest.WriteModernStyleSka(skaType, game, skaMultiplier);
                         skaSave = Path.Combine(saveName, Path.GetFileName(skaFile));
-                    }
-                    else
-                    {
-                        throw new NotImplementedException("Game type not supported yet.");
                     }
                     if (convertedSka.Length > 0)
                     {
@@ -1026,48 +1101,58 @@ namespace GH_Toolkit_Core.PAK
                     File.WriteAllBytes(ps2SkaScriptSave, skaScripts);
                 }
             }
-            // Check for song scripts override and make one if we're not compiling a PS2 song
-            if (!string.IsNullOrEmpty(songScripts) && gameConsole != CONSOLE_PS2)
-            {
-                string songScriptsSave = Path.Combine(songFolder, songName + $"_song_scripts.qb{consoleExt}");
-                byte[]? songScriptsQb = midiFile.MakeSongScripts();
-                if (songScriptsQb != null)
-                {
-                    File.WriteAllBytes(songScriptsSave, songScriptsQb);
-                }
-            }
 
             // Make qs file for GHWT+
             var qsList = midiFile.QsList;
             if (qsList.Count > 0)
             {
-                string qsSave = Path.Combine(songFolder, songName + $".mid.qs{consoleExt}");
+                List<string> qsSaves = new List<string>();
+                if (game == GAME_GHWT)
+                {
+                    qsSaves.Add(Path.Combine(songFolder, songName + $".mid.qs{consoleExt}"));
+                }
+                else
+                {
+                    qsSaves.Add(Path.Combine(songFolder, songName + $".mid.qs.de{consoleExt}"));
+                    qsSaves.Add(Path.Combine(songFolder, songName + $".mid.qs.en{consoleExt}"));
+                    qsSaves.Add(Path.Combine(songFolder, songName + $".mid.qs.es{consoleExt}"));
+                    qsSaves.Add(Path.Combine(songFolder, songName + $".mid.qs.fr{consoleExt}"));
+                    qsSaves.Add(Path.Combine(songFolder, songName + $".mid.qs.it{consoleExt}"));
+                }
+
                 var sortedKeys = qsList.OrderBy(entry => entry.Value)
                                                .Select(entry => entry.Key)
                                                .ToList();
-                // Creating a StreamWriter to write to the file with UTF-16 encoding
-                using (StreamWriter writer = new StreamWriter(qsSave, false, Encoding.Unicode))
+
+                foreach (string qsSave in qsSaves)
                 {
-                    // Setting the newline character to only '\n'
-                    writer.NewLine = "\n";
-
-                    foreach (var key in sortedKeys)
+                    // Creating a StreamWriter to write to the file with UTF-16 encoding
+                    using (StreamWriter writer = new StreamWriter(qsSave, false, Encoding.Unicode))
                     {
-                        // Formatting the key as specified
-                        string modifiedKey = key.Substring(2).PadLeft(8, '0');
+                        // Setting the newline character to only '\n'
+                        writer.NewLine = "\n";
 
-                        // Building the line with the modified key and its value
-                        string line = $"{modifiedKey} {qsList[key]}";
+                        foreach (var key in sortedKeys)
+                        {
+                            // Formatting the key as specified
+                            string modifiedKey = key.Substring(2).PadLeft(8, '0');
 
-                        // Writing the line to the file
-                        writer.WriteLine(line);
+                            // Building the line with the modified key and its value
+                            string line = $"{modifiedKey} \"{qsList[key]}\"";
+
+                            // Writing the line to the file
+                            writer.WriteLine(line);
+                        }
+
+                        // These are needed otherwise the game will crash.
+                        writer.WriteLine();
+                        writer.WriteLine();
                     }
-
-                    // These are needed otherwise the game will crash.
-                    writer.WriteLine();
-                    writer.WriteLine();
                 }
             }
+
+            bool doubleKick = midiFile.DoubleKick;
+
             var pakCompiler = new PAK.PakCompiler(game: game, console: gameConsole);
             var (pakData, pabData) = pakCompiler.CompilePAK(saveName);
             string songPrefix = gameConsole == CONSOLE_PS2 ? "" : "_song";
@@ -1079,7 +1164,7 @@ namespace GH_Toolkit_Core.PAK
             // Deleting the folder is safer
             Directory.Delete(saveName, true);
 
-            return pakSave;
+            return (pakSave, doubleKick);
         }
     }
 }
