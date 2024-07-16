@@ -32,5 +32,9 @@ namespace GH_Toolkit_Core.Methods
         {
             public QFileParseException(string message) : base(message) { }
         }
+        public class ClipNotFoundException : Exception
+        {
+            public ClipNotFoundException(string message) : base(message) { }
+        }
     }
 }
