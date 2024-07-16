@@ -150,6 +150,10 @@ namespace GH_Toolkit_Core.Checksum
         {
             return GenQBKeyUInt(QBKeyBytes(textBytes));
         }
+        public static uint QSKeyUInt(string textBytes)
+        {
+            return GenQBKeyUInt(Encoding.Unicode.GetBytes(textBytes));
+        }
         private static uint ConvertHexToUInt(string hexString)
         {
             // Ensure the string starts with '0x' and is not longer than 10 characters.
