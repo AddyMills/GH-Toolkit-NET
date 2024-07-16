@@ -246,6 +246,31 @@ namespace GH_Toolkit_Core.QB
                 var item = new QBStructItem(FLAGBYTE, flag, type);
                 Items.Add(item);
             }
+            public void AddQbKeyToStruct(string key, string value)
+            {
+                var item = new QBStructItem(key, value, QBKEY);
+                Items.Add(item);
+            }
+            public void AddQsKeyToStruct(string key, string value)
+            {
+                var item = new QBStructItem(key, value, QSKEY);
+                Items.Add(item);
+            }
+            public void AddPointerToStruct(string key, string value)
+            {
+                var item = new QBStructItem(key, value, POINTER);
+                Items.Add(item);
+            }
+            public void AddStringToStruct(string key, string value)
+            {
+                var item = new QBStructItem(key, value, STRING);
+                Items.Add(item);
+            }
+            public void AddWideStringToStruct(string key, string value)
+            {
+                var item = new QBStructItem(key, value, WIDESTRING);
+                Items.Add(item);
+            }
             public void AddVarToStruct(string key, string value, string type)
             {
                 var item = new QBStructItem(key, value, type);
