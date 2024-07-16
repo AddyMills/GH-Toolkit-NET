@@ -96,21 +96,25 @@ namespace GH_Toolkit_Core.QB
                 }
                 return -1;
             }
-            public void AddParseToArray(string value, string type)
+            private void AddItemToArray(object value, string type)
             {
-                Items.Add(ParseData(value, type));
-                if (type == MULTIFLOAT)
-                {
-                    type = ParseMultiFloatType(value);
-                }
                 if (IsEmptyOrNull())
                 {
                     SetFirstItem(type);
                 }
-                else if (type != FirstItem.Type)
+                else if (FirstItem.Type != type)
                 {
                     throw new ArrayTypeMismatchException($"{value} of type {type} does not match elements in array of type {FirstItem.Type}");
                 }
+                Items.Add(value);
+            }
+            public void AddParseToArray(string value, string type)
+            {
+                if (type == MULTIFLOAT)
+                {
+                    type = ParseMultiFloatType(value);
+                }
+                AddItemToArray(ParseData(value, type), type);
             }
             public void AddIntToArray(int value) // Add an integer value
             {
@@ -186,6 +190,21 @@ namespace GH_Toolkit_Core.QB
                     throw new ArrayTypeMismatchException($"{STRUCT} does not match elements in array of type {FirstItem.Type}");
                 }
                 Items.Add(value);
+            }
+            public void AddObjectToArray(object value) // When adding programatically
+            {
+                if (value is QBArrayNode array)
+                {
+                    AddArrayToArray(array);
+                }
+                else if (value is QBStructData structData)
+                {
+                    AddStructToArray(structData);
+                }
+                else
+                {
+                    throw new ArrayTypeMismatchException($"Type {value.GetType()} is not supported in QBArrayNode programatically");
+                }
             }
             public void MakeEmpty()
             {
