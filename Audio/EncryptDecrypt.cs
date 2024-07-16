@@ -206,6 +206,20 @@ namespace GH_Toolkit_Core.Audio
         }
 
         /// <summary>
+        /// Encrypts the given FSB4 audio using the default FSB3 key.
+        /// </summary>
+        /// <param name="audio">The audio to encrypt.</param>
+        /// <returns>The encrypted audio.</returns>
+        public static byte[] EncryptFSB4(byte[] audio, string key)
+        {
+            var keyBytes = GenerateFsbKey(key);
+            audio = XorProcess(audio, keyBytes);
+            audio = FlipBits(audio);
+
+            return audio;
+        }
+
+        /// <summary>
         /// Decrypts the audio file from the specified file path.
         /// </summary>
         /// <param name="filePath">The path of the audio file.</param>
