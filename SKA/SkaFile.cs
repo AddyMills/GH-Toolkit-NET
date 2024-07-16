@@ -20,6 +20,7 @@ namespace GH_Toolkit_Core.SKA
         private const int TRANS_FLOAT_TIME = 1 << 31; // If set, translation values are in floats and overall simpler to parse
         private const int NO_SEP_TIME = 1 << 28; // If set, only 2 bytes for time, else 4
         private const int COMP_FLAGS = 1 << 23; // If set, compression flags exist in the time values
+        private const int BONE_POINTERS = 1 << 22; // If set, compression flags exist in the time values
         private const int PARTIAL_ANIM = 1 << 19; // If set, the ska file has a partial anim footer
         private const int BIG_TIME = 1 << 8; // Time goes above 2047 if set
         private const int SINGLE_FRAME = 1 << 6; // Single anim frames.
@@ -997,6 +998,18 @@ namespace GH_Toolkit_Core.SKA
             _rw.WriteFloat(stream, transY);
             _rw.WriteFloat(stream, transZ);
         }
+        private void WriteUncompressedTrans(MemoryStream stream, BoneFrameTrans frame)
+        {
+            float frameTime = frame.FrameTime;
+            float transX = frame.TransX;
+            float transY = frame.TransY;
+            float transZ = frame.TransZ;
+
+            _rw.WriteFloat(stream, frameTime);
+            _rw.WriteFloat(stream, transX);
+            _rw.WriteFloat(stream, transY);
+            _rw.WriteFloat(stream, transZ);
+        }
         private void WriteCompressedTransPs2(MemoryStream stream, BoneFrameTransCompressed frame)
         {
             ushort frameTime = frame.FrameTime;
@@ -1081,6 +1094,18 @@ namespace GH_Toolkit_Core.SKA
                 _rw.PadStreamTo(stream, 2);
             }
             
+        }
+        private void WriteUncompressedQuat(MemoryStream stream, BoneFrameQuat frame)
+        {
+            ushort frameTime = frame.FrameTime;
+            short quatX = frame.QuatX;
+            short quatY = frame.QuatY;
+            short quatZ = frame.QuatZ;
+
+            _rw.WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes(frameTime));
+            _rw.WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes(quatX));
+            _rw.WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes(quatY));
+            _rw.WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes(quatZ));
         }
         private void WritePs2Quat(MemoryStream stream, BoneFrameQuat frame)
         {
@@ -1179,7 +1204,7 @@ namespace GH_Toolkit_Core.SKA
         private void QuatDataToBytes(MemoryStream quatStream, MemoryStream boneCountStream, Dictionary<int, List<BoneFrameQuat>> quatData, List<int> newAnimBones, bool compressedData = true)
         {
             var newQuatSizes = CreateBlankBoneDict(NewBones);
-
+            int deadBytes = 0;
             foreach (var bone in newAnimBones)
             {
                 NewBonePointers[bone] = new Dictionary<ushort, int>();
@@ -1195,7 +1220,7 @@ namespace GH_Toolkit_Core.SKA
                     }
                     else
                     {
-                        //WriteUncompressedQuat(quatStream, frame);
+                        WriteUncompressedQuat(quatStream, frame);
                     }
                 }
                 long boneLength = quatStream.Length - boneStart;
@@ -1204,6 +1229,12 @@ namespace GH_Toolkit_Core.SKA
                     throw new Exception("Bone length is greater than ushort max value.");
                 }
                 newQuatSizes[bone] = (ushort)boneLength;
+                if (quatStream.Length % 16 != 0)
+                {
+                    _rw.WriteUInt32(quatStream, 0xDEADDEAD);
+                    _rw.WriteUInt32(quatStream, 0xDEADDEAD);
+                    deadBytes += 8;
+                }
             }
             for (int i = 0; i < NewBones; i++)
             {
@@ -1211,7 +1242,7 @@ namespace GH_Toolkit_Core.SKA
             }
 
             // Check if length of quatStream equals sum of the values of newQuatSizes
-            if (newQuatSizes.Values.Sum(x => Convert.ToInt32(x)) != quatStream.Length)
+            if (newQuatSizes.Values.Sum(x => Convert.ToInt32(x)) + deadBytes != quatStream.Length)
             {
                 throw new Exception("Length of Quaternion Stream does not equal sum of the values of newQuatSizes.");
             }
@@ -1264,7 +1295,7 @@ namespace GH_Toolkit_Core.SKA
                     }
                     else
                     {
-                        //WriteUncompressedQuat(quatStream, frame);
+                        WriteUncompressedTrans(transStream, frame);
                     }
                 }
                 long boneLength = transStream.Length - boneStart;
@@ -1560,6 +1591,10 @@ namespace GH_Toolkit_Core.SKA
             else
             {
                 NewFlags = SkeletonType == SKELETON_CAMERA ? 0x96011000 : 0x960B5000;
+                if (BonePointerData.Count > 0)
+                {
+                    NewFlags += BONE_POINTERS;
+                }
             }
 
             if (Duration > 34.11 || HasBigTime)
@@ -1590,6 +1625,9 @@ namespace GH_Toolkit_Core.SKA
                 {
                     WritePointerBlock(bonePointerBytes, headerLen);
                 }
+
+                int nullBytes = compressedData ? 0 : 500;
+                int unkD = compressedData ? -1 : 0;
 
                 int quatLen = (int)quatBytes.Length;
                 int transLen = (int)transBytes.Length;
@@ -1634,12 +1672,12 @@ namespace GH_Toolkit_Core.SKA
                 int quatDataPos = transDataPos - (int)quatBytes.Length;
                 _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(totalFileSize));
                 _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(ANIM_START));
-                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(0)); // Should be int
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(nullBytes)); // Should be int
                 _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(bonePointPos)); // BonePointer number
                 _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(-1)); // Unk_b number
                 _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(-1)); // Unk_c number
                 _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(partialPos));
-                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(-1)); // Unk_d number
+                _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(unkD)); // Unk_d number
                 _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(VERSION_NEW));
                 _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(NewFlags));
                 _rw.WriteNoFlipBytes(totalFile, _rw.ValueHex(Duration));
