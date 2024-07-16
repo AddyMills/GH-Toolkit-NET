@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using MidiTheory = Melanchall.DryWetMidi.MusicTheory;
 using static GH_Toolkit_Core.QB.QBConstants;
+using static GH_Toolkit_Core.MIDI.AnimStruct;
 
 /*
  * * This file is intended to be a collection of constants and helper functions for use in creating songs from a MIDI file
@@ -17,7 +18,7 @@ using static GH_Toolkit_Core.QB.QBConstants;
 
 namespace GH_Toolkit_Core.MIDI
 {
-    public class MidiDefs
+    public partial class MidiDefs
     {
         public enum VocalPhraseType
         {
@@ -199,6 +200,13 @@ namespace GH_Toolkit_Core.MIDI
         // Regular expressions
         public const string CAMERA_FX_REGEX = @"(zoom_(in|out)_(quick|slow)_(small|large)|pulse[1-5]) [0-9]+";
 
+        // GH5+ file definitions
+        public const string NOTE = "note";
+        public const int NOTE_ID = 0x40C001A3;
+        public const string PERF = "perf";
+        public const int PERF_ID = 0x40A001A3;
+        public const string DRUMLOOPS_ANIMS = "L_DRUM_Loops_Standard_anims";
+        public const string DRUMLOOPS_ANIMS_SET = "l_drum_loops_standard_anims_set";
 
         public static Dictionary<MidiTheory.NoteName, int> Gh3Notes = new Dictionary<MidiTheory.NoteName, int>()
         {
@@ -1043,6 +1051,293 @@ namespace GH_Toolkit_Core.MIDI
             {GAME_GHWT, gh3_to_wt_lights}
         };
 
+        public static Dictionary<int, int> momentCams = new Dictionary<int, int>()
+        {
+            {3,10},
+            {4,15},
+            {5,20},
+            {6,25},
+            {33,10},
+            {34,15},
+            {35,20},
+            {36,25},
+            {90,28},
+            {91,29},
+            {92,30},
+            {93,31},
+            {94,10},
+            {95,15},
+            {96,20},
+            {97,74},
+            {98,75},
+            {99,75}
+        };
+
+
+        public static Dictionary<string, InstrumentAnim> DefaultStructsFemale = new Dictionary<string, InstrumentAnim>
+        {
+            { "guitar", new InstrumentAnim
+                {
+                    Pak = "L_GUIT_Judita_Joker_anims",
+                    AnimSet = "L_GUIT_Judita_Joker_anims_set",
+                    FingerAnims = "guitarist_finger_anims_car_female",
+                    FretAnims = "fret_anims_rocker",
+                    StrumAnims = "CAR_Female_Normal",
+                    FacialAnims = "facial_anims_female_rocker",
+                    Instrument = "guitar"
+                }
+            },
+            { "bass", new InstrumentAnim("bass")
+                {
+                    Pak = "L_GUIT_Ginger_Joker_anims",
+                    AnimSet = "L_GUIT_Ginger_Joker_anims_set",
+                    FingerAnims = "guitarist_finger_anims_car_female",
+                    FretAnims = "fret_anims_rocker",
+                    StrumAnims = "CAR_Female_Normal",
+                    FacialAnims = "facial_anims_female_rocker",
+                    Instrument = "bass"
+                }
+            },
+            { "drum", new InstrumentAnim("drum")
+                {
+                    Pak = "L_GUIT_Jeffs_LowKey_anims",
+                    AnimSet = "L_GUIT_Jeffs_LowKey_anims_set",
+                    FingerAnims = "guitarist_finger_anims_car_female",
+                    FretAnims = "fret_anims_rocker",
+                    StrumAnims = "CAR_Female_Normal",
+                    FacialAnims = "facial_anims_female_rocker",
+                    Instrument = "drum"
+                }
+            },
+            { "vocals", new InstrumentAnim("vocals")
+                {
+                    Pak = "L_SING_Rockg_Joker_anims",
+                    AnimSet = "L_SING_Rockg_Joker_anims_set",
+                    FingerAnims = "guitarist_finger_anims_car_female",
+                    FretAnims = "fret_anims_rocker",
+                    StrumAnims = "CAR_Female_Normal",
+                    FacialAnims = "facial_anims_female_rocker",
+                    Instrument = "vocals"
+                }
+            }
+        };
+        public static Dictionary<string, InstrumentAnim> DefaultStructsMale = new Dictionary<string, InstrumentAnim>
+        {
+            { "guitar", new InstrumentAnim
+                {
+                    Pak = "L_GUIT_Dan_Joker_anims",
+                    AnimSet = "L_GUIT_Dan_Joker_anims_set",
+                    FingerAnims = "guitarist_finger_anims_CAR_Male",
+                    FretAnims = "fret_anims_rocker",
+                    StrumAnims = "CAR_Male_Normal",
+                    FacialAnims = "facial_anims_male_rocker",
+                    Instrument = "guitar"
+                }
+            },
+            { "bass", new InstrumentAnim
+                {
+                    Pak = "L_GUIT_ChrisVance_Joker_anims",
+                    AnimSet = "L_GUIT_ChrisVance_Joker_anims_set",
+                    FingerAnims = "guitarist_finger_anims_CAR_Male",
+                    FretAnims = "fret_anims_rocker",
+                    StrumAnims = "CAR_Male_Normal",
+                    FacialAnims = "facial_anims_male_rocker",
+                    Instrument = "bass"
+                }
+            },
+            { "drum", new InstrumentAnim
+                {
+                    Pak = "L_GUIT_Jeffs_LowKey_anims",
+                    AnimSet = "L_GUIT_Jeffs_LowKey_anims_set",
+                    FingerAnims = "guitarist_finger_anims_CAR_Male",
+                    FretAnims = "fret_anims_rocker",
+                    StrumAnims = "CAR_Male_Normal",
+                    FacialAnims = "facial_anims_male_rocker",
+                    Instrument = "drum"
+                }
+            },
+            { "vocals", new InstrumentAnim
+                {
+                    Pak = "L_SING_Rockg_Joker_anims",
+                    AnimSet = "L_SING_Rockg_Joker_anims_set",
+                    FingerAnims = "guitarist_finger_anims_CAR_Male",
+                    FretAnims = "fret_anims_rocker",
+                    StrumAnims = "CAR_Male_Normal",
+                    FacialAnims = "facial_anims_male_rocker",
+                    Instrument = "vocals"
+                }
+            }
+        };
+        public static Dictionary<string, Dictionary<string, InstrumentAnim>> DefaultStructs = new Dictionary<string, Dictionary<string, InstrumentAnim>>
+        {
+            {"female", DefaultStructsFemale},
+            {"male", DefaultStructsMale}
+        };
+        public static List<string> legalLoops = new List<string>()
+        {
+            "l_guit_chrisvance_bulls",
+            "l_guit_chrisv_bulls_f",
+            "l_guit_chrisvance_damnit",
+            "l_guit_chrisv_damnit_f",
+            "l_guit_chrisv_damnit2",
+            "l_guit_chrisv_damnit2_f",
+            "l_guit_chrisvance_joker",
+            "l_guit_chrisv_joker_f",
+            "l_guit_davidicus_damnit",
+            "l_guit_davdics_damnit_f",
+            "l_guit_davidicus_damnit2",
+            "l_guit_davdics_damnit2_f",
+            "l_guit_davidicus_joker",
+            "l_guit_davdics_joker_f",
+            "l_guit_davidicus_bulls",
+            "l_guit_davdics_bulls_f",
+            "l_guit_dan_damnit",
+            "l_guit_dan_damnit_f",
+            "l_guit_dan_joker",
+            "l_guit_dan_joker_f",
+            "l_guit_joer_areyou",
+            "l_guit_joer_areyou_f",
+            "l_guit_joer_hot",
+            "l_guit_joer_hot_f",
+            "l_guit_jeffs_lowkey",
+            "l_guit_jeffs_lowkey_f",
+            "l_guit_jeffs_lowkey2",
+            "l_guit_jeffs_lowkey2_f",
+            "l_guit_joes_areyou",
+            "l_guit_joes_areyou_f",
+            "l_guit_joes_hot",
+            "l_guit_joes_hot_f",
+            "l_guit_matt_stillborn",
+            "l_guit_matt_stillborn_f",
+            "l_guit_matt_bulls",
+            "l_guit_matt_bulls_f",
+            "l_guit_sam_joker",
+            "l_guit_sam_joker_f",
+            "l_guit_sam_dammit",
+            "l_guit_sam_dammit_f",
+            "l_guit_sonny_bulls",
+            "l_guit_sonny_bulls_f",
+            "l_guit_sonny_stillborn",
+            "l_guit_sonny_stillborn_f",
+            "l_guit_ginger_areyou",
+            "l_guit_ginger_areyou_m",
+            "l_guit_ginger_bulls",
+            "l_guit_ginger_bulls_m",
+            "l_guit_ginger_joker",
+            "l_guit_ginger_joker_m",
+            "l_guit_judita_areyou",
+            "l_guit_judita_areyou_m",
+            "l_guit_judita_bulls",
+            "l_guit_judita_bulls_m",
+            "l_guit_judita_joker",
+            "l_guit_judita_joker_m",
+            "l_guit_morgan_4horsemen",
+            "l_guit_morgan_4horse_m",
+            "l_guit_tara_bleedme_f",
+            "l_guit_tara_bleedme",
+            "l_guit_morgan_bleedingme",
+            "l_guit_morgan_bleedme_m",
+            "l_guit_chris_stillborn",
+            "l_guit_chris_stillborn_f",
+            "l_guit_chris_strnglhld",
+            "l_guit_chris_strnglhld_f",
+            "l_guit_scott_stillborn",
+            "l_guit_scott_stillborn_f",
+            "l_guit_scott_strnglhld",
+            "l_guit_scott_strnglhld_f",
+            "l_guit_tara_4horsemen_f",
+            "l_guit_tara_4horsemen",
+            "l_guit_adam_lowkey",
+            "l_guit_adam_lowkey_f",
+            "l_guit_tara_notplaying_f",
+            "l_guit_tara_notplaying",
+            "l_guit_ivy_bleedme_f",
+            "l_guit_ivy_bleedme",
+            "l_guit_ivy_4horsemen_f",
+            "l_guit_ivy_4horsemen",
+            "l_sing_jeffs_lowkey",
+            "l_sing_adam_hounddog_f",
+            "l_sing_patrick_joker_f",
+            "l_sing_patrick_areyou_f",
+            "l_sing_jason_walk_f",
+            "l_sing_jason_walk_mic_f",
+            "l_sing_adam_hounddog",
+            "l_sing_patrick_joker",
+            "l_sing_patrick_areyou",
+            "l_sing_jason_areyou",
+            "l_sing_jason_areyou_f",
+            "l_sing_jason_walk",
+            "l_sing_jason_walk_mic",
+            "l_sing_jeffs_lowkey_f",
+            "l_sing_jeffs_lowkey2",
+            "l_sing_jeffs_lowkey2_f",
+            "l_sing_joeh_hot",
+            "l_sing_joeh_hot_f",
+            "l_sing_josh_dammit",
+            "l_sing_josh_dammit_f",
+            "l_sing_josh_joker",
+            "l_sing_josh_joker_f",
+            "l_sing_rob_bulls",
+            "l_sing_rob_bulls_f",
+            "l_sing_rob_stillborn",
+            "l_sing_rob_stillborn_f",
+            "l_sing_rockg_damnit",
+            "l_sing_rockg_damnit_f",
+            "l_sing_rockg_damnit2",
+            "l_sing_rockg_damnit2_f",
+            "l_sing_rockg_joker",
+            "l_sing_rockg_joker_f",
+            "l_sing_rockg_bulls",
+            "l_sing_rockg_bulls_f",
+            "l_sing_joeh_areyou",
+            "l_sing_joeh_areyou_f",
+            "l_sing_natalie_areyou",
+            "l_sing_natalie_areyou_m",
+            "l_sing_morgan_4horsens_m",
+            "l_sing_morgan_4horse_m",
+            "l_sing_morgan_4horse",
+            "l_sing_morgan_4horsens",
+            "l_sing_morgan_bleedingns",
+            "l_sing_morgan_bleedns_m",
+            "l_sing_randy_stillborn",
+            "l_sing_randy_stillborn_f",
+            "l_sing_randy_strangle_f",
+            "l_sing_randy_strangle",
+            "l_sing_amanda_areyou",
+            "l_sing_amanda_areyou_m",
+            "l_sing_amanda_today",
+            "l_sing_amanda_today_m",
+            "l_sing_amanda_bulls",
+            "l_sing_amanda_bulls_m",
+            "l_sing_amanda_dammit",
+            "l_sing_patrick_walk",
+            "l_sing_patrick_walk_f",
+            "l_sing_amanda_joker",
+            "l_sing_amanda_joker2",
+            "l_sing_amanda_nonsing",
+            "l_sing_amanda_nonsing2",
+            "l_sing_patrick_hot",
+            "l_sing_patrick_hot_f",
+            "l_sing_amanda_joker_m",
+            "l_sing_amanda_joker2_m",
+            "l_sing_amanda_nonsing_m",
+            "l_sing_amanda_nonsing2_m",
+            "l_sing_amanda_dammit_m",
+            "l_sing_jason_joker",
+            "l_sing_jason_joker_f",
+            "l_sing_debbie_dammit",
+            "l_sing_debbie_dammit_m",
+            "l_sing_adam_joker",
+            "l_sing_adam_joker_f",
+            "l_sing_adam_dammit",
+            "l_sing_adam_dammit_f",
+            "l_sing_adam_nsjoker",
+            "l_sing_adam_nsjoker_f",
+            "l_sing_adam_walk",
+            "l_sing_patrick_bulls",
+            "l_sing_adam_walk_f",
+            "l_sing_patrick_bulls_f",
+        };
 
         public enum Colours
         {
