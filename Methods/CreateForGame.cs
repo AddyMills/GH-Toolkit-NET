@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using static GH_Toolkit_Core.QB.QBConstants;
 using static GH_Toolkit_Core.QB.QBArray;
 using static GH_Toolkit_Core.QB.QBStruct;
+using static GH_Toolkit_Core.Checksum.CRC;
 using GH_Toolkit_Core.PS360;
 using System.Diagnostics;
 using GH_Toolkit_Core.Checksum;
@@ -26,6 +27,7 @@ namespace GH_Toolkit_Core.Methods
             public string Artist { get; set; } = "";
             public string ArtistTextSelect { get; set; } = "";
             public string ArtistTextCustom { get; set; } = "";
+            public string AlbumTitle { get; set; } = "If you find this text... Hi!";
             public int Year { get; set; }
             public string CoverArtist { get; set; } = "";
             public int CoverYear { get; set; }
@@ -46,6 +48,24 @@ namespace GH_Toolkit_Core.Methods
             public float GtrVol { get; set; }
             public string Countoff { get; set; } = "hihat01";
             public float HopoThreshold { get; set; } // Specifically Neversoft Hopo Threshold, not HMX
+            public bool DoubleKick { get; set; } = false;
+            public string DrumKit { get; set; } = "";
+            public float VocalScrollSpeed { get; set; }
+            public int VocalTuningCents { get; set; }
+            public float SustainThreshold { get; set; }
+            public bool GuitarMic { get; set; }
+            public bool BassMic { get; set; }
+            public int GuitarTier { get; set; } = 1;
+            public int BassTier { get; set; } = 1;
+            public int DrumsTier { get; set; } = 1;
+            public int VocalsTier { get; set; } = 1;
+            public int BandTier { get; set; } = 1;
+            public int Duration { get; set; }
+            public string Game { get; set; }
+            public string PackageName { get 
+                { 
+                    return $"{Title} by {Artist}".Replace("\\L", "");
+                } }
             public QBStructData GenerateGh3SongListEntry(string game, string platform)
             {
                 string STEVEN = "Steven Tyler";
@@ -113,6 +133,107 @@ namespace GH_Toolkit_Core.Methods
                 }
                 return entry;
             }
+            public (List<QBItem>, string[]) GenerateGh5SongListEntry()
+            {
+                var entries = new List<QBItem>();
+                var songlist = new QBArrayNode();
+                var propsMaster = new QBStructData();
+                var props = new QBStructData();
+                var qsStrings = new List<string>();
+                string qbName = Game == GAME_GH5 ? "gh5_dlc_songlist" : "gh6_dlc_songlist";
+
+                songlist.AddQbkeyToArray(Checksum);
+
+                props.AddQbKeyToStruct("checksum", Checksum);
+                props.AddStringToStruct("name", Checksum);
+                props.AddQsKeyToStruct("title", Title);
+                qsStrings.Add(Title);
+                props.AddQsKeyToStruct("artist", Artist);
+                qsStrings.Add(Artist);
+                props.AddPointerToStruct("artist_text", GetArtistText());
+                props.AddIntToStruct("original_artist", GetOrigArtist());
+                props.AddIntToStruct("year", Year);
+                props.AddQsKeyToStruct("album_title", AlbumTitle);
+                qsStrings.Add(AlbumTitle);
+                props.AddQbKeyToStruct("singer", Singer);
+                props.AddQbKeyToStruct("genre", Genre);  
+                props.AddIntToStruct("leaderboard", 1);
+                props.AddIntToStruct("duration", Duration);
+                if (GuitarMic || BassMic)
+                {
+                    props.AddArrayToStruct("parts_with_mic", GetPartsWithMic());
+                }
+                props.AddIntToStruct("flags", 0);
+                props.AddIntToStruct("double_kick", DoubleKick ? 1 : 0);
+                props.AddIntToStruct("thin_fretbar_8note_params_low_bpm", Beat8thLow);
+                props.AddIntToStruct("thin_fretbar_8note_params_high_bpm", Beat8thHigh);
+                props.AddIntToStruct("thin_fretbar_16note_params_low_bpm", Beat16thLow);
+                props.AddIntToStruct("thin_fretbar_16note_params_high_bpm", Beat16thHigh);
+                props.AddIntToStruct("guitar_difficulty_rating", GuitarTier);
+                props.AddIntToStruct("bass_difficulty_rating", BassTier);
+                props.AddIntToStruct("drums_difficulty_rating", DrumsTier);
+                props.AddIntToStruct("vocals_difficulty_rating", VocalsTier);
+                props.AddIntToStruct("band_difficulty_rating", BandTier);
+                props.AddStringToStruct("snare", DrumKit);
+                props.AddStringToStruct("kick", DrumKit);
+                props.AddStringToStruct("hihat", DrumKit);
+                props.AddStringToStruct("cymbal", DrumKit);
+                props.AddStringToStruct("tom1", DrumKit);
+                props.AddStringToStruct("tom2", DrumKit);
+                props.AddStringToStruct("drum_kit", DrumKit);
+                props.AddStringToStruct("countoff", Countoff);
+                if (VocalTuningCents != 0)
+                {
+                    props.AddStructToStruct("vocals_pitch_score_shift", GetVocalPitch());
+                }
+                props.AddFloatToStruct("whammy_cutoff", SustainThreshold);
+                props.AddFloatToStruct("overall_song_volume", BandVol);
+
+                propsMaster.AddStructToStruct(Checksum, props);
+                
+                entries.Add(new QBItem(qbName, songlist));
+                entries.Add(new QBItem($"{qbName}_props", propsMaster));
+
+                return (entries, qsStrings.ToArray());
+            }
+            public string GetArtistText()
+            {
+                if (ArtistTextSelect == "As Made Famous By")
+                {
+                    return "artist_text_as_made_famous_by";
+                }
+                else if (ArtistTextSelect == "From")
+                {
+                    return "artist_text_from";
+                }
+                else
+                {
+                    return "artist_text_by";
+                }
+            }
+            public int GetOrigArtist()
+            {
+               return IsArtistFamousBy ? 0 : 1;
+            }
+            public QBStructData GetVocalPitch()
+            {
+                var pitch = new QBStructData();
+                pitch.AddIntToStruct("cents", VocalTuningCents);
+                return pitch;
+            }
+            public QBArrayNode GetPartsWithMic()
+            {
+                var mics = new QBArrayNode();
+                if (GuitarMic)
+                {
+                    mics.AddQbkeyToArray("guitarist");
+                }
+                if (BassMic)
+                {
+                    mics.AddQbkeyToArray("bassist");
+                }
+                return mics;
+            }
             public void CreateConsolePackage(string game, string platform, string compilePath, string resources, string onyxPath)
             {
                 string toCopyTo;
@@ -120,12 +241,15 @@ namespace GH_Toolkit_Core.Methods
                 string fileType;
                 bool hasAudio = false;
                 bool hasDat = game == GAME_GH3 ? false : true;
+                string packageName;
+                packageName = PackageName;
                 if (platform == CONSOLE_PS3)
                 {
+                    var packageHash = PackageNameHashFormat(packageName);
                     fileType = "PKG";
                     Console.WriteLine("Compiling PKG file using Onyx CLI");
                     toCopyTo = Path.Combine(compilePath, "PS3");
-                    string gameFiles = Path.Combine(toCopyTo, "USRDIR", Checksum.ToUpper());
+                    string gameFiles = Path.Combine(toCopyTo, "USRDIR", packageHash);
                     Directory.CreateDirectory(gameFiles);
                     string ps3Resources = Path.Combine(resources, "PS3");
                     string currGameResources = Path.Combine(ps3Resources, game);
@@ -163,7 +287,7 @@ namespace GH_Toolkit_Core.Methods
                     {
                         File.Copy(file, Path.Combine(toCopyTo, Path.GetFileName(file)), true);
                     }
-                    string pkgSave = Path.Combine(CompileFolder, $"{Checksum}.pkg".ToUpper());
+                    string pkgSave = Path.Combine(CompileFolder, $"{packageHash}.pkg".ToUpper());
                     string contentID = FileCreation.GetPs3Key(game) + $"-{Checksum.ToUpper().Replace("_", "").PadLeft(16, '0')}";
                     onyxArgs = ["pkg", contentID, toCopyTo, "--to", pkgSave];
                 }
@@ -171,7 +295,7 @@ namespace GH_Toolkit_Core.Methods
                 {
                     fileType = "STFS";
                     Console.WriteLine("Compiling STFS file using Onyx CLI");
-                    string packageName = $"{Title} by {Artist}";
+
                     CreateOnyxStfsFolder(game, resources, compilePath, packageName);
                     toCopyTo = Path.Combine(compilePath, "360");
                     string[] filesToCopy = Directory.GetFiles(compilePath);
@@ -192,7 +316,7 @@ namespace GH_Toolkit_Core.Methods
                         }
                         File.Copy(file, Path.Combine(toCopyTo, Path.GetFileName(file) + ".xen"), true);
                     }
-                    string stfsSave = Path.Combine(CompileFolder, Checksum.ToUpper());
+                    string stfsSave = Path.Combine(CompileFolder, packageName.Replace(" ","_"));
                     onyxArgs = ["stfs", toCopyTo, "--to", stfsSave];
 
                 }
@@ -270,7 +394,7 @@ namespace GH_Toolkit_Core.Methods
             File.WriteAllBytes(pakLocation, pakData);
             File.WriteAllBytes(pabLocation, pabData);
         }
-        public static void CreateConsoleDownloadFiles(uint checksum, string game, string platform, string compilePath, string resources, List<QBStruct.QBStructData> songListEntry)
+        public static void CreateConsoleDownloadFilesGh3(uint checksum, string game, string platform, string compilePath, string resources, List<QBStruct.QBStructData> songListEntry)
         {
             if(!Directory.Exists(compilePath))
             {
@@ -321,7 +445,171 @@ namespace GH_Toolkit_Core.Methods
                 CreateOnyxStfsFolder("GH3", resources, compilePath, $"dl{checksum}", true);
             }
         }
+        public static void CreateConsoleDownloadFilesGh5(uint checksum, string game, string platform, string compilePath, string resources, List<QBItem> songlistQb, string[] qsStrings, string manifest)
+        {
+            if (!Directory.Exists(compilePath))
+            {
+                Directory.CreateDirectory(compilePath);
+            }
+            var gameResource = Path.Combine(resources, game);
+            uint toIncrement = checksum + 1;
+            // Text files
+            var textChecksum = $"download{checksum}\\download_songlist.qb";
+            var pakCompiler = new PakCompiler(game, platform, split: false);
+            if (!Directory.Exists(gameResource))
+            {
+                throw new Exception($"Cannot find {game} Resource folder.\n\nThis should be included with your toolkit.\nPlease re-download the toolkit.");
+            }
+            string packageHash = PackageNameHashFormat(manifest);
+            string manifestQbName = QBKey(packageHash).Substring(2).TrimStart('0');
+            string manifestFolder = Path.Combine(compilePath, $"cmanifest_{manifestQbName}");
+            string manifestName = $"download{checksum}\\0xb2a7df81.qb";
 
+            var manifestQb = MakeDlcManifest(checksum, packageHash);
+            var blankScripts = "blank_scripts.qb";
+            var dlcScriptsPath = Path.Combine(gameResource, blankScripts);
+            var dlcScriptsFolder = Path.Combine(compilePath, $"cdl{checksum}");
+
+            var dlcTextqb = CompileQbFile(songlistQb, textChecksum, game, platform);
+            var dlcTextFolder = Path.Combine(compilePath, $"cdl{checksum}_text");
+
+            var downloadFolder = Path.GetDirectoryName(Path.Combine(dlcTextFolder, textChecksum));
+            var blankQs = "blank_qs.qs";
+            var dlcTextQs = Path.Combine(gameResource, blankQs);
+
+            Directory.CreateDirectory(dlcScriptsFolder);
+            Directory.CreateDirectory(downloadFolder);
+            Directory.CreateDirectory(Path.Combine(manifestFolder, $"download{checksum}"));
+
+            var manifestQbBytes = CompileQbFile(manifestQb, manifestName, game, platform);
+            File.WriteAllBytes(Path.Combine(manifestFolder, manifestName), manifestQbBytes);
+
+            File.Copy(dlcScriptsPath, Path.Combine(dlcScriptsFolder, "0xb1392214.0x179eac5.qb"), true);
+            File.WriteAllBytes(Path.Combine(dlcTextFolder, textChecksum), dlcTextqb);
+
+            string[] locales = ["en", "fr", "de", "it", "es"];
+            foreach (string locale in locales)
+            {
+                var tempFolder = $"download{toIncrement}";
+                var tempLocale = Path.Combine(dlcTextFolder, tempFolder);
+                Directory.CreateDirectory(tempLocale);
+                var qsSave = Path.Combine(tempLocale, $"download_songlist.qs.{locale}");
+                // Creating a StreamWriter to write to the file with UTF-16 encoding
+                using (StreamWriter writer = new StreamWriter(qsSave, false, Encoding.Unicode))
+                {
+                    // Setting the newline character to only '\n'
+                    writer.NewLine = "\n";
+
+                    foreach (var key in qsStrings)
+                    {
+                        // Formatting the key as specified
+                        string modifiedKey = QBKeyQs(key).Substring(2).PadLeft(8, '0');
+
+                        // Building the line with the modified key and its value
+                        string line = $"{modifiedKey} \"{key}\"";
+
+                        // Writing the line to the file
+                        writer.WriteLine(line);
+                    }
+
+                    // These are needed otherwise the game will crash.
+                    writer.WriteLine();
+                    writer.WriteLine();
+                }
+                File.Copy(dlcTextQs, Path.Combine(tempLocale, $"0x179eac5.qs.{locale}"), true);
+                toIncrement++;
+            }
+
+            var (scriptsPak, _) = pakCompiler.CompilePAK(dlcScriptsFolder, platform);
+            var (textPak, _) = pakCompiler.CompilePAK(dlcTextFolder, platform);
+            var (manifestPak, _) = pakCompiler.CompilePAK(manifestFolder, platform);
+
+            File.WriteAllBytes($"{dlcScriptsFolder}.pak", scriptsPak);
+            File.WriteAllBytes($"{dlcTextFolder}.pak", textPak);
+            File.WriteAllBytes($"{manifestFolder}.pak", manifestPak);
+
+            Directory.Delete(dlcScriptsFolder, true);
+            Directory.Delete(dlcTextFolder, true);
+            Directory.Delete(manifestFolder, true);
+
+            for (int i = 1; i < 4; i++)
+            {
+                string audio = Path.Combine(compilePath, $"adlc{checksum}_{i}.fsb");
+                if (!File.Exists(audio))
+                {
+                    throw new FileNotFoundException($"Missing audio file {audio} for download file creation.");
+                }
+            }
+            if (!File.Exists(Path.Combine(compilePath, $"adlc{checksum}_preview.fsb")))
+            {
+                throw new FileNotFoundException($"Missing preview audio file for download file creation.");
+            }
+        }
+        public static string PackageNameHashFormat(string text)
+        {
+            // Transform each character based on the given conditions
+            string TransformChar(Match match)
+            {
+                char c = match.Value[0];
+                byte[] cBytes = Encoding.UTF8.GetBytes(new[] { c });
+                StringBuilder newChar = new StringBuilder();
+
+                foreach (byte letter in cBytes)
+                {
+                    char chrLetter = (char)letter;
+                    if (Regex.IsMatch(chrLetter.ToString(), "[a-zA-Z0-9]"))
+                    {
+                        newChar.Append(chrLetter);
+                    }
+                    else
+                    {
+                        newChar.Append('_');
+                    }
+                }
+                return newChar.ToString();
+            }
+
+            // Use regex replace to apply the transformation
+            string transformedText = Regex.Replace(text, ".", new MatchEvaluator(TransformChar));
+
+            // Truncate the result to 42 characters
+            if (transformedText.Length > 42)
+            {
+                transformedText = transformedText.Substring(0, 42);
+            }
+
+            return transformedText;
+        }
+        private static List<QBItem> MakeDlcManifest(uint checksum, string packageName)
+        {
+            List<QBItem> manifest = new List<QBItem>();
+            QBItem manifest1 = new QBItem();
+            manifest1.CreateQBItem("0xe57c7c6d", "2", INTEGER);
+            QBItem manifest2 = new QBItem();
+            manifest2.CreateQBItem("0x53a97911", "0", INTEGER);
+            QBArrayNode manifestArray = new QBArrayNode(); // Big array
+
+            QBStructData manifestStruct = new QBStructData(); // First (and only) entry in the array
+
+            QBArrayNode packageNames = new QBArrayNode(); // Array of package names
+            packageNames.AddQbkeyToArray(packageName);
+            manifestStruct.AddArrayToStruct("package_name_checksums", packageNames);
+
+            manifestStruct.AddQbKeyToStruct("format", "gh5_dlc");
+            manifestStruct.AddStringToStruct("song_pak_stem", $"cdl{checksum}");
+
+            QBArrayNode songNums = new QBArrayNode(); // Array of song numbers
+            songNums.AddIntToArray((int)checksum);
+            manifestStruct.AddArrayToStruct("songs", songNums);
+
+            manifestArray.AddStructToArray(manifestStruct);
+
+            manifest.Add(manifest1);
+            manifest.Add(manifest2);
+            manifest.Add(new QBItem("dlc_manifest", manifestArray));
+
+            return manifest;
+        }
         public static uint MakeConsoleChecksum(string[] toCombine)
         {
             int minNum = 1000000000;
@@ -329,7 +617,13 @@ namespace GH_Toolkit_Core.Methods
             var qbKey = CRC.QBKeyUInt(qbString);
             return (uint)(minNum + (qbKey % minNum));
         }
-
+        public static string MakeConsoleChecksumHex(string[] toCombine)
+        {
+            int minNum = 1000000000;
+            string qbString = string.Concat(toCombine);
+            var qbKey = CRC.QBKeyUInt(qbString);
+            return (minNum + (qbKey % minNum)).ToString("X");
+        }
         public static void CreateOnyxStfsFolder(string game, string resource, string compilePath, string packageName, bool altPath = false)
         {
             string yaml = YAML.CreateOnyxYaml(game, packageName);
