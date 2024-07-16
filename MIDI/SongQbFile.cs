@@ -10,10 +10,13 @@ using static GH_Toolkit_Core.QB.QBConstants;
 using static GH_Toolkit_Core.QB.QBStruct;
 using static GH_Toolkit_Core.Checksum.CRC;
 using static GH_Toolkit_Core.Methods.ReadWrite;
+using static GH_Toolkit_Core.Methods.Exceptions;
 using MidiTheory = Melanchall.DryWetMidi.MusicTheory;
 using MidiData = Melanchall.DryWetMidi.Interaction;
 using Melanchall.DryWetMidi.MusicTheory;
 using static GH_Toolkit_Core.MIDI.SongQbFile;
+using static GH_Toolkit_Core.MIDI.AnimStruct;
+using static GH_Toolkit_Core.MIDI.SongClip;
 using System.Collections.Specialized;
 using System.Text;
 using GH_Toolkit_Core.Checksum;
@@ -22,6 +25,11 @@ using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using static GH_Toolkit_Core.MIDI.SongQbFile.CameraGenerator;
 using GH_Toolkit_Core.Methods;
+using System.Drawing;
+using System.IO;
+using System.Xml.Linq;
+using GH_Toolkit_Core.QB;
+
 
 /*
  * This file contains all the logic for creating a QB file from a MIDI file
@@ -91,7 +99,35 @@ namespace GH_Toolkit_Core.MIDI
         public List<(int, QBStructData)> CrowdTimedScripts { get; set; } = new List<(int, QBStructData)>();
         public QBArrayNode? DrumsScripts { get; set; }
         public QBArrayNode? PerformanceScripts { get; set; }
+        public QBArrayNode? FacialScripts { get; set; }
+        public List<(int, QBStructData)> FacialTimedScripts { get; set; } = new List<(int, QBStructData)>();
+        public QBArrayNode? LocalizedStrings { get; set; }
+        public QBArrayNode? ScriptEvents { get; set; }
+        public Dictionary<string, SongClip> SongClips { get; set; } = new Dictionary<string, SongClip>();
+        public Dictionary<string, AnimStruct> AnimStructs { get; set; } = new Dictionary<string, AnimStruct>();
+        public List<QBItem> SongScripts { get; set; } = new List<QBItem>(); // Actual scripts found in songs. Very rare.
+        public List<(int, QBStructData)> ScriptTimedEvents { get; set; } = new List<(int, QBStructData)>();
+        public Dictionary<string, Dictionary<string, List<string>>> Gh6Loops { get; set; } = new Dictionary<string, Dictionary<string, List<string>>>()
+        {
+            {"male",  new Dictionary<string, List<string>>()
+                {
+                    {"guitarist", new List<string>()},
+                    {"bassist", new List<string>()},
+                    {"vocalist", new List<string>()}
+                }
+            },
+            {"female",  new Dictionary<string, List<string>>()
+                {
+                    {"guitarist", new List<string>()},
+                    {"bassist", new List<string>()},
+                    {"vocalist", new List<string>()}
+                }
+            }
+
+        };
+        public QBItem PerfScriptEvents { get; set; }
         public List<Marker>? Markers { get; set; }
+        public List<int> BandMoments { get; set; } = new List<int>();
         internal MidiFile SongMidiFile { get; set; }
         internal TempoMap SongTempoMap { get; set; }
         private int TPB { get; set; }
@@ -101,7 +137,9 @@ namespace GH_Toolkit_Core.MIDI
         private bool HasLights { get; set; } = false;
         private bool HasDrumAnims { get; set; } = false;
         private bool NoAux { get; set; } = true;
+        public bool DoubleKick { get; set; } = false;
         public bool EasyOpens { get; set; } = false;
+        public string SkaPath { get; set; } = "";
         public static string? PerfOverride { get; set; }
         public static string? SongScriptOverride { get; set; }
         public static string? VenueSource { get; set; }
@@ -113,7 +151,8 @@ namespace GH_Toolkit_Core.MIDI
         public static HopoType HopoMethod { get; set; }
         public Dictionary<string, string> QsList { get; set; } = new Dictionary<string, string>();
         private List<string> ErrorList { get; set; } = new List<string>();
-        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "", string venueSource = "", bool rhythmTrack = false, bool overrideBeat = false, int hopoType = 0, bool easyOpens = false)
+        public static ReadWrite _readWriteGh5 = new ReadWrite("big");
+        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "", string venueSource = "", bool rhythmTrack = false, bool overrideBeat = false, int hopoType = 0, bool easyOpens = false, string skaPath = "")
         {
             Game = game;
             SongName = songName;
@@ -125,6 +164,7 @@ namespace GH_Toolkit_Core.MIDI
             RhythmTrack = rhythmTrack;
             OverrideBeat = overrideBeat;
             EasyOpens = easyOpens;
+            SkaPath = skaPath;
             if (Game == GAME_GH3 || Game == GAME_GHA)
             {
                 HopoMethod = HopoType.MoonScraper;
@@ -134,6 +174,12 @@ namespace GH_Toolkit_Core.MIDI
                 HopoMethod = (HopoType)hopoType;
             }
             SetMidiInfo(midiPath);
+        }
+        public bool HasGh6Loops()
+        {
+            var male = Gh6Loops["male"]["vocalist"].Count > 0 && Gh6Loops["male"]["guitarist"].Count > 0 && Gh6Loops["male"]["bassist"].Count > 0;
+            var female = Gh6Loops["female"]["vocalist"].Count > 0 && Gh6Loops["female"]["guitarist"].Count > 0 && Gh6Loops["female"]["bassist"].Count > 0;
+            return male && female;
         }
         public string GetGame()
         {
@@ -174,6 +220,7 @@ namespace GH_Toolkit_Core.MIDI
             var trackChunks = SongMidiFile.GetTrackChunks();
             GetTimeSigs(trackChunks.First());
             CalculateFretbars();
+            ParseClipsAndAnims();
             foreach (var trackChunk in trackChunks.Skip(1))
             {
                 string trackName = GetTrackName(trackChunk);
@@ -310,7 +357,7 @@ namespace GH_Toolkit_Core.MIDI
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_lightshow", LightshowScripts));
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_crowd", CrowdScripts));
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_drums", DrumsScripts));
-                gameQb.Add(CombinePerformanceScripts($"{SongName}_performance"));
+                gameQb.Add(MakePerformanceScriptsQb($"{SongName}_performance"));
             }
             else if (Game == GAME_GHWT)
             {
@@ -339,21 +386,337 @@ namespace GH_Toolkit_Core.MIDI
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_lightshow", LightshowScripts));
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_crowd", CrowdScripts));
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_drums", DrumsScripts));
-                gameQb.Add(CombinePerformanceScripts($"{SongName}_performance"));
+                gameQb.Add(MakePerformanceScriptsQb($"{SongName}_performance"));
                 var (voxQb, QsDict) = Vocals.AddVoxToQb(SongName);
                 QsList = QsDict;
                 gameQb.AddRange(voxQb);
             }
+            else if (Game == GAME_GHWOR || Game == GAME_GH5)
+            {
+                MakeGh5Markers();
+                SplitPerformanceScripts();
+                gameQb.Add(MakeGtrAnimNotes());
+                gameQb.Add(ScriptArrayQbItem($"{SongName}_anim", AnimScripts));
+                gameQb.Add(AnimNodeQbItem($"{SongName}_drums_notes", DrumsNotes));
+                gameQb.Add(ScriptArrayQbItem($"{SongName}_scripts", ScriptScripts));
+                gameQb.Add(AnimNodeQbItem($"{SongName}_cameras_notes", null));
+                gameQb.Add(ScriptArrayQbItem($"{SongName}_cameras", CamerasScripts));
+                gameQb.Add(ScriptArrayQbItem($"{SongName}_performance", ScriptScripts));
+                gameQb.Add(AnimNodeQbItem($"{SongName}_crowd_notes", CrowdNotes));
+                gameQb.Add(ScriptArrayQbItem($"{SongName}_crowd", CrowdScripts));
+                gameQb.Add(AnimNodeQbItem($"{SongName}_lightshow_notes", LightshowNotes));
+                gameQb.Add(ScriptArrayQbItem($"{SongName}_lightshow", LightshowScripts));
+
+                gameQb.Add(TimedScriptArrayQbItem($"{SongName}_facial", FacialTimedScripts));
+                PerfScriptEvents = TimedScriptArrayQbItem($"{SongName}_scriptevents", ScriptTimedEvents);
+            }
             return gameQb;
         }
-        private void MakeNoteAndPerf()
+        public byte[] MakeGh5Notes()
         {
             int entries = 0;
             List<byte> noteFile = [
+                .. Gh5TempoMap(ref entries),
+                .. Gh5BandMoments(ref entries),
+                .. Gh5Markers(ref entries),
                 .. Guitar.ProcessNewNotes(ref entries), 
                 .. Rhythm.ProcessNewNotes(ref entries),
                 .. Drums.ProcessNewNotes(ref entries),
+                .. Drums.ProcessNewDrumFills(ref entries),
+                .. Vocals.MakeGh5Vocals(ref entries),
             ];
+            CheckForDoubleKick();
+            using (var stream = new MemoryStream())
+            {
+                _readWriteGh5.WriteInt32(stream, NOTE_ID);
+                _readWriteGh5.WriteUInt32(stream, QBKeyUInt(SongName));
+                _readWriteGh5.WriteInt32(stream, entries);
+                _readWriteGh5.WriteUInt32(stream, QBKeyUInt(NOTE));
+                _readWriteGh5.PadStreamTo(stream, 28);
+                stream.Write(noteFile.ToArray(), 0, noteFile.Count);
+                return stream.ToArray();
+            }
+        }
+        private void CheckForDoubleKick()
+        {
+            if (Drums.Expert.PlayNotes.Any(note => (note.Note & 0x40) != 0) || Drums.Expert.PlayNotes.Any(note => note.Ghosts != 0))
+            {
+                DoubleKick = true;
+            }
+        }
+        public byte[] MakeGh5Perf()
+        {
+            int entries = 6;
+            byte[] animStructs;
+            if (HasGh6Loops())
+            {
+                animStructs = Gh6AnimStructs();
+            }
+            else
+            {
+                animStructs = Gh5AnimStructs();
+            }
+            List<byte> perfFile = [
+                .. Gh5Cameras(),
+                .. animStructs,
+            ];
+            using (var stream = new MemoryStream())
+            {
+                _readWriteGh5.WriteInt32(stream, PERF_ID);
+                _readWriteGh5.WriteUInt32(stream, QBKeyUInt(SongName));
+                _readWriteGh5.WriteInt32(stream, entries);
+                _readWriteGh5.WriteUInt32(stream, QBKeyUInt(PERF));
+                _readWriteGh5.PadStreamTo(stream, 28);
+                stream.Write(perfFile.ToArray(), 0, perfFile.Count);
+                return stream.ToArray();
+            }
+        }
+        private byte[] Gh5AnimStructs()
+        {
+            using (var stream = new MemoryStream())
+            {
+                foreach (var animName in new string[] { "male", "female" })
+                {
+                    string altString = $"{animName}_alt";
+                    if (!AnimStructs.ContainsKey(animName))
+                    {
+                        var newStruct = new AnimStruct(animName, false);
+                        AnimStructs.Add(animName, newStruct);
+                    }
+                    if (!AnimStructs.ContainsKey(altString))
+                    {
+                        var newStruct = new AnimStruct(animName, true);
+                        AnimStructs.Add(altString, newStruct);
+                    }
+                }
+                foreach (var animStruct in AnimStructs.Values)
+                {
+                    var structName = $"{animStruct.GetName()}_{SongName}";
+                    MakeGh5PerfHeader(stream, structName, 1, "gh5_actor_loops");
+                    animStruct.SetDefaultAnimStruct();
+                    var animBytes = Gh5AnimBytes(animStruct);
+                    stream.Write(animBytes, 0, animBytes.Length);
+                }
+                return stream.ToArray();
+            }  
+        }
+        private byte[] Gh6AnimStructs()
+        {
+            var maleBytes = new List<byte>();
+            var femaleBytes = new List<byte>();
+            foreach (var anim in new string[] { "guitarist", "bassist", "vocalist" })
+            {
+                using (MemoryStream maleStream = new MemoryStream())
+                using (MemoryStream femaleStream = new MemoryStream())
+                {
+                    foreach (string ska in Gh6Loops["male"][anim]) 
+                    {
+                        AddLoopsToStream(maleStream, ska);
+                    }
+                    foreach (string ska in Gh6Loops["female"][anim])
+                    {
+                        AddLoopsToStream(femaleStream, ska);
+                    }
+                    if (maleStream.Length > 200)
+                    {
+                        AddToErrorList($"Too many anim loops for male characters. Max 50, found {maleStream.Length / 4}");
+                    }
+                    if (femaleStream.Length > 200)
+                    {
+                        AddToErrorList($"Too many anim loops for female characters. Max 50, found {femaleStream.Length / 4}");
+                    }
+                    _readWriteGh5.PadStreamTo(maleStream, 200);
+                    _readWriteGh5.PadStreamTo(femaleStream, 200);
+                    maleBytes.AddRange(maleStream.ToArray());
+                    femaleBytes.AddRange(femaleStream.ToArray());
+                }
+            }
+            maleBytes.AddRange(new byte[400]);
+            femaleBytes.AddRange(new byte[400]);
+            using (MemoryStream animStruct = new MemoryStream())
+            {
+                foreach (var alt in new string[] { "anim_struct", "alt_anim_struct" })  
+                {
+                    string structName = $"car_male_{alt}_{SongName}";
+                    MakeGh5PerfHeader(animStruct, structName, 1, "gh6_actor_loops");
+                    animStruct.Write(maleBytes.ToArray(), 0, maleBytes.Count);
+
+                    structName = $"car_female_{alt}_{SongName}";
+                    MakeGh5PerfHeader(animStruct, structName, 1, "gh6_actor_loops");
+                    animStruct.Write(femaleBytes.ToArray(), 0, maleBytes.Count);
+                }
+                return animStruct.ToArray();
+            }
+        }
+        private void AddLoopsToStream(MemoryStream stream, string ska)
+        {
+            if (AnimLoopsCache.AnimLoops.Contains(ska.ToLower()))
+            {
+                _readWriteGh5.WriteUInt32(stream, QBKeyUInt(ska));
+            }
+            else
+            {
+                AddToErrorList($"Loop {ska} not found in anim_loops");
+            }
+            var cameras = AnimLoopsCache.AnimLoopsCams.Where(loop => loop.Contains($"{ska.ToLower()}_c")).ToList();
+            if (cameras.Count > 0)
+            {
+                foreach (string camera in cameras)
+                {
+                    _readWriteGh5.WriteUInt32(stream, QBKeyUInt(camera));
+                }
+            }
+            else
+            {
+                AddToErrorList($"No cameras found for {ska}");
+            }
+        }
+        private byte[] Gh5AnimBytes(AnimStruct animStruct)
+        {
+            var animBytes = new List<byte>();
+            using (var stream = new MemoryStream())
+            {
+                foreach (InstrumentAnim anim in new InstrumentAnim[] { animStruct.Guitar, animStruct.Bass, animStruct.Drum, animStruct.Vocals })
+                {
+                    _readWriteGh5.WriteUInt32(stream, QBKeyUInt(anim.Pak));
+                    _readWriteGh5.WriteUInt32(stream, QBKeyUInt(anim.AnimSet));
+                    _readWriteGh5.WriteUInt32(stream, QBKeyUInt(anim.FingerAnims));
+                    _readWriteGh5.WriteUInt32(stream, QBKeyUInt(anim.FretAnims));
+                    _readWriteGh5.WriteUInt32(stream, QBKeyUInt(anim.StrumAnims));
+                    _readWriteGh5.WriteUInt32(stream, QBKeyUInt(anim.FacialAnims));
+                }
+
+                _readWriteGh5.WriteUInt32(stream, QBKeyUInt(DRUMLOOPS_ANIMS));
+                _readWriteGh5.WriteUInt32(stream, QBKeyUInt(DRUMLOOPS_ANIMS_SET));
+                _readWriteGh5.WriteUInt32(stream, QBKeyUInt(animStruct.Drum.FacialAnims));
+
+                return stream.ToArray();
+            }
+        }
+        private byte[] Gh5Cameras()
+        {
+            var autoCameras = new List<AnimNote>();
+            var momentCameras = new List<AnimNote>();
+            foreach (var camera in CamerasNotes)
+            {
+                if (momentCams.TryGetValue(camera.Note, out int autocut))
+                {
+                    momentCameras.Add(camera);
+                    autoCameras.Add(new AnimNote(camera.Time, autocut, camera.Length, camera.Velocity));
+                }
+                else
+                {
+                    autoCameras.Add(camera);
+                }
+            }
+            using (MemoryStream stream = new MemoryStream())
+            {
+                MakeGh5PerfHeader(stream, "AutocutCameras", autoCameras.Count, "gh5_camera_note");
+                Gh5CamerasToBytes(stream, autoCameras);
+                MakeGh5PerfHeader(stream, "MomentCameras", momentCameras.Count, "gh5_camera_note");
+                Gh5CamerasToBytes(stream, momentCameras);
+                return stream.ToArray();
+            }
+        }
+        private void Gh5CamerasToBytes(MemoryStream stream, List<AnimNote> cameraNotes)
+        {
+            foreach (AnimNote camera in cameraNotes)
+            {
+                _readWriteGh5.WriteInt32(stream, camera.Time);
+                _readWriteGh5.WriteInt16(stream, (short)camera.Length);
+                _readWriteGh5.WriteInt8(stream, (byte)camera.Note);
+            }
+        }
+        private byte[] Gh5TempoMap(ref int entries)
+        {
+            entries += 2;
+            using (MemoryStream stream = new MemoryStream())
+            {
+                MakeGh5NoteHeader(stream, "fretbar", Fretbars.Count, "gh5_fretbar_note", 4);
+                foreach (int fretbar in Fretbars)
+                {
+                    _readWriteGh5.WriteInt32(stream, fretbar);
+                }
+
+                MakeGh5NoteHeader(stream, "timesig", TimeSigs.Count, "gh5_timesig_note", 6);
+                foreach (TimeSig ts in TimeSigs)
+                {
+                    _readWriteGh5.WriteInt32(stream, ts.Time);
+                    _readWriteGh5.WriteInt8(stream, (byte)ts.Numerator);
+                    _readWriteGh5.WriteInt8(stream, (byte)ts.Denominator);
+                }
+
+                return stream.ToArray();
+            }
+        }
+        private void MakeGh5Markers()
+        {
+            foreach (Marker marker in Markers)
+            {
+                if (marker.Text == "_ENDOFSONG")
+                {
+                    marker.Text = $"\\L{marker.Text}";
+                }
+                else
+                {
+                    marker.Text = $"\\u[m]{marker.Text}";
+                }
+                QsList.Add(marker.QsKeyString, marker.Text);
+            }
+        }
+        private byte[] Gh5Markers(ref int entries)
+        {
+            using (MemoryStream stream = new MemoryStream())
+            {
+                MakeGh5NoteHeader(stream, "guitarmarkers", Markers.Count, "gh5_marker_note", 8);
+                foreach (Marker marker in Markers)
+                {
+                    _readWriteGh5.WriteInt32(stream, marker.Time);
+                    _readWriteGh5.WriteUInt32(stream, marker.QsKey);
+                }
+                entries++;
+                return stream.ToArray();
+            }
+        }
+        private byte[] Gh5BandMoments(ref int entries)
+        {
+            using (MemoryStream stream = new MemoryStream())
+            {
+                MakeGh5NoteHeader(stream, "bandmoment", BandMoments.Count/2, "gh5_band_moment_note", 4);
+                foreach (int moment in BandMoments)
+                {
+                    _readWriteGh5.WriteInt32(stream, moment);
+                }
+                entries++;
+                return stream.ToArray();
+            }
+        }
+        private static void MakeNewStarPower(Stream stream, string spName, List<StarPower> starEntries, ref int entries)
+        {
+            uint spSize = 6;
+            MakeGh5NoteHeader(stream, spName, starEntries.Count, "gh5_star_note", spSize);
+            foreach (StarPower star in starEntries)
+            {
+                _readWriteGh5.WriteInt32(stream, star.Time);
+                _readWriteGh5.WriteInt16(stream, (short)star.Length);
+            }
+            entries++;
+            return;
+        }
+        private static void MakeGh5NoteHeader(Stream stream, string secName, int entryCount, string entryType, uint elementSize)
+        {
+            uint secQb = QBKeyUInt(secName);
+            _readWriteGh5.WriteUInt32(stream, secQb);
+            _readWriteGh5.WriteInt32(stream, entryCount);
+            _readWriteGh5.WriteUInt32(stream, QBKeyUInt(entryType));
+            _readWriteGh5.WriteUInt32(stream, elementSize);
+        }
+        private static void MakeGh5PerfHeader(Stream stream, string secName, int entryCount, string entryType)
+        {
+            uint secQb = QBKeyUInt(secName);
+            _readWriteGh5.WriteUInt32(stream, secQb);
+            _readWriteGh5.WriteInt32(stream, entryCount);
+            _readWriteGh5.WriteUInt32(stream, QBKeyUInt(entryType));
         }
         private void GhaRhythmAux(bool noAux)
         {
@@ -391,10 +754,6 @@ namespace GH_Toolkit_Core.MIDI
         public byte[] ParseMidiToQb()
         {
             ParseMidi();
-            if (Game == GAME_GHWOR)
-            {
-                MakeNoteAndPerf();
-            }
             var gameQb = MakeMidQb();
             string songMid;
             if (GamePlatform == CONSOLE_PS2)
@@ -522,6 +881,15 @@ namespace GH_Toolkit_Core.MIDI
                 return new QBItem(name, scriptArray);
             }
         }
+        public QBItem TimedScriptArrayQbItem(string name, List<(int, QBStructData)> scriptArray)
+        {
+            QBArrayNode timedScriptArray = new QBArrayNode();
+            foreach ((int time, QBStructData script) in scriptArray)
+            {
+                timedScriptArray.AddStructToArray(script);
+            }
+            return new QBItem(name, timedScriptArray);
+        }
         public List<QBItem> ProcessMarkers()
         {
             if (Markers == null)
@@ -644,7 +1012,7 @@ namespace GH_Toolkit_Core.MIDI
             for (int i = 0; i < cameraNotes.Count; i++)
             {
                 MidiData.Note note = cameraNotes[i];
-                int startTime = GameMilliseconds(note.Time);
+                int startTime = RoundTimeMills(note.Time);
                 int length;
                 if (i == cameraNotes.Count - 1)
                 {
@@ -652,7 +1020,7 @@ namespace GH_Toolkit_Core.MIDI
                 }
                 else
                 {
-                    length = GameMilliseconds(cameraNotes[i + 1].Time) - startTime;
+                    length = RoundCamLen(RoundTimeMills(cameraNotes[i + 1].Time) - startTime);
                 }
                 int noteVal = note.NoteNumber;
                 int velocity = note.Velocity;
@@ -713,7 +1081,7 @@ namespace GH_Toolkit_Core.MIDI
 
             return (game, venue);
         }
-        public QBItem CombinePerformanceScripts(string songName)
+        private List<(int, QBStructData)> CombinePerformanceScripts()
         {
             var perfScripts = new List<(int, QBStructData)>();
             //QBItem perfScripts = new QBItem(songName, Guitar.PerformanceScript);
@@ -729,17 +1097,19 @@ namespace GH_Toolkit_Core.MIDI
             }
             perfScripts.AddRange(Vocals.PerformanceScript);
             // Add Perf override function here
-            if (File.Exists(PerfOverride))
+            var perfOverride = PerformanceOverrideParsing();
+            if (perfOverride != null)
             {
-                var perfOverride = PerformanceOverrideParsing(PerfOverride);
-                if (perfOverride != null)
-                {
-                    perfScripts.AddRange(perfOverride);
-                }
+                perfScripts.AddRange(perfOverride);
             }
             perfScripts.AddRange(CameraTimedScripts);
             perfScripts.AddRange(CrowdTimedScripts);
             perfScripts.Sort((x, y) => x.Item1.CompareTo(y.Item1));
+            return perfScripts;
+        }
+        public QBItem MakePerformanceScriptsQb(string songName)
+        {
+            var perfScripts = CombinePerformanceScripts();
             PerformanceScripts = new QBArrayNode();
             foreach (var script in perfScripts)
             {
@@ -748,9 +1118,13 @@ namespace GH_Toolkit_Core.MIDI
             QBItem PerfScriptQb = new QBItem(songName, PerformanceScripts);
             return PerfScriptQb;
         }
-        public List<(int, QBStructData)>? PerformanceOverrideParsing(string filePath)
+        public List<(int, QBStructData)>? PerformanceOverrideParsing()
         {
-            string perfText = File.ReadAllText(filePath).Trim();
+            if (!File.Exists(PerfOverride))
+            {
+                return null;
+            }
+            string perfText = File.ReadAllText(PerfOverride).Trim();
             if (perfText == "")
             {
                 return null;
@@ -758,6 +1132,7 @@ namespace GH_Toolkit_Core.MIDI
             perfText = CleanPerfOverride(perfText);
             var qb = ParseQFile(perfText);
             var perfScripts = new List<(int, QBStructData)>();
+            List<string> SkaErrors = new List<string>();
 
             // This nested method looks icky, but I don't feel like refactoring right now.
             // It works... so it's fine for now.
@@ -765,7 +1140,7 @@ namespace GH_Toolkit_Core.MIDI
             {
                 if (qbItem is QBItem qbItem2)
                 {
-                    if (qbItem2.Name == $"{SongName}_performance")
+                    if (qbItem2.Name.Contains("_performance"))
                     {
                         var qbStructData = qbItem2.Data as QBArrayNode;
                         if (qbStructData != null)
@@ -775,30 +1150,196 @@ namespace GH_Toolkit_Core.MIDI
                                 var perfEntry = perfBlock as QBStructData;
                                 if (perfEntry != null)
                                 {
-                                    int time = (int)perfEntry["time"];
-                                    perfScripts.Add((time, perfEntry));
+                                    int timeOrig = (int)perfEntry["time"];
+                                    int time = RoundTime(timeOrig);
+                                    perfEntry["time"] = time; //Update the time to be on the nearest frame.
+                                    var scriptType = perfEntry["scr"].ToString().ToLower();
+                                    if (scriptType == "band_playclip")
+                                    {
+                                        var scrParams = (QBStructData)perfEntry["params"];
+                                        var clip = scrParams["clip"].ToString();
+                                        var clipQb = QBKey(scrParams["clip"].ToString());
+                                        if (!SongClips.ContainsKey(clipQb))
+                                        {
+                                            throw new ClipNotFoundException($"{clip} at time {timeOrig} referenced in Performance Override, but not defined in Song Scripts!");
+                                        }
+                                        var currClip = SongClips[clipQb];
+                                        currClip.UpdateFromParams(scrParams);
+                                        int closeStart = GetClosestCamera(time);
+                                        int timeEnd = RoundCamLen(time + currClip.Length);
+                                        int closeEnd = GetClosestCamera(timeEnd);
+                                        int startChange = time - closeStart;
+                                        int endChange = timeEnd - closeEnd;
+
+                                        if (Math.Abs(startChange) > 100)
+                                        {
+                                            startChange = 0;
+                                        }
+                                        else
+                                        {
+                                            time = closeStart;
+                                            perfEntry["time"] = time;
+                                        }
+                                        if (Math.Abs(endChange) > 100)
+                                        {
+                                            endChange = 0;
+                                        }
+
+                                        startChange = (int)Math.Round(startChange * 30f / 1000);
+                                        endChange = (int)Math.Round(endChange * 30f / 1000);
+                                        int endCameraChange = 0;
+                                        try
+                                        {
+                                            currClip.UpdateFromSkaFile(SkaPath, startChange, endChange, closeStart, closeEnd, out endCameraChange);
+                                        }
+                                        catch (Exception e)
+                                        {
+                                            var errors = e.Message.Split(',');
+                                            SkaErrors.AddRange(errors);
+                                            continue;
+                                        }
+                                        int newTimeEnd = RoundCamLen(time + currClip.Length);
+                                        closeEnd = GetClosestCamera(newTimeEnd);
+                                        int moveEnd = RoundCamLen(closeEnd - endCameraChange);
+                                        int cameraCheck = RoundCamLen(moveEnd - newTimeEnd);
+                                        if (Math.Abs(cameraCheck) <= 100)
+                                        {
+                                            ChangeCamera(closeEnd, newTimeEnd);
+                                        }
+                                        // update start and end frame in the perf entry
+                                        var clipParams = (QBStructData)perfEntry["params"];
+                                        if (clipParams.StructDict.ContainsKey("startframe"))
+                                        {
+                                            clipParams["startframe"] = currClip.StartFrame;
+                                        }
+                                        else
+                                        {
+                                            clipParams.AddIntToStruct("startframe", currClip.StartFrame);
+                                        }
+                                        if (clipParams.StructDict.ContainsKey("endframe"))
+                                        {
+                                            clipParams["endframe"] = currClip.EndFrame;
+                                        }
+                                        else
+                                        {
+                                            clipParams.AddIntToStruct("endframe", currClip.EndFrame);
+                                        }
+                                    }
+                                    if (Game == GAME_GHWOR)
+                                    {
+                                        switch (scriptType)
+                                        {
+                                            case "band_playfacialanim":
+                                                FacialTimedScripts.Add((time, perfEntry));
+                                                break;
+                                            case "band_playloop":
+                                                if (Game == GAME_GHWOR)
+                                                {
+                                                    var parameters = (QBStructData)perfEntry["params"];
+                                                    var avatar = (string)parameters["name"];
+
+                                                    string[] genders = { "male", "female" };
+
+                                                    foreach (var gender in genders)
+                                                    {
+                                                        try
+                                                        {
+                                                            string loop = parameters[gender] as string;
+                                                            if (loop != null && !Gh6Loops[gender][avatar].Contains(loop))
+                                                            {
+                                                                Gh6Loops[gender][avatar].Add(loop);
+                                                            }
+                                                        }
+                                                        catch
+                                                        {
+                                                        }
+                                                    }
+                                                }
+                                                goto default;
+                                            default:
+                                                ScriptTimedEvents.Add((time, perfEntry));
+                                                break;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        perfScripts.Add((time, perfEntry));
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
+            if (SkaErrors.Count > 0)
+            {
+                foreach (var error in SkaErrors)
+                {
+                    var errorList = error.Split(':');
+                    AddToErrorList($"Animation file {errorList[1]} referenced in clip {errorList[0]}, but not found in SKA folder");
+                }
+            }
             return perfScripts;
+        }
+        private int GetClosestCamera(int time)
+        {
+            int closest = 0;
+            int minDiff = int.MaxValue;
+            foreach (var camera in CamerasNotes)
+            {
+                int diff = Math.Abs(camera.Time - time);
+                if (diff < minDiff)
+                {
+                    minDiff = diff;
+                    closest = camera.Time;
+                }
+            }
+            return closest;
+        }
+        private void ChangeCamera(int origTime, int toTime)
+        {
+            for (int i = 0; i < CamerasNotes.Count; i++)
+            {
+                if (CamerasNotes[i].Time == origTime)
+                {
+                    var prevCamera = CamerasNotes[i - 1];
+                    var currCamera = CamerasNotes[i];
+
+                    currCamera.Time = toTime;
+                    prevCamera.Length = RoundCamLen(currCamera.Time - prevCamera.Time);
+                    if (i < CamerasNotes.Count - 1)
+                    {
+                        var nextCamera = CamerasNotes[i + 1];
+                        currCamera.Length = RoundCamLen(nextCamera.Time - currCamera.Time);
+                    }
+                    break;
+                }
+            }
+        }
+        public void SplitPerformanceScripts()
+        {
+            PerformanceOverrideParsing();
+            FacialTimedScripts.AddRange(Guitar.PerformanceScript);
+            FacialTimedScripts.AddRange(Rhythm.PerformanceScript);
+            FacialTimedScripts.AddRange(Drums.PerformanceScript);
+            FacialTimedScripts.AddRange(Vocals.PerformanceScript);
+
+            ScriptTimedEvents.AddRange(CameraTimedScripts);
+            ScriptTimedEvents.AddRange(CrowdTimedScripts);
+
+            FacialTimedScripts.Sort((x, y) => x.Item1.CompareTo(y.Item1));
+            ScriptTimedEvents.Sort((x, y) => x.Item1.CompareTo(y.Item1));
         }
         public string CleanPerfOverride(string perfText)
         {
-            perfText = perfText.ToLower();
+            string regString = @"^[a-zA-Z]+_performance\s*=\s*\[";
             if (perfText.StartsWith(LEFTBRACE))
             {
                 perfText = $"{SongName}_performance = [\n{perfText}\n]";
             }
-            else if (perfText.StartsWith(SONG_PERFORMANCE))
+            else if (Regex.IsMatch(perfText, regString))
             {
-                perfText = perfText.Replace(SONG_PERFORMANCE, $"{SongName}_performance");
-            }
-            else if (perfText.StartsWith($"{SongName}_performance"))
-            {
-                // Nothing to do here
+                
             }
             else
             {
@@ -1245,6 +1786,7 @@ namespace GH_Toolkit_Core.MIDI
         {
             // Create a variable that grabs all text events
             var allEvents = trackChunk.GetTimedEvents().ToList();
+            var bandMoments = trackChunk.GetNotes().Where(x => x.NoteNumber == 104).ToList();
             CrowdNotes = new List<AnimNote>();
             Dictionary<string, int> crowdDict;
             if (Game == GAME_GH3 || Game == GAME_GHA)
@@ -1318,6 +1860,13 @@ namespace GH_Toolkit_Core.MIDI
             if (Markers.Count == 0)
             {
                 Markers = [new Marker(0, "start")];
+            }
+            foreach (var bandMoment in bandMoments)
+            {
+                int startTime = GameMilliseconds(bandMoment.Time);
+                int endTime = GameMilliseconds(bandMoment.EndTime);
+                int length = endTime - startTime;
+                BandMoments.AddRange(new List<int> { startTime, length });
             }
         }
         public void ProcessBeat(TrackChunk trackChunk)
@@ -1693,43 +2242,46 @@ namespace GH_Toolkit_Core.MIDI
                     return drumAnims;
                 }
             }
-            private int RoundTime(int entry)
+        }
+        public static int RoundTime(int entry)
+        {
+            string entryStr = entry.ToString("D6");
+            int timeTrunc = int.Parse(entryStr.Substring(4, 2));
+
+            switch (timeTrunc)
             {
-                string entryStr = entry.ToString("D6");
-                int timeTrunc = int.Parse(entryStr.Substring(4, 2));
-
-                switch (timeTrunc)
-                {
-                    case 0:
-                    case 33:
-                    case 67:
-                        return entry;
-                    case 99:
-                        return entry + 1;
-                    case 1:
-                        return int.Parse(entryStr.Substring(0, 4) + "00");
-                    default:
-                        if (timeTrunc <= 34)
-                            return int.Parse(entryStr.Substring(0, 4) + "33");
-                        else if (timeTrunc <= 68)
-                            return int.Parse(entryStr.Substring(0, 4) + "67");
-                        else
-                            return int.Parse(entryStr.Substring(0, 4) + "99") + 1;
-                }
+                case 0:
+                case 33:
+                case 67:
+                    return entry;
+                case 99:
+                    return entry + 1;
+                case 1:
+                    return int.Parse(entryStr.Substring(0, 4) + "00");
+                default:
+                    if (timeTrunc <= 34)
+                        return int.Parse(entryStr.Substring(0, 4) + "33");
+                    else if (timeTrunc <= 68)
+                        return int.Parse(entryStr.Substring(0, 4) + "67");
+                    else
+                        return int.Parse(entryStr.Substring(0, 4) + "99") + 1;
             }
+        }
+        public int RoundTimeMills(long entry)
+        {
+            return RoundTime(GameMilliseconds(entry));
+        }
+        public static int RoundCamLen(int lengthVal)
+        {
+            string lengthStr = lengthVal.ToString();
+            char lastChar = lengthStr[lengthStr.Length - 1];
 
-            private int RoundCamLen(int lengthVal)
-            {
-                string lengthStr = lengthVal.ToString();
-                char lastChar = lengthStr[lengthStr.Length - 1];
-
-                if (lastChar == '4')
-                    return lengthVal - 1;
-                else if (lastChar == '6')
-                    return lengthVal + 1;
-                else
-                    return lengthVal;
-            }
+            if (lastChar == '4')
+                return lengthVal - 1;
+            else if (lastChar == '6')
+                return lengthVal + 1;
+            else
+                return lengthVal;
         }
         public class Instrument
         {
@@ -2196,6 +2748,43 @@ namespace GH_Toolkit_Core.MIDI
                 list.AddRange(Expert.CreateGh5Notes(name, ref entries, ghwor));
                 return list.ToArray();
             }
+            public byte[] ProcessNewDrumFills(ref int entries)
+            {
+                var readWrite = new ReadWrite("big");
+                var drumFillBytes = new List<byte>();
+
+                var fills = new List<int>();
+                var diffs = new List<string>() { "easy", "medium", "hard", "expert" };
+                int numFills = DrumFill.Items.Count;
+                uint elementSize = 8;
+
+                foreach (QBArrayNode fill in DrumFill.Items)
+                {
+                    foreach (int time in fill.Items)
+                    {
+                        fills.Add(time);
+                    }
+                }
+
+                using (var stream = new MemoryStream())
+                {
+                    foreach (string diff in diffs)
+                    {
+                        string diffFill = $"{diff}drumfill";
+                        MakeGh5NoteHeader(stream, diffFill, numFills, "gh5_drumfill_note", elementSize);
+                        foreach(int fill in fills)
+                        {
+                            _readWriteGh5.WriteInt32(stream, fill);
+                        }
+                        entries++;
+                    }
+
+
+                    return stream.ToArray();
+                }
+
+                
+            }
             public List<QBItem> MakeFaceOffQb(string name)
             {
                 List<QBItem> qBItems = new List<QBItem>();
@@ -2296,12 +2885,119 @@ namespace GH_Toolkit_Core.MIDI
             public List<VocalPhrase>? VocalPhrases { get; set; } = new List<VocalPhrase>();
             public (int, int)? NoteRange { get; set; } = (60, 60);
             public List<VocalLyrics> Lyrics { get; set; } = new List<VocalLyrics>();
-            public List<QBArrayNode>? Markers { get; set; } = new List<QBArrayNode>();
+            public List<VocalPhrase>? Markers { get; set; } = new List<VocalPhrase>();
+            internal List<StarPower>? StarPowerPhrases { get; set; } = new List<StarPower>();
             private string Name { get; set; }
             // GHWT stuff to come later
             public VocalsInstrument()
             {
 
+            }
+            public byte[] MakeGh5Vocals(ref int entries)
+            {
+                using (MemoryStream stream = new MemoryStream())
+                {
+                    MakeGh5VoxNotes(stream, ref entries);
+                    Gh5VoxLyrics(stream, ref entries);
+                    Gh5VoxPhrases(stream, ref entries);
+                    Gh5Freeforms(stream, ref entries);
+                    MakeNewStarPower(stream, "vocalstarpower", StarPowerPhrases, ref entries);
+                    return stream.ToArray();
+                }
+                
+            }
+            private void MakeGh5VoxNotes(Stream stream, ref int entries)
+            {
+                MakeGh5NoteHeader(stream, "vocals", Notes.Count, "gh5_vocal_note", 7);
+                for (int i = 0; i < Notes.Count; i++)
+                {
+                    PlayNote note = Notes[i];
+                    CalculateNoteLengths(note, i);
+                    _readWriteGh5.WriteInt32(stream, note.Time);
+                    _readWriteGh5.WriteInt16(stream, (short)note.Length);
+                    _readWriteGh5.WriteInt8(stream, (byte)note.Note);
+                }
+                entries++;
+            }
+            private void Gh5VoxLyrics(Stream stream, ref int entries, bool isWii = false)
+            {
+                uint elementSize = (uint)(isWii ? 36 : 68);
+                int maxString = (int)(elementSize - 4) / 2;
+                MakeGh5NoteHeader(stream, "vocallyrics", Lyrics.Count, "gh5_vocal_lyric", elementSize);
+                for (int i = 0; i < Lyrics.Count; i++)
+                {
+                    VocalLyrics lyric = Lyrics[i];
+
+                    lyric.Text = lyric.Text.Replace("\\L", "");
+                    if (lyric.Text.Length > maxString)
+                    {
+                        Console.WriteLine($"{lyric.Time} - Truncating too long lyric text: {lyric.Text}");
+                        lyric.Text = lyric.Text.Substring(0, maxString);
+                    }
+                    lyric.Text = lyric.Text.PadRight(maxString, '\0');
+                    _readWriteGh5.WriteInt32(stream, lyric.Time);
+                    WriteWideString(stream, lyric.Text);
+                }
+                entries++;
+            }
+            private void Gh5VoxPhrases(Stream stream, ref int entries, bool isWii = false)
+            {
+                int markerLength = isWii ? 132 : 260;
+                FilterMarkers(markerLength);
+                using (MemoryStream phraseStream = new MemoryStream())
+                using (MemoryStream markerStream = new MemoryStream())
+                {
+                    entries += 2;
+                    MakeGh5NoteHeader(phraseStream, "vocalphrase", VocalPhrases.Count, "gh5_vocal_phrase", 4);
+                    MakeGh5NoteHeader(markerStream, "vocalsmarkers", Markers.Count, "gh5_vocal_marker_note", 260);
+
+                    foreach (VocalPhrase phrase in VocalPhrases)
+                    {
+                        _readWriteGh5.WriteInt32(phraseStream, phrase.TimeMills);
+                    }
+                    foreach (VocalPhrase marker in Markers)
+                    {
+                        _readWriteGh5.WriteInt32(markerStream, marker.TimeMills);
+                        WriteWideString(markerStream, marker.Text);
+                    }
+
+                    phraseStream.WriteTo(stream);
+                    markerStream.WriteTo(stream);
+
+                }
+            }
+            private void Gh5Freeforms(Stream stream, ref int entries)
+            {
+                MakeGh5NoteHeader(stream, "vocalfreeform", FreeformPhrases.Count, "gh5_vocal_freeform_note", 10);
+                for (int i = 0; i < FreeformPhrases.Count; i++)
+                {
+                    Freeform phrase = FreeformPhrases[i];
+                    _readWriteGh5.WriteInt32(stream, phrase.Time);
+                    _readWriteGh5.WriteInt32(stream, phrase.Length);
+                    _readWriteGh5.WriteInt16(stream, 0); // unk value. Always 0 in official songs
+                }
+                entries++;
+            }
+            private void FilterMarkers(int markerLength)
+            {
+                markerLength = (markerLength - 4) / 2;
+                foreach (VocalPhrase phrase in VocalPhrases)
+                {
+                    if (phrase.Text == null)
+                    {
+                        continue;
+                    }
+                    else if (phrase.Type == VocalPhraseType.Lyrics)
+                    {
+                        phrase.Text = phrase.Text.PadRight(markerLength, '\0');
+                        Markers.Add(phrase);
+                    }
+                    else if (phrase.Type == VocalPhraseType.Freeform)
+                    {
+                        phrase.Text = string.Empty.PadRight(markerLength, '\0');
+                        Markers.Add(phrase);
+                    }
+                }
             }
             public (List<QBItem>, Dictionary<string, string>) AddVoxToQb(string name)
             {
@@ -2329,6 +3025,16 @@ namespace GH_Toolkit_Core.MIDI
 
                 return (voxQb, lyricDict);
             }
+            private void CalculateNoteLengths(PlayNote note, int i)
+            {
+                if (note.Note == 2)
+                {
+                    PlayNote prevNote = Notes[i - 1];
+                    PlayNote nextNote = Notes[i + 1];
+                    note.Time = prevNote.Time + prevNote.Length;
+                    note.Length = nextNote.Time - note.Time;
+                }
+            }
             private QBItem MakeVocalNotes()
             {
                 string qbName = $"{Name}_song_vocals";
@@ -2347,13 +3053,7 @@ namespace GH_Toolkit_Core.MIDI
                     for (int i = 0; i < Notes.Count; i++)
                     {
                         PlayNote note = Notes[i];
-                        if (note.Note == 2)
-                        {
-                            PlayNote prevNote = Notes[i - 1];
-                            PlayNote nextNote = Notes[i + 1];
-                            note.Time = prevNote.Time + prevNote.Length;
-                            note.Length = nextNote.Time - note.Time;
-                        }
+                        CalculateNoteLengths(note, i);
                         entry.AddIntToArray(note.Time);
                         entry.AddIntToArray(note.Length);
                         entry.AddIntToArray(note.Note);
@@ -2505,6 +3205,7 @@ namespace GH_Toolkit_Core.MIDI
                 PerformanceScript = songQb.InstrumentScripts(textEvents, VOCALIST);
                 if (Game != GAME_GH3 && Game != GAME_GHA)
                 {
+                    bool isGh5orWor = Game == GAME_GH5 || Game == GAME_GHWOR;
                     var allNotes = trackChunk.GetNotes().ToList();
                     var singNotes = new Dictionary<long, MidiData.Note>();
                     var phraseNotes = new Dictionary<long, VocalPhrase>();
@@ -2637,6 +3338,10 @@ namespace GH_Toolkit_Core.MIDI
                             {
                                 songQb.AddTimedError("Duplicate freeform note found", "PART VOCALS", note.Time);
                             }
+                        }
+                        else if (note.NoteNumber == StarPowerNote)
+                        {
+                            StarPowerPhrases.Add(new StarPower((int)songQb.TicksToMilliseconds(note.Time), (int)(songQb.TicksToMilliseconds(note.EndTime) - songQb.TicksToMilliseconds(note.Time)),1));
                         }
                     }
                     foreach (var time in slideTimeList)
@@ -3039,6 +3744,10 @@ namespace GH_Toolkit_Core.MIDI
                     // If there is still a kick note remaining, add it as a separate note
                     int endKickTime = (int)Math.Round(TicksToMilliseconds(kickNote.EndTimeTicks));
                     int kickLength = endKickTime - startTime;
+                    if (kickLength < 10) 
+                    {
+                        kickLength = 10;
+                    }
                     PlayNote sepKick = new PlayNote(startTime, kickNote.NoteBit, kickLength);
                     noteList.Add(sepKick);
                 }
@@ -3058,44 +3767,120 @@ namespace GH_Toolkit_Core.MIDI
             var scriptCompiled = CompileQbFile(skaScriptList, qbName, game:GAME_GH3, console:CONSOLE_PS2);
             return scriptCompiled;
         }
+        public void ParseClipsAndAnims()
+        {
+            if (SongScriptOverride == null || !File.Exists(SongScriptOverride))
+            {
+                return;
+            }
+            var songScripts = CleanOldScripts(SongScriptOverride);
+            var songScriptsQb = ParseQFile(songScripts);
+            foreach (var item in songScriptsQb)
+            {
+                if (item.Name.ToLower().StartsWith("car_"))
+                {
+                    ParseCarAnim(item);
+                }
+                else if (item.Info.Type == "Script")
+                {
+                    SongScripts.Add(item);
+                }
+                else
+                {
+                    ParseClips(item);
+                }
+            }
+        }
+        private void ParseCarAnim(QBItem item)
+        {
+            string genPattern = @"(?<!\p{L})(male|female)(?!\p{L})";
+            var gender = Regex.Match(item.Name, genPattern);
+            string altPattern = @"(?<!\p{L})alt(?!\p{L})";
+            var alt = Regex.Match(item.Name, altPattern);
+            bool isAlt = alt.Success;
+
+            if (gender.Success)
+            {
+                string altString = isAlt ? "_alt" : "";
+                AnimStructs[$"{gender.Value}{altString}"] = new AnimStruct(gender.Value, item.Data as QBStructData, isAlt);
+            }
+        }
+        private void ParseClips(QBItem item)
+        {
+            try
+            {
+                SongClips[QBKey(item.Name)] = new SongClip(item.Name, item.Data as QBStructData);
+            }
+            catch (Exception e)
+            {
+               Console.WriteLine($"Error parsing clip {item.Name}: {e.Message}. Skipping");
+            }
+        }
         public byte[]? MakeSongScripts()
         {
             // For non-ps2 games
-            if (SongScriptOverride == null)
+            if (SongScriptOverride == null || !File.Exists(SongScriptOverride))
             {
                 return null;
             }
-            if (!File.Exists(SongScriptOverride))
-            {
-                return null;
-            }
-            var songScript = CleanSongScripts(File.ReadAllText(SongScriptOverride));
-            var songScriptsQb = ParseQFile(songScript);
+            bool isNew = Game == GAME_GH5 || Game == GAME_GHWOR;
+            var songScripts = CleanOldScripts(SongScriptOverride);
             var scriptDict = new Dictionary<string, QBItem>();
-            foreach (var script in songScriptsQb)
+            var songScriptsQb = ParseQFile(songScripts);
+
+            if (!isNew)
             {
-                if (script is QBItem qbItem)
+                foreach (var gender in AnimStructs.Values)
                 {
-                    scriptDict[qbItem.GetName()] = qbItem;
+                    var animStruct = gender.MakeAnimStruct(SongName);
+                    scriptDict[animStruct.GetName()] = animStruct;
                 }
             }
-
-            var qbScriptFile = CompileQbFile(songScriptsQb, SongName + "_song_scripts", Game, GamePlatform);
-
+            foreach (var script in SongScripts)
+            {
+                scriptDict[script.GetName()] = script;
+            }
+            foreach (var clip in SongClips)
+            {
+                scriptDict[clip.Key] = clip.Value.MakeClip();
+            }
+            if (isNew)
+            {
+                var scriptarray = new QBArrayNode();
+                foreach (var perfScript in ScriptTimedEvents)
+                {
+                    scriptarray.AddStructToArray(perfScript.Item2);
+                }
+                var scriptevents = new QBItem($"{SongName}_scriptevents", scriptarray);
+                scriptDict[scriptevents.GetName()] = scriptevents;
+            }
+            string scriptName = isNew ? ".perf.xml" : "_song_scripts";
+            var qbScriptFile = CompileQbFromDict(scriptDict, $"songs\\{SongName}{scriptName}.qb", Game, GamePlatform);
             return qbScriptFile;
         }
-        private string CleanSongScripts(string script)
+        private string CleanOldScripts(string script)
         {
-            script = script.ToLower();
-            if (!script.Contains($"{FEMALE_ANIM_STRUCT}_{SongName} ="))
+            string pattern = @"^script\s\w+\s*=\s*""([0-9a-fA-F]{2}( [0-9a-fA-F]{2})*)""$";
+            string newFile = "";
+            int oldScripts = 0;
+            foreach (var line in File.ReadLines(script))
             {
-                script = script.Replace($"{FEMALE_ANIM_STRUCT} =", $"{FEMALE_ANIM_STRUCT}_{SongName} =");
+                if (Regex.IsMatch(line, pattern))
+                {
+                    oldScripts++;
+                }
+                else
+                {
+                    newFile += line + "\n";
+                }
             }
-            if (!script.Contains($"{MALE_ANIM_STRUCT}_{SongName}"))
+            if (oldScripts > 0)
             {
-                script = script.Replace($"{MALE_ANIM_STRUCT} =", $"{MALE_ANIM_STRUCT}_{SongName} =");
+                var plural = oldScripts > 1 ? "s" : "";
+                Console.WriteLine($"Removed {oldScripts} old script{plural}. Update your Q file");
             }
-            return script;
+            
+            return newFile;
         }
         [DebuggerDisplay("{Time}: {Numerator}/{Denominator}")]
         public class TimeSig
@@ -3362,10 +4147,10 @@ namespace GH_Toolkit_Core.MIDI
             }
             public byte[] CreateGh5Notes(string name, ref int entries, bool ghwor = true)
             {
-                var readWrite = new ReadWrite("big");
+                
                 var noteData = new List<byte>();
                 uint notesSize = 8; // May need to change if I ever support Wii.
-                uint spSize = 6;
+
                 uint tapSize = 8;
 
                 bool drums = name == "drums";
@@ -3389,10 +4174,7 @@ namespace GH_Toolkit_Core.MIDI
                     string tapName = $"{name}{diffName}tapping";
                     uint tapQb = QBKeyUInt(tapName);
 
-                    readWrite.WriteUInt32(stream, sectionQb);
-                    readWrite.WriteInt32(stream, PlayNotes.Count);
-                    readWrite.WriteUInt32(stream, QBKeyUInt(entryType));
-                    readWrite.WriteUInt32(stream, notesSize);
+                    MakeGh5NoteHeader(stream, notesName, PlayNotes.Count, entryType, notesSize);
                     if (gh6drums)
                     {
                         foreach (PlayNote note in PlayNotes)
@@ -3400,49 +4182,38 @@ namespace GH_Toolkit_Core.MIDI
                             // Unset any bits in note.Note that are also set in note.Ghosts
                             note.Note &= ~note.Ghosts;
 
-                            readWrite.WriteInt32(stream, note.Time);
-                            readWrite.WriteInt16(stream, (short)note.Length);
-                            readWrite.WriteInt8(stream, (byte)note.Note);
-                            readWrite.WriteInt8(stream, (byte)note.Accents);
-                            readWrite.WriteInt8(stream, (byte)note.Ghosts);
+                            _readWriteGh5.WriteInt32(stream, note.Time);
+                            _readWriteGh5.WriteInt16(stream, (short)note.Length);
+                            _readWriteGh5.WriteInt8(stream, (byte)note.Note);
+                            _readWriteGh5.WriteInt8(stream, (byte)note.Accents);
+                            _readWriteGh5.WriteInt8(stream, (byte)note.Ghosts);
                         }
                     }
                     else
                     {
                         foreach (PlayNote note in PlayNotes)
                         {
-                            readWrite.WriteInt32(stream, note.Time);
-                            readWrite.WriteInt16(stream, (short)note.Length);
-                            readWrite.WriteInt8(stream, (byte)note.Note);
-                            readWrite.WriteInt8(stream, (byte)note.Accents);
+                            _readWriteGh5.WriteInt32(stream, note.Time);
+                            _readWriteGh5.WriteInt16(stream, (short)note.Length);
+                            _readWriteGh5.WriteInt8(stream, (byte)note.Note);
+                            _readWriteGh5.WriteInt8(stream, (byte)note.Accents);
                         }
                     }
                     entries++;
 
                     if (!drums)
                     {
-                        readWrite.WriteUInt32(stream, tapQb);
-                        readWrite.WriteInt32(stream, TapNotes.Count);
-                        readWrite.WriteUInt32(stream, QBKeyUInt("gh5_tapping_note"));
-                        readWrite.WriteUInt32(stream, tapSize);
+                        MakeGh5NoteHeader(stream, tapName, TapNotes.Count, "gh5_tapping_note", tapSize);
                         foreach (StarPower tap in TapNotes)
                         {
-                            readWrite.WriteInt32(stream, tap.Time);
-                            readWrite.WriteInt32(stream, tap.Length);
+                            _readWriteGh5.WriteInt32(stream, tap.Time);
+                            _readWriteGh5.WriteInt32(stream, tap.Length);
                         }
                         entries++;
                     }
 
-                    readWrite.WriteUInt32(stream, spQb);
-                    readWrite.WriteInt32(stream, StarEntries.Count);
-                    readWrite.WriteUInt32(stream, QBKeyUInt("gh5_star_note"));
-                    readWrite.WriteUInt32(stream, spSize);
-                    foreach (StarPower star in StarEntries)
-                    {
-                        readWrite.WriteInt32(stream, star.Time);
-                        readWrite.WriteInt16(stream, (short)star.Length);
-                    }
-                    entries++;
+                    MakeNewStarPower(stream, spName, StarEntries, ref entries);
+                    
 
                     return stream.ToArray();
                 }
@@ -3534,6 +4305,17 @@ namespace GH_Toolkit_Core.MIDI
         {
             public int Time { get; set; }
             public string Text { get; set; }
+            public string QsKeyString { get
+                {
+                    return QBKeyQs(Text);
+                } }
+            public uint QsKey
+            {
+                get
+                {
+                    return QSKeyUInt(Text);
+                }
+            }
             public Marker(int time, string text)
             {
                 Time = time;
