@@ -834,6 +834,12 @@ namespace GH_Toolkit_Core.QB
                             case '=':
                                 tmpKey = tmpKey.Trim();
                                 currLevel.State = ParseState.inValue;
+                                if (tmpKey == "qb_file" && qbFile.Children.Count == 0)
+                                {
+                                    // Old file if it's the first item and should be ignored.
+                                    tmpKey = "";
+                                    currLevel.State = ParseState.inComment;
+                                }
                                 break;
                             default:
                                 if (tmpKey.EndsWith(" ") || tmpKey.EndsWith("\t"))
