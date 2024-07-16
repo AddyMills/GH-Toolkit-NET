@@ -146,6 +146,11 @@ namespace GH_Toolkit_Core.Methods
             byte[] byteArray = Encoding.UTF8.GetBytes(str);
             stream.Write(byteArray, 0, byteArray.Length);
         }
+        public static void WriteWideString(Stream stream, string str)
+        {
+            byte[] byteArray = Encoding.BigEndianUnicode.GetBytes(str);
+            stream.Write(byteArray, 0, byteArray.Length);
+        }
         public static void FillNullTermString(MemoryStream stream, uint padding)
         {
             byte[] nullBytes = new byte[padding];
