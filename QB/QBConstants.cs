@@ -65,6 +65,12 @@ namespace GH_Toolkit_Core.QB
         public const string DOTPS3 = ".ps3";
         public const string DOTXEN = ".xen";
 
+        public const string DOTEN = ".en";
+        public const string DOTFR = ".fr";
+        public const string DOTDE = ".de";
+        public const string DOTIT = ".it";
+        public const string DOTES = ".es";
+
         public const string DOT_Q = ".q";
         public const string DOT_QB = ".qb";
         public const string DOT_MQB = ".mqb";
