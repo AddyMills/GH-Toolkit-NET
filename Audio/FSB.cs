@@ -9,6 +9,10 @@ using FFMpegCore.Enums;
 using GH_Toolkit_Core.Methods;
 using GH_Toolkit_Core.Checksum;
 using System.Globalization;
+using System.Diagnostics;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+
 
 
 namespace GH_Toolkit_Core.Audio
@@ -224,6 +228,36 @@ namespace GH_Toolkit_Core.Audio
             }
             return (totalSize, filesThatExist);
         }
+        public TimeSpan GetAudioDuration(string filePath)
+        {
+            if (!File.Exists(filePath))
+            {
+                throw new FileNotFoundException("The audio file does not exist.");
+            }
+            // Run ffprobe command to get metadata
+            var ffprobe = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "ffprobe",
+                    Arguments = $"-v quiet -print_format json -show_format \"{filePath}\"",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+            ffprobe.Start();
+
+            // Read the output
+            string output = ffprobe.StandardOutput.ReadToEnd();
+            ffprobe.WaitForExit();
+
+            // Parse the JSON output to get the duration
+            var json = JObject.Parse(output);
+            double durationInSeconds = double.Parse(json["format"]["duration"].ToString());
+
+            return TimeSpan.FromSeconds(durationInSeconds);
+        }
         public (string, string) CombineFSB3File(IEnumerable<string> audioFiles, string output)
         {
 
@@ -333,7 +367,8 @@ namespace GH_Toolkit_Core.Audio
 
                     if (encrypt)
                     {
-                        // Encrypt the FSB4 file
+                        var encryptString = Path.GetFileName(outFile);
+                        fsbData = EncryptDecrypt.EncryptFSB4(fsbData, encryptString);
                     }
                     fsb.Write(fsbData);
                 }
