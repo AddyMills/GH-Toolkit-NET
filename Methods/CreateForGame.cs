@@ -142,6 +142,8 @@ namespace GH_Toolkit_Core.Methods
                 var qsStrings = new List<string>();
                 string qbName = Game == GAME_GH5 ? "gh5_dlc_songlist" : "gh6_dlc_songlist";
 
+                string drumKit = DrumKit.Replace(" ", "");
+
                 songlist.AddQbkeyToArray(Checksum);
 
                 props.AddQbKeyToStruct("checksum", Checksum);
@@ -174,13 +176,13 @@ namespace GH_Toolkit_Core.Methods
                 props.AddIntToStruct("drums_difficulty_rating", DrumsTier);
                 props.AddIntToStruct("vocals_difficulty_rating", VocalsTier);
                 props.AddIntToStruct("band_difficulty_rating", BandTier);
-                props.AddStringToStruct("snare", DrumKit);
-                props.AddStringToStruct("kick", DrumKit);
-                props.AddStringToStruct("hihat", DrumKit);
-                props.AddStringToStruct("cymbal", DrumKit);
-                props.AddStringToStruct("tom1", DrumKit);
-                props.AddStringToStruct("tom2", DrumKit);
-                props.AddStringToStruct("drum_kit", DrumKit);
+                props.AddStringToStruct("snare", drumKit);
+                props.AddStringToStruct("kick", drumKit);
+                props.AddStringToStruct("hihat", drumKit);
+                props.AddStringToStruct("cymbal", drumKit);
+                props.AddStringToStruct("tom1", drumKit);
+                props.AddStringToStruct("tom2", drumKit);
+                props.AddStringToStruct("drum_kit", drumKit);
                 props.AddStringToStruct("countoff", Countoff);
                 if (VocalTuningCents != 0)
                 {
@@ -288,7 +290,8 @@ namespace GH_Toolkit_Core.Methods
                         File.Copy(file, Path.Combine(toCopyTo, Path.GetFileName(file)), true);
                     }
                     string pkgSave = Path.Combine(CompileFolder, $"{packageHash}.pkg".ToUpper());
-                    string contentID = FileCreation.GetPs3Key(game) + $"-{Checksum.ToUpper().Replace("_", "").PadLeft(16, '0')}";
+                    string contentPart2 = $"{Checksum}{Title}{Artist}{Year}".ToUpper().Replace("_", "").PadLeft(27, '0')[..27];
+                    string contentID = FileCreation.GetPs3Key(game) + $"-{contentPart2}";
                     onyxArgs = ["pkg", contentID, toCopyTo, "--to", pkgSave];
                 }
                 else

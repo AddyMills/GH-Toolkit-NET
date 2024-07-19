@@ -408,6 +408,7 @@ namespace GH_Toolkit_Core.MIDI
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_lightshow", LightshowScripts));
 
                 gameQb.Add(TimedScriptArrayQbItem($"{SongName}_facial", FacialTimedScripts));
+                gameQb.Add(LocalizedStringsQbItem($"{SongName}_localized_strings"));
                 PerfScriptEvents = TimedScriptArrayQbItem($"{SongName}_scriptevents", ScriptTimedEvents);
             }
             return gameQb;
@@ -653,15 +654,19 @@ namespace GH_Toolkit_Core.MIDI
         {
             foreach (Marker marker in Markers)
             {
-                if (marker.Text == "_ENDOFSONG")
-                {
-                    marker.Text = $"\\L{marker.Text}";
-                }
-                else
-                {
-                    marker.Text = $"\\u[m]{marker.Text}";
-                }
+                marker.Text = GetQsMarkerName(marker.Text);
                 QsList.Add(marker.QsKeyString, marker.Text);
+            }
+        }
+        private string GetQsMarkerName(string qs)
+        {
+            if (qs == "_ENDOFSONG")
+            {
+                return $"\\L{qs}";
+            }
+            else
+            {
+                return $"\\u[m]{qs}";
             }
         }
         private byte[] Gh5Markers(ref int entries)
@@ -682,7 +687,7 @@ namespace GH_Toolkit_Core.MIDI
         {
             using (MemoryStream stream = new MemoryStream())
             {
-                MakeGh5NoteHeader(stream, "bandmoment", BandMoments.Count/2, "gh5_band_moment_note", 4);
+                MakeGh5NoteHeader(stream, "bandmoment", BandMoments.Count/2, "gh5_band_moment_note", 8);
                 foreach (int moment in BandMoments)
                 {
                     _readWriteGh5.WriteInt32(stream, moment);
@@ -889,6 +894,18 @@ namespace GH_Toolkit_Core.MIDI
                 timedScriptArray.AddStructToArray(script);
             }
             return new QBItem(name, timedScriptArray);
+        }
+        public QBItem LocalizedStringsQbItem(string name)
+        {
+
+            QBArrayNode localizedStrings = new QBArrayNode();
+            var sortedValues = QsList.Values.ToList();
+            sortedValues.Sort();
+            foreach (string qs in sortedValues)
+            {
+                localizedStrings.AddQskeyToArray(QBKeyQs(qs));
+            }
+            return new QBItem(name, localizedStrings);
         }
         public List<QBItem> ProcessMarkers()
         {
@@ -3807,26 +3824,24 @@ namespace GH_Toolkit_Core.MIDI
         }
         private void ParseClips(QBItem item)
         {
-            try
+            if (item.Data is QBStructData)
             {
-                SongClips[QBKey(item.Name)] = new SongClip(item.Name, item.Data as QBStructData);
-            }
-            catch (Exception e)
-            {
-               Console.WriteLine($"Error parsing clip {item.Name}: {e.Message}. Skipping");
+                try
+                {
+                    SongClips[QBKey(item.Name)] = new SongClip(item.Name, item.Data as QBStructData);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"Error parsing clip {item.Name}: {e.Message}. Skipping");
+                }
             }
         }
         public byte[]? MakeSongScripts()
         {
             // For non-ps2 games
-            if (SongScriptOverride == null || !File.Exists(SongScriptOverride))
-            {
-                return null;
-            }
+
             bool isNew = Game == GAME_GH5 || Game == GAME_GHWOR;
-            var songScripts = CleanOldScripts(SongScriptOverride);
             var scriptDict = new Dictionary<string, QBItem>();
-            var songScriptsQb = ParseQFile(songScripts);
 
             if (!isNew)
             {

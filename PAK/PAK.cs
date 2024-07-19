@@ -690,7 +690,21 @@ namespace GH_Toolkit_Core.PAK
                     throw new NotSupportedException("Argument given is not a folder.");
                 }
 
-                string[] entries = Directory.GetFileSystemEntries(folderPath, "*", SearchOption.AllDirectories);
+                string[] entriesRaw = Directory.GetFiles(folderPath, "*", SearchOption.AllDirectories);
+                List<string> rootFiles = new List<string>();
+                List<string> otherFiles = new List<string>();
+                foreach (string entry in entriesRaw)
+                {
+                    if (Path.GetDirectoryName(entry) == folderPath)
+                    {
+                        rootFiles.Add(entry);
+                    }
+                    else
+                    {
+                        otherFiles.Add(entry);
+                    }
+                }
+                string[] entries = otherFiles.ToArray().Concat(rootFiles.ToArray()).ToArray();
 
                 if (ConsoleType == null)
                 {
@@ -1152,8 +1166,8 @@ namespace GH_Toolkit_Core.PAK
             }
 
             bool doubleKick = midiFile.DoubleKick;
-
-            var pakCompiler = new PAK.PakCompiler(game: game, console: gameConsole);
+            string? assetContext = game == GAME_GHWOR ? songName : null;
+            var pakCompiler = new PAK.PakCompiler(game: game, console: gameConsole, assetContext: assetContext);
             var (pakData, pabData) = pakCompiler.CompilePAK(saveName);
             string songPrefix = gameConsole == CONSOLE_PS2 ? "" : "_song";
             var pakSave = Path.Combine(savePath, songName + $"{songPrefix}.pak{consoleExt}");
