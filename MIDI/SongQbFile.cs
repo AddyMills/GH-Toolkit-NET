@@ -4208,6 +4208,10 @@ namespace GH_Toolkit_Core.MIDI
                     {
                         foreach (PlayNote note in PlayNotes)
                         {
+                            if ((note.IsHopo || note.ForcedOn) && !note.ForcedOff)
+                            {
+                                note.Note |= GH5FORCE;
+                            }
                             _readWriteGh5.WriteInt32(stream, note.Time);
                             _readWriteGh5.WriteInt16(stream, (short)note.Length);
                             _readWriteGh5.WriteInt8(stream, (byte)note.Note);

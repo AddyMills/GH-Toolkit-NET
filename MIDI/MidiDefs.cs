@@ -34,6 +34,7 @@ namespace GH_Toolkit_Core.MIDI
             GHWT = 3
         }
         public const int GH3FORCE = 32;
+        public const int GH5FORCE = 1 << 6;
 
         // Define constants for note ranges
         public const int EasyNoteMin = 60;
