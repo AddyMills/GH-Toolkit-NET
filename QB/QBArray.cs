@@ -152,6 +152,18 @@ namespace GH_Toolkit_Core.QB
                 }
                 Items.Add(value);
             }
+            public void AddQskeyToArray(string value) // Add a qbkey value
+            {
+                if (IsEmptyOrNull())
+                {
+                    SetFirstItem(QSKEY);
+                }
+                else if (FirstItem.Type != QSKEY)
+                {
+                    throw new ArrayTypeMismatchException($"{value} of type Qskey does not match elements in array of type {FirstItem.Type}");
+                }
+                Items.Add(value);
+            }
             public void AddListToArray(List<int> list) // Add a list of integers
             {
                 if (IsEmptyOrNull())
