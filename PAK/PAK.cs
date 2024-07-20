@@ -962,7 +962,8 @@ namespace GH_Toolkit_Core.PAK
             bool rhythmTrack = false, 
             bool overrideBeat = false,
             bool isSteven = false,
-            bool easyOpens = false
+            bool easyOpens = false,
+            Dictionary<string, int>? diffs = null
             )
         {
             var midiFile = new SongQbFile(
@@ -1011,13 +1012,23 @@ namespace GH_Toolkit_Core.PAK
                 string perfSave = Path.Combine(songFolder, songName + ".perf" + consoleExt);
                 File.WriteAllBytes(noteSave, noteBytes);
                 File.WriteAllBytes(perfSave, perfBytes);
+                if (diffs != null)
+                {
+                    midiFile.SetEmptyTracksToDiffZero(diffs);
+                }
             }
 
             var errors = midiFile.GetErrorListAsString();
+            var warnings = midiFile.GetWarningListAsString();
 
             if (!string.IsNullOrEmpty(errors))
             {
                 throw new MidiCompileException(errors);
+            }
+            if (!string.IsNullOrEmpty(warnings))
+            {
+                Console.WriteLine("WARNINGS:");
+                Console.WriteLine(warnings);
             }
 
             File.WriteAllBytes(qbSave, midQb);
