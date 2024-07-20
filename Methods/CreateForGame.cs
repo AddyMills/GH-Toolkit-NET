@@ -329,6 +329,7 @@ namespace GH_Toolkit_Core.Methods
                     throw new Exception($"Missing audio or dat file for {fileType} creation. Please compile all files first!");
                 }
                 CompileWithOnyx(onyxPath, onyxArgs);
+                Directory.Delete(compilePath, true);
             }
         }
         public static (PakEntry, Dictionary<string, QBItem>, QBArrayNode, QBStructData) GetSongListPak(Dictionary<string, PakEntry> qbPak)
