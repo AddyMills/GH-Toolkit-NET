@@ -3916,11 +3916,11 @@ namespace GH_Toolkit_Core.MIDI
 
             public string diffName { get; set; }
             public string partName { get; set; }
-            public List<PlayNote>? PlayNotes { get; set; }
-            public List<StarPower>? StarEntries { get; set; }
-            public List<StarPower>? BattleStarEntries { get; set; }
-            public List<StarPower>? FaceOffStar { get; set; }
-            public List<StarPower>? TapNotes { get; set; }
+            public List<PlayNote>? PlayNotes { get; set; } = new List<PlayNote>();
+            public List<StarPower>? StarEntries { get; set; } = new List<StarPower>();
+            public List<StarPower>? BattleStarEntries { get; set; } = new List<StarPower>();
+            public List<StarPower>? FaceOffStar { get; set; } = new List<StarPower>();
+            public List<StarPower>? TapNotes { get; set; } = new List<StarPower>();
             public Difficulty(string name)
             {
                 diffName = name;
