@@ -151,6 +151,7 @@ namespace GH_Toolkit_Core.MIDI
         public static HopoType HopoMethod { get; set; }
         public Dictionary<string, string> QsList { get; set; } = new Dictionary<string, string>();
         private List<string> ErrorList { get; set; } = new List<string>();
+        private List<string> WarningList { get; set; } = new List<string>();
         public static ReadWrite _readWriteGh5 = new ReadWrite("big");
         public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "", string venueSource = "", bool rhythmTrack = false, bool overrideBeat = false, int hopoType = 0, bool easyOpens = false, string skaPath = "")
         {
@@ -193,9 +194,17 @@ namespace GH_Toolkit_Core.MIDI
         {
             ErrorList.Add(error);
         }
+        public void AddToWarningList(string warning)
+        {
+            WarningList.Add(warning);
+        }
         public string GetErrorListAsString()
         {
             return string.Join("\n", ErrorList);
+        }
+        public string GetWarningListAsString()
+        {
+            return string.Join("\n", WarningList);
         }
         public void AddTimedError(string error, string part, long ticks)
         {
@@ -204,6 +213,14 @@ namespace GH_Toolkit_Core.MIDI
         public void AddTimedError(string error, string part, int eventTime)
         {
             AddToErrorList($"{part}: {error} found at {eventTime / 1000f}s");
+        }
+        public void AddTimedWarning(string warning, string part, long ticks)
+        {
+            AddToWarningList($"{part}: {warning} found at {TicksToMilliseconds(ticks) / 1000f}s");
+        }
+        public void AddTimedWarning(string warning, string part, int eventTime)
+        {
+            AddToWarningList($"{part}: {warning} found at {eventTime / 1000f}s");
         }
         private void WriteUsedTrack(string trackName)
         {
@@ -445,6 +462,34 @@ namespace GH_Toolkit_Core.MIDI
                 DoubleKick = true;
             }
         }
+        public void SetEmptyTracksToDiffZero(Dictionary<string, int> diffs)
+        {
+            if (Guitar.Expert.PlayNotes.Count == 0 && diffs["guitar"] != 0)
+            {
+                diffs["guitar"] = 0;
+                WriteTierOverride("Guitar", 0);
+            }
+            if (Rhythm.Expert.PlayNotes.Count == 0 && diffs["bass"] != 0)
+            {
+                diffs["bass"] = 0;
+                WriteTierOverride("Bass", 0);
+            }
+            if (Drums.Expert.PlayNotes.Count == 0 && diffs["drums"] != 0)
+            {
+                diffs["drums"] = 0;
+                WriteTierOverride("Drums", 0);
+            }
+            if (Vocals.Notes.Count == 0 && diffs["vocals"] != 0)
+            {
+                diffs["vocals"] = 0;
+                WriteTierOverride("Vocals", 0);
+            }
+        }
+        private void WriteTierOverride(string part, int tier)
+        {
+            string noPlay = tier == 0 ? " due to no playable notes" : "";
+            Console.WriteLine($"Overriding {part} tier to difficulty {tier}{noPlay}.");
+        }
         public byte[] MakeGh5Perf()
         {
             int entries = 6;
@@ -520,11 +565,11 @@ namespace GH_Toolkit_Core.MIDI
                     }
                     if (maleStream.Length > 200)
                     {
-                        AddToErrorList($"Too many anim loops for male characters. Max 50, found {maleStream.Length / 4}");
+                        AddToErrorList($"Too many anim loops + cameras for male characters. Max 50, found {maleStream.Length / 4}");
                     }
                     if (femaleStream.Length > 200)
                     {
-                        AddToErrorList($"Too many anim loops for female characters. Max 50, found {femaleStream.Length / 4}");
+                        AddToErrorList($"Too many anim loops + cameras for female characters. Max 50, found {femaleStream.Length / 4}");
                     }
                     _readWriteGh5.PadStreamTo(maleStream, 200);
                     _readWriteGh5.PadStreamTo(femaleStream, 200);
@@ -577,7 +622,7 @@ namespace GH_Toolkit_Core.MIDI
             var animBytes = new List<byte>();
             using (var stream = new MemoryStream())
             {
-                foreach (InstrumentAnim anim in new InstrumentAnim[] { animStruct.Guitar, animStruct.Bass, animStruct.Drum, animStruct.Vocals })
+                foreach (InstrumentAnim anim in new InstrumentAnim[] { animStruct.Guitar, animStruct.Bass, animStruct.Vocals, animStruct.Drum })
                 {
                     _readWriteGh5.WriteUInt32(stream, QBKeyUInt(anim.Pak));
                     _readWriteGh5.WriteUInt32(stream, QBKeyUInt(anim.AnimSet));
@@ -654,8 +699,20 @@ namespace GH_Toolkit_Core.MIDI
         {
             foreach (Marker marker in Markers)
             {
+                var origMarker = marker.Text;
                 marker.Text = GetQsMarkerName(marker.Text);
-                QsList.Add(marker.QsKeyString, marker.Text);
+                try
+                {
+                    QsList.Add(marker.QsKeyString, marker.Text);
+                }
+                catch (ArgumentException e)
+                {
+                    AddTimedWarning($"Duplicate marker {origMarker}", "EVENTS", marker.Time);
+                }
+                catch
+                {
+                    throw new Exception("Error adding marker to QsList");
+                }
             }
         }
         private string GetQsMarkerName(string qs)
