@@ -3256,7 +3256,7 @@ namespace GH_Toolkit_Core.MIDI
                     bool nextJoin = false;
                     foreach (MidiData.Note note in allNotes)
                     {
-                        if (note.NoteNumber >= VocalMin && note.NoteNumber <= VocalMax)
+                        if ((note.NoteNumber >= VocalMin && note.NoteNumber <= VocalMax) || note.NoteNumber == VocalTalkie)
                         {
                             if (singNotes.ContainsKey(note.Time))
                             {
