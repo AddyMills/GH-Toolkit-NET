@@ -54,6 +54,7 @@ namespace GH_Toolkit_Core.MIDI
         public const int StarPowerNote = 116;
         public const int VocalMin = 36;
         public const int VocalMax = 84;
+        public const int VocalTalkie = 26;
         public const int PhraseMin = 105;
         public const int PhraseMax = 106;
         public const int FreeformNote = 104;
