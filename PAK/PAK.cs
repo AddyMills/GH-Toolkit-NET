@@ -1132,6 +1132,7 @@ namespace GH_Toolkit_Core.PAK
             if (qsList.Count > 0)
             {
                 List<string> qsSaves = new List<string>();
+                bool addQuotes = false;
                 if (game == GAME_GHWT)
                 {
                     qsSaves.Add(Path.Combine(songFolder, songName + $".mid.qs{consoleExt}"));
@@ -1143,6 +1144,7 @@ namespace GH_Toolkit_Core.PAK
                     qsSaves.Add(Path.Combine(songFolder, songName + $".mid.qs.es{consoleExt}"));
                     qsSaves.Add(Path.Combine(songFolder, songName + $".mid.qs.fr{consoleExt}"));
                     qsSaves.Add(Path.Combine(songFolder, songName + $".mid.qs.it{consoleExt}"));
+                    addQuotes = true;
                 }
 
                 var sortedKeys = qsList.OrderBy(entry => entry.Value)
@@ -1163,7 +1165,15 @@ namespace GH_Toolkit_Core.PAK
                             string modifiedKey = key.Substring(2).PadLeft(8, '0');
 
                             // Building the line with the modified key and its value
-                            string line = $"{modifiedKey} \"{qsList[key]}\"";
+                            string line;
+                            if (addQuotes)
+                            {
+                                line = $"{modifiedKey} \"{qsList[key]}\"";
+                            }
+                            else
+                            {
+                                line = $"{modifiedKey} {qsList[key]}";
+                            }
 
                             // Writing the line to the file
                             writer.WriteLine(line);
