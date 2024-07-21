@@ -14,10 +14,12 @@ namespace GH_Toolkit_Core.MIDI
         public ClipCharacter Bassist { get; set; } = new ClipCharacter("Bassist");
         public ClipCharacter Vocalist { get; set; } = new ClipCharacter("Vocalist");
         public ClipCharacter Drummer { get; set; } = new ClipCharacter("Drummer");
+
         public int StartFrame
         {
             get
             {
+                if (!CharIsActive) return 0;
                 var minVals = new List<int>();
                 if (Guitarist.IsActive) minVals.Add(Guitarist.StartFrame);
                 if (Bassist.IsActive) minVals.Add(Bassist.StartFrame);
@@ -35,14 +37,19 @@ namespace GH_Toolkit_Core.MIDI
         }
         public int EndFrame
         {
-            get
+            get 
             {
-                var maxVals = new List<int>();
-                if (Guitarist.IsActive) maxVals.Add(Guitarist.EndFrame);
-                if (Bassist.IsActive) maxVals.Add(Bassist.EndFrame);
-                if (Vocalist.IsActive) maxVals.Add(Vocalist.EndFrame);
-                if (Drummer.IsActive) maxVals.Add(Drummer.EndFrame);
-                return maxVals.Max();
+                if (CharIsActive)
+                {
+                    var maxVals = new List<int>();
+                    if (Guitarist.IsActive) maxVals.Add(Guitarist.EndFrame);
+                    if (Bassist.IsActive) maxVals.Add(Bassist.EndFrame);
+                    if (Vocalist.IsActive) maxVals.Add(Vocalist.EndFrame);
+                    if (Drummer.IsActive) maxVals.Add(Drummer.EndFrame);
+                    return maxVals.Max();
+                }
+                var maxCamera = Cameras.Max(c => c.GetLength());
+                return maxCamera;
             }
             set
             {
@@ -441,7 +448,7 @@ namespace GH_Toolkit_Core.MIDI
         /// Finally, it will check to make sure the animation ends within 100ms of a camera cut.
         /// If it doesn't line up and there is a camera cut within 100ms of the end frame, it will adjust the end frame to match the camera cut.
         /// </summary>
-        public void UpdateFromSkaFile(string skaPath, int startChange, int endChange, int closeStart, int closeEnd, out int msChange)
+        public void UpdateFromSkaFile(string skaPath, int startChange, int endChange, int closeStart, int closeEnd, out int msChange, Dictionary<string, string> skaQbKeys)
         {
             List<ClipCharacter> charList = new List<ClipCharacter>() { Guitarist, Bassist, Vocalist, Drummer };
             List<string> dontExist = new List<string>();
@@ -453,7 +460,10 @@ namespace GH_Toolkit_Core.MIDI
                 {
                     continue;
                 }
-
+                if (skaQbKeys.ContainsKey(character.Anim))
+                {
+                    character.Anim = skaQbKeys[character.Anim];
+                }
                 string animPath = GetSkaPath(skaPath, character.Anim);
                 if (string.IsNullOrEmpty(animPath))
                 {
@@ -490,17 +500,27 @@ namespace GH_Toolkit_Core.MIDI
             // Check if cameras exist in ska path
             foreach (ClipCamera camera in Cameras)
             {
+                if (skaQbKeys.ContainsKey(camera.Anim))
+                {
+                    camera.Anim = skaQbKeys[camera.Anim];
+                }
                 string animPath = GetSkaPath(skaPath, camera.Anim);
                 if (string.IsNullOrEmpty(animPath))
                 {
                     dontExist.Add($"{Name}:{camera.Anim}");
+                    continue;
                 }
+                float skaLength = GetSkaLength(animPath);
+                int skaLengthFrames = (int)Math.Round(skaLength * 30);
+                camera.Length = skaLengthFrames;
+
             }
             if (dontExist.Count > 0)
             {
                 throw new Exception($"{string.Join(",", dontExist)}");
             }
         }
+
         private void AdjustFrames(ClipCharacter character, int startChange, int endChange, int skaLengthFrames, out int frameChange)
         {
             frameChange = 0;
@@ -642,6 +662,7 @@ namespace GH_Toolkit_Core.MIDI
             public string? Name { get; set; }
             public string? Anim { get; set; }
             private int Slot { get; set; } = -1;
+            public int Length { get; set; }
             public ClipCamera(string name)
             {
                 string lowName = name.ToLower();
@@ -666,6 +687,11 @@ namespace GH_Toolkit_Core.MIDI
             {
                 return Slot;
             }
+            public int GetLength()
+            {
+                return Length;
+            }
+
             private bool IsForInstrument(string camera)
             {
                 return camera.Contains("guit") ||
