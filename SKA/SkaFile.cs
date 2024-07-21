@@ -1229,12 +1229,16 @@ namespace GH_Toolkit_Core.SKA
                     throw new Exception("Bone length is greater than ushort max value.");
                 }
                 newQuatSizes[bone] = (ushort)boneLength;
-                if (quatStream.Length % 16 != 0)
+                if (!compressedData)
                 {
-                    _rw.WriteUInt32(quatStream, 0xDEADDEAD);
-                    _rw.WriteUInt32(quatStream, 0xDEADDEAD);
-                    deadBytes += 8;
+                    if (quatStream.Length % 16 != 0)
+                    {
+                        _rw.WriteUInt32(quatStream, 0xDEADDEAD);
+                        _rw.WriteUInt32(quatStream, 0xDEADDEAD);
+                        deadBytes += 8;
+                    }
                 }
+
             }
             for (int i = 0; i < NewBones; i++)
             {
