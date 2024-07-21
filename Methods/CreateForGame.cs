@@ -290,7 +290,7 @@ namespace GH_Toolkit_Core.Methods
                         File.Copy(file, Path.Combine(toCopyTo, Path.GetFileName(file)), true);
                     }
                     string pkgSave = Path.Combine(CompileFolder, $"{packageHash}.pkg".ToUpper());
-                    string contentPart2 = $"{Checksum}{Title}{Artist}{Year}".ToUpper().Replace("_", "").PadLeft(27, '0')[..27];
+                    string contentPart2 = $"{Checksum}{packageHash}".ToUpper().Replace("_", "").Replace("\\L","").PadLeft(27, '0')[..27];
                     string contentID = FileCreation.GetPs3Key(game) + $"-{contentPart2}";
                     onyxArgs = ["pkg", contentID, toCopyTo, "--to", pkgSave];
                 }
