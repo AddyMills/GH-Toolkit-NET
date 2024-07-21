@@ -150,6 +150,7 @@ namespace GH_Toolkit_Core.MIDI
         public static bool OverrideBeat { get; set; }
         public static HopoType HopoMethod { get; set; }
         public Dictionary<string, string> QsList { get; set; } = new Dictionary<string, string>();
+        internal Dictionary<string, string> SkaQbKeys { get; set; } = new Dictionary<string, string>();
         private List<string> ErrorList { get; set; } = new List<string>();
         private List<string> WarningList { get; set; } = new List<string>();
         public static ReadWrite _readWriteGh5 = new ReadWrite("big");
@@ -166,6 +167,7 @@ namespace GH_Toolkit_Core.MIDI
             OverrideBeat = overrideBeat;
             EasyOpens = easyOpens;
             SkaPath = skaPath;
+            SetSkaQbKeys();
             if (Game == GAME_GH3 || Game == GAME_GHA)
             {
                 HopoMethod = HopoType.MoonScraper;
@@ -229,6 +231,14 @@ namespace GH_Toolkit_Core.MIDI
         private void SkipTrack(string trackName)
         {
             Console.WriteLine($"Skipping track: {trackName}");
+        }
+        private void SetSkaQbKeys()
+        {
+            foreach (string ska in Directory.GetFiles(SkaPath))
+            {
+                string file = Path.GetFileName(ska.Substring(0, ska.IndexOf('.')));
+                SkaQbKeys.Add(QBKey(file), file);
+            }
         }
         public void ParseMidi()
         {
@@ -1264,7 +1274,7 @@ namespace GH_Toolkit_Core.MIDI
                                         int endCameraChange = 0;
                                         try
                                         {
-                                            currClip.UpdateFromSkaFile(SkaPath, startChange, endChange, closeStart, closeEnd, out endCameraChange);
+                                            currClip.UpdateFromSkaFile(SkaPath, startChange, endChange, closeStart, closeEnd, out endCameraChange, SkaQbKeys);
                                         }
                                         catch (Exception e)
                                         {
@@ -1417,7 +1427,7 @@ namespace GH_Toolkit_Core.MIDI
             }
             else
             {
-                throw new FormatException("Invalid performance override format");
+                throw new FormatException("No proper performance array found");
             }
             return perfText;
         }
@@ -2961,6 +2971,7 @@ namespace GH_Toolkit_Core.MIDI
             public List<VocalLyrics> Lyrics { get; set; } = new List<VocalLyrics>();
             public List<VocalPhrase>? Markers { get; set; } = new List<VocalPhrase>();
             internal List<StarPower>? StarPowerPhrases { get; set; } = new List<StarPower>();
+            internal SongQbFile _songQb { get; set; }
             private string Name { get; set; }
             // GHWT stuff to come later
             public VocalsInstrument()
@@ -3274,9 +3285,10 @@ namespace GH_Toolkit_Core.MIDI
                 {
                     throw new ArgumentNullException("trackChunk or songQb is null");
                 }
+                _songQb = songQb;
                 var timedEvents = trackChunk.GetTimedEvents().ToList();
                 var textEvents = timedEvents.Where(e => e.Event is TextEvent || e.Event is LyricEvent).ToList();
-                PerformanceScript = songQb.InstrumentScripts(textEvents, VOCALIST);
+                PerformanceScript = _songQb.InstrumentScripts(textEvents, VOCALIST);
                 if (Game != GAME_GH3 && Game != GAME_GHA)
                 {
                     bool isGh5orWor = Game == GAME_GH5 || Game == GAME_GHWOR;
@@ -3359,11 +3371,22 @@ namespace GH_Toolkit_Core.MIDI
                                     switch (lyric)
                                     {
                                         case SLIDE_LYRIC:
-                                            var prevTime = lyricTimeList.IndexOf(note.Time) - 1;
-                                            var prevNote = singNotes[lyricTimeList[prevTime]];
-                                            var newNote = new MidiData.Note((SevenBitNumber)2, note.Time - prevNote.EndTime, prevNote.EndTime);
-                                            singNotes.Add(newNote.Time, newNote);
-                                            slideTimeList.Add(note.Time);
+                                            try
+                                            {
+                                                var prevTime = lyricTimeList.IndexOf(note.Time) - 1;
+                                                var prevNote = singNotes[lyricTimeList[prevTime]];
+                                                var newNote = new MidiData.Note((SevenBitNumber)2, note.Time - prevNote.EndTime, prevNote.EndTime);
+                                                singNotes.Add(newNote.Time, newNote);
+                                                slideTimeList.Add(note.Time);
+                                            }
+                                            catch (KeyNotFoundException e)
+                                            {
+                                                _songQb.AddTimedError("Slide lyric found without (or misaligned) previous note", "PART VOCALS", note.Time);
+                                            }
+                                            catch (Exception e)
+                                            {
+                                                throw e;
+                                            }
                                             break;
                                         case var o when o.EndsWith(HYPHEN_LYRIC):
                                             lyric = lyric.Substring(0, (int)(lyric.Length - 1)) + JOIN_LYRIC;
