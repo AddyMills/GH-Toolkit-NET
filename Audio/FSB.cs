@@ -12,6 +12,7 @@ using System.Globalization;
 using System.Diagnostics;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using static GH_Toolkit_Core.Methods.Exceptions;
 
 
 
@@ -234,7 +235,7 @@ namespace GH_Toolkit_Core.Audio
             {
                 throw new FileNotFoundException("The audio file does not exist.");
             }
-            // Run ffprobe command to get metadata
+
             var ffprobe = new Process
             {
                 StartInfo = new ProcessStartInfo
@@ -246,17 +247,36 @@ namespace GH_Toolkit_Core.Audio
                     CreateNoWindow = true
                 }
             };
-            ffprobe.Start();
 
-            // Read the output
-            string output = ffprobe.StandardOutput.ReadToEnd();
-            ffprobe.WaitForExit();
+            try
+            {
+                ffprobe.Start();
 
-            // Parse the JSON output to get the duration
-            var json = JObject.Parse(output);
-            double durationInSeconds = double.Parse(json["format"]["duration"].ToString());
+                // Read the output
+                string output = ffprobe.StandardOutput.ReadToEnd();
+                ffprobe.WaitForExit();
 
-            return TimeSpan.FromSeconds(durationInSeconds);
+                if (ffprobe.ExitCode != 0)
+                {
+                    throw new Exception("ffprobe did not execute successfully.");
+                }
+
+                // Parse the JSON output to get the duration
+                var json = JObject.Parse(output);
+                double durationInSeconds = double.Parse(json["format"]["duration"].ToString());
+
+                return TimeSpan.FromSeconds(durationInSeconds);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error during ffprobe execution: {ex.Message}");
+                Console.WriteLine("Duration is set to 0.");
+                return TimeSpan.FromSeconds(0);
+            }
+            finally
+            {
+                ffprobe.Dispose();
+            }
         }
         public (string, string) CombineFSB3File(IEnumerable<string> audioFiles, string output)
         {
@@ -377,6 +397,7 @@ namespace GH_Toolkit_Core.Audio
             }
             return processed.ToArray();
         }
+        
         public static void InterleaveMp3Files(string[] filePaths, string outputFileName)
         {
             const int frameSize = 384; // For now. I may add support for other frame sizes later.
