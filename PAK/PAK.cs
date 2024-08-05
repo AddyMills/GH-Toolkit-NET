@@ -428,19 +428,29 @@ namespace GH_Toolkit_Core.PAK
             {
                 pakBytes = Compression.DecompressWTPak(pakBytes);
             }
+            if (pabBytes != null && Compression.isChnkCompressed(pabBytes))
+            {
+                pabBytes = Compression.DecompressWTPak(pabBytes);
+            }
             List<PakEntry> pakList = new List<PakEntry>();
             if (pabBytes != null)
             {
-                uint pabType = CheckPabType(pakBytes, endian);
-                switch (pabType)
+                uint pabStart = CheckPabType(pakBytes, endian);
+                if (pabStart != 0 && pabStart < pakBytes.Length)
+                {
+                    var newPak = new byte[pabStart];
+                    Array.Copy(pakBytes, 0, newPak, 0, pabStart);
+                    pakBytes = newPak;
+                }
+                switch (pabStart)
                 {
                     case 0:
                         //pakList = ExtractNewPak(pakBytes, pabBytes, endian, songName);
                         throw new Exception("PAK type not yet implemented.");
                     case uint size when size >= pakBytes.Length:
-                        byte[] bytes = new byte[pabType + pabBytes.Length];
+                        byte[] bytes = new byte[pabStart + pabBytes.Length];
                         Array.Copy(pakBytes, 0, bytes, 0, pakBytes.Length);
-                        Array.Copy(pabBytes, 0, bytes, pabType, pabBytes.Length);
+                        Array.Copy(pabBytes, 0, bytes, pabStart, pabBytes.Length);
                         pakBytes = bytes;
                         pakList = ExtractOldPak(pakBytes, endian, songName);
                         break;
