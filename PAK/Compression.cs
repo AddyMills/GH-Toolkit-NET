@@ -37,51 +37,53 @@ namespace GH_Toolkit_Core.PAK
         {
             // Compressed PAK files are always 360/PS3 and thus always big-endian
             ReadWrite reader = new ReadWrite("big");
-            MemoryStream stream = new MemoryStream(compData);
-            List<ChnkEntry> ChnkList = new List<ChnkEntry>();
-            List<byte[]> decompressedDataList = new List<byte[]>();
-            while (true)
+            using (MemoryStream stream = new MemoryStream(compData)) 
             {
-                uint baseOffset = (uint)stream.Position;
-                byte[] buffer = ReadWrite.ReadNoFlip(stream, 4);
-                string magic = Encoding.UTF8.GetString(buffer);
-                ChnkEntry entry = new ChnkEntry();
-                entry.Offset = reader.ReadUInt32(stream) + baseOffset;
-                entry.CompSize = reader.ReadUInt32(stream);
-                entry.NextChnkOffset = reader.ReadUInt32(stream);
-                entry.NextChnkLength = reader.ReadUInt32(stream);
-                entry.DecompSize = reader.ReadUInt32(stream);
-                entry.DecompOffset = reader.ReadUInt32(stream);
-                ChnkList.Add(entry);
-
-                // Decompress the current chunk
-                byte[] compressedChunk = new byte[entry.CompSize];
-                stream.Position = entry.Offset;
-                stream.Read(compressedChunk, 0, (int)entry.CompSize);
-
-                byte[] decompressedChunk = DecompressData(compressedChunk);
-                decompressedDataList.Add(decompressedChunk); // Save the decompressed data
-
-                if (entry.NextChnkOffset != 0xffffffff)
+                List<ChnkEntry> ChnkList = new List<ChnkEntry>();
+                List<byte[]> decompressedDataList = new List<byte[]>();
+                while (true)
                 {
-                    stream.Position = baseOffset + entry.NextChnkOffset;
-                }
-                else
-                {
-                    break;
-                }
-            }
-            // Combine all decompressed chunks into one byte array
-            int totalSize = decompressedDataList.Sum(arr => arr.Length);
-            byte[] result = new byte[totalSize];
-            int offset = 0;
-            foreach (byte[] chunk in decompressedDataList)
-            {
-                Buffer.BlockCopy(chunk, 0, result, offset, chunk.Length);
-                offset += chunk.Length;
-            }
+                    uint baseOffset = (uint)stream.Position;
+                    byte[] buffer = ReadWrite.ReadNoFlip(stream, 4);
+                    string magic = Encoding.UTF8.GetString(buffer);
+                    ChnkEntry entry = new ChnkEntry();
+                    entry.Offset = reader.ReadUInt32(stream) + baseOffset;
+                    entry.CompSize = reader.ReadUInt32(stream);
+                    entry.NextChnkOffset = reader.ReadUInt32(stream);
+                    entry.NextChnkLength = reader.ReadUInt32(stream);
+                    entry.DecompSize = reader.ReadUInt32(stream);
+                    entry.DecompOffset = reader.ReadUInt32(stream);
+                    ChnkList.Add(entry);
 
-            return result;
+                    // Decompress the current chunk
+                    byte[] compressedChunk = new byte[entry.CompSize];
+                    stream.Position = entry.Offset;
+                    stream.Read(compressedChunk, 0, (int)entry.CompSize);
+
+                    byte[] decompressedChunk = DecompressData(compressedChunk);
+                    decompressedDataList.Add(decompressedChunk); // Save the decompressed data
+
+                    if (entry.NextChnkOffset != 0xffffffff)
+                    {
+                        stream.Position = baseOffset + entry.NextChnkOffset;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                // Combine all decompressed chunks into one byte array
+                int totalSize = decompressedDataList.Sum(arr => arr.Length);
+                byte[] result = new byte[totalSize];
+                int offset = 0;
+                foreach (byte[] chunk in decompressedDataList)
+                {
+                    Buffer.BlockCopy(chunk, 0, result, offset, chunk.Length);
+                    offset += chunk.Length;
+                }
+
+                return result;
+            }
         }
 
         public static byte[] DecompressData(byte[] compressedChunk)
