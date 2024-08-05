@@ -36,5 +36,9 @@ namespace GH_Toolkit_Core.Methods
         {
             public ClipNotFoundException(string message) : base(message) { }
         }
+        public class FFProbeException : Exception
+        {
+            public FFProbeException(string message) : base(message) { }
+        }
     }
 }
