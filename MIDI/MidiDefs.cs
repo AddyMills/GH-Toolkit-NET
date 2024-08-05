@@ -93,6 +93,9 @@ namespace GH_Toolkit_Core.MIDI
         public const string BEAT = "BEAT";
         public const string CAMERAS = "CAMERAS";
         public const string LIGHTSHOW = "LIGHTSHOW";
+        public const string DRUMS = "DRUMS";
+        public const string CROWD = "CROWD";
+        public const string ANIMS = "ANIMS";
 
         public const string GUITARIST = "guitarist";
         public const string BASSIST = "bassist";
