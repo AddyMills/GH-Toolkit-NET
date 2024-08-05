@@ -1,8 +1,9 @@
 ﻿using GH_Toolkit_Core.QB;
-using static GH_Toolkit_Core.QB.QB;
-using static GH_Toolkit_Core.QB.QBStruct;
-using static GH_Toolkit_Core.QB.QBArray;
 using System.Diagnostics;
+using static GH_Toolkit_Core.QB.QB;
+using static GH_Toolkit_Core.QB.QBArray;
+using static GH_Toolkit_Core.QB.QBStruct;
+using static GH_Toolkit_Core.QB.QBConstants;
 
 namespace GH_Toolkit_Core.MIDI
 {
@@ -14,7 +15,11 @@ namespace GH_Toolkit_Core.MIDI
         public ClipCharacter Bassist { get; set; } = new ClipCharacter("Bassist");
         public ClipCharacter Vocalist { get; set; } = new ClipCharacter("Vocalist");
         public ClipCharacter Drummer { get; set; } = new ClipCharacter("Drummer");
-
+        public List<ClipCamera> Cameras { get; set; } = new List<ClipCamera>();
+        public List<QBStructData> Commands { get; set; } = new List<QBStructData>();
+        public List<string> VenueFlags { get; set; } = new List<string>();
+        public List<string> CharFlags { get; set; } = new List<string>();
+        public List<string> GoalFlags { get; set; } = new List<string>();
         public int StartFrame
         {
             get
@@ -37,7 +42,7 @@ namespace GH_Toolkit_Core.MIDI
         }
         public int EndFrame
         {
-            get 
+            get
             {
                 if (CharIsActive)
                 {
@@ -63,8 +68,38 @@ namespace GH_Toolkit_Core.MIDI
         {
             get
             {
-                return (int)Math.Round((EndFrame - StartFrame) / 30f * 1000);
+                var length = (int)Math.Round((EndFrame - StartFrame) / 30f / TimeFactor * 1000);
+
+                return RoundClipLen(length);
             }
+        }
+        public int DebugLength
+        {
+            get
+            {
+                return (int)Math.Round((EndFrame - StartFrame) / 30f / TimeFactor * 1000);
+            }
+        }
+        public float TimeFactor
+        {
+            get
+            {
+                if (!CharIsActive) return 1f;
+                var timeFactors = new List<float>();
+                if (Guitarist.IsActive) timeFactors.Add(Guitarist.TimeFactor);
+                if (Bassist.IsActive) timeFactors.Add(Bassist.TimeFactor);
+                if (Vocalist.IsActive) timeFactors.Add(Vocalist.TimeFactor);
+                if (Drummer.IsActive) timeFactors.Add(Drummer.TimeFactor);
+                return timeFactors.Min();
+            }
+            set
+            {
+                Guitarist.TimeFactor = value;
+                Bassist.TimeFactor = value;
+                Vocalist.TimeFactor = value;
+                Drummer.TimeFactor = value;
+            }
+
         }
         private bool CharIsActive
         {
@@ -80,17 +115,39 @@ namespace GH_Toolkit_Core.MIDI
                 return Cameras.Count > 0;
             }
         }
-        public List<ClipCamera> Cameras { get; set; } = new List<ClipCamera>();
-        public List<QBStructData> Commands { get; set; } = new List<QBStructData>();
         public SongClip(string name, QBStructData clipStruct)
         {
             Name = name;
             ParseClipStruct(clipStruct);
         }
+        private int RoundClipLen(int len)
+        {
+            int lastTwoDigits = len % 100;
+            if (lastTwoDigits == 0 || lastTwoDigits == 33 || lastTwoDigits == 67)
+                return len;
+
+            int baseLen = (len / 100) * 100;
+
+            if (lastTwoDigits < 33)
+                return baseLen + 33;
+            if (lastTwoDigits < 67)
+                return baseLen + 67;
+
+            return baseLen + 100;
+        }
+
         public QBItem MakeClip()
         {
             var clipStruct = new QBStructData();
             var clip = new QBItem(Name, clipStruct);
+            if (VenueFlags.Count > 0)
+            {
+                clipStruct.AddArrayToStruct("venueflags", MakeFlags(VenueFlags));
+            }
+            if (CharFlags.Count > 0)
+            {
+                clipStruct.AddArrayToStruct("charflags", MakeFlags(CharFlags));
+            }
             if (CharIsActive)
             {
                 var charArray = MakeCharacterArray();
@@ -101,9 +158,11 @@ namespace GH_Toolkit_Core.MIDI
                 var cameraArray = MakeCameraArray();
                 clipStruct.AddArrayToStruct("cameras", cameraArray);
             }
+
             clipStruct.AddArrayToStruct("commands", MakeCommandsArray());
             return clip;
         }
+
         private QBArrayNode MakeCharacterArray()
         {
             var characters = new QBArrayNode();
@@ -116,6 +175,17 @@ namespace GH_Toolkit_Core.MIDI
             }
 
             return characters;
+        }
+        private QBArrayNode MakeFlags(List<string> flags)
+        {
+
+            var flagArray = new QBArrayNode();
+            foreach (string flag in flags)
+            {
+                flagArray.AddQbkeyToArray(flag);
+            }
+
+            return flagArray;
         }
         private QBStructData MakeCharacterStruct(ClipCharacter clipChar)
         {
@@ -142,7 +212,7 @@ namespace GH_Toolkit_Core.MIDI
 
             return character;
         }
-        private QBArrayNode MakeCameraArray() 
+        private QBArrayNode MakeCameraArray()
         {
             var cameras = new QBArrayNode();
             foreach (ClipCamera camera in Cameras)
@@ -171,7 +241,7 @@ namespace GH_Toolkit_Core.MIDI
         {
             foreach (string key in clipStruct.StructDict.Keys)
             {
-                switch (key)
+                switch (key.ToLower())
                 {
                     case "characters":
                         ParseCharacters(clipStruct.StructDict[key] as QBArray.QBArrayNode);
@@ -181,22 +251,28 @@ namespace GH_Toolkit_Core.MIDI
                     case "bassist_cameras":
                     case "guitarist_cameras":
                     case "secondary_cameras":
-                        ParseCameras(clipStruct.StructDict[key] as QBArray.QBArrayNode, key);
+                        ParseCameras(clipStruct.StructDict[key] as QBArrayNode, key);
                         break;
                     case "startnodes":
-                        ParseStartnode(clipStruct.StructDict[key] as QBStruct.QBStructData);
+                        ParseStartnode(clipStruct.StructDict[key] as QBStructData);
                         break;
                     case "anims":
-                        ParseAnims(clipStruct.StructDict[key] as QBStruct.QBStructData);
+                        ParseAnims(clipStruct.StructDict[key] as QBStructData);
                         break;
                     case "arms":
-                        ParseArms(clipStruct.StructDict[key] as QBStruct.QBStructData);
+                        ParseArms(clipStruct.StructDict[key] as QBStructData);
                         break;
                     case "events":
-                        ParseEvents(clipStruct.StructDict[key] as QBArray.QBArrayNode, true);
+                        ParseEvents(clipStruct.StructDict[key] as QBArrayNode, true);
                         break;
                     case "commands":
-                        ParseEvents(clipStruct.StructDict[key] as QBArray.QBArrayNode);
+                        ParseEvents(clipStruct.StructDict[key] as QBArrayNode);
+                        break;
+                    case "venueflags":
+                        VenueFlags = ParseFlags(clipStruct.StructDict[key] as QBArrayNode);
+                        break;
+                    case "charflags":
+                        CharFlags = ParseFlags(clipStruct.StructDict[key] as QBArrayNode);
                         break;
                     case "anim": // Old data, maybe? Only seems to be in Jimi DLC
                     case "measures": // I think this is unused
@@ -376,7 +452,7 @@ namespace GH_Toolkit_Core.MIDI
                 }
             }
         }
-        private void ParseEvents(QBArray.QBArrayNode events, bool ghwt = false)
+        private void ParseEvents(QBArrayNode events, bool ghwt = false)
         {
             if (events.FirstItem.Type != "Struct")
             {
@@ -394,6 +470,18 @@ namespace GH_Toolkit_Core.MIDI
                     Commands.Add(data);
                 }
             }
+        }
+        private List<string> ParseFlags(QBArrayNode flags)
+        {
+            var flagList = new List<string>();
+            foreach (string? flag in flags.Items)
+            {
+                if (flag != null)
+                {
+                    flagList.Add(flag);
+                }
+            }
+            return flagList;
         }
         private ClipCharacter GetCharacter(string character)
         {
@@ -432,7 +520,7 @@ namespace GH_Toolkit_Core.MIDI
                         Drummer.EndFrame = endFrame;
                         break;
                     case "timefactor":
-                        int timeFactor = Convert.ToInt32(clipParams.StructDict[key]);
+                        float timeFactor = Convert.ToSingle(clipParams.StructDict[key]);
                         Guitarist.TimeFactor = timeFactor;
                         Bassist.TimeFactor = timeFactor;
                         Vocalist.TimeFactor = timeFactor;
