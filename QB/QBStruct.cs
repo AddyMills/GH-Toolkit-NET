@@ -456,10 +456,10 @@ namespace GH_Toolkit_Core.QB
                 {
                     return "";
                 }
-                else if (Items.Count <= 3)
+                /*else if (Items.Count <= 3)
                 {
                     return SingleLineStruct(level);
-                }
+                }*/
                 else
                 {
                     using (var writer = new StringWriter())

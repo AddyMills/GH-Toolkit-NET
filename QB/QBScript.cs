@@ -262,6 +262,7 @@ namespace GH_Toolkit_Core.QB
             {
                 StringBuilder builder = new StringBuilder();
                 StringBuilder currentLine = new StringBuilder();
+                string indent = new string('\t', level);
                 isArgument = false;
                 foreach (object item in list)
                 {
@@ -901,6 +902,8 @@ namespace GH_Toolkit_Core.QB
                     RandomEntries.Add(entry);
                 }
 
+                bool isSingleEntry = RandomEntries.Count == 1;
+
                 var dataStart = ScriptReader.ReadUInt32(stream);
                 var preDataStart = stream.Position;
                 var startCheck = preDataStart + dataStart;
@@ -945,7 +948,10 @@ namespace GH_Toolkit_Core.QB
                             entriesCountdown--;
                             break;
                         }
-
+                        else if (isSingleEntry)
+                        {
+                            break;
+                        }
                     }
                 }
             }

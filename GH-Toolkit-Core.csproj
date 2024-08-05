@@ -36,6 +36,9 @@
     <None Update="Other\cameraskas.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="Other\wtdeclips.txt">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </None>
     <None Update="QBDebug\debug.txt">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>

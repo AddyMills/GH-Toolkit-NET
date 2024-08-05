@@ -455,6 +455,7 @@ namespace GH_Toolkit_Core.Methods
             {
                 Directory.CreateDirectory(compilePath);
             }
+
             var gameResource = Path.Combine(resources, game);
             uint toIncrement = checksum + 1;
             // Text files

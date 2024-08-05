@@ -15,6 +15,7 @@ using System.Runtime.InteropServices;
 using System.Collections;
 using System.Text;
 using static GH_Toolkit_Core.PAK.PAK;
+using Melanchall.DryWetMidi.Composing;
 
 /*
  * * This file is intended to be a collection of methods to read and create QB files
@@ -28,6 +29,8 @@ namespace GH_Toolkit_Core.QB
         public static bool FlipBytes = true;
         public static Dictionary<uint, string> SongHeaders;
         public static ReadWrite Reader;
+        private static string QbKeyPattern = @"^[a-z0-9_]+$";
+        public static Regex QbKeyRegex = new Regex(QbKeyPattern, RegexOptions.IgnoreCase);
         public List<QBItem> Children { get; set; }
         public QB()
         {
@@ -532,7 +535,7 @@ namespace GH_Toolkit_Core.QB
                     {
                         test = DebugReader.DebugCheck(itemString);
                     }
-                    else if (itemString.IndexOf(" ", 0) == -1)
+                    else if (QbKeyRegex.IsMatch(itemString))
                     {
                         test = $"{itemString}";
                     }
@@ -688,6 +691,8 @@ namespace GH_Toolkit_Core.QB
                 case FLOAT:
                     return float.Parse(data);
                 case MULTIFLOAT:
+                case PAIR:
+                case VECTOR:
                     return ParseMultiFloat(data);
                 case STRING:
                 case WIDESTRING:
@@ -1201,7 +1206,9 @@ namespace GH_Toolkit_Core.QB
                             case '"':
                                 if (escaped || currLevel.StringType == StringType.isString)
                                 {
-                                    throw new QFileParseException("Double quotes cannot appear in strings");
+                                    tmpValue += c;
+                                    escaped = false;
+                                    Console.WriteLine($"Warning: {currLevel.Name} contains double quotes");
                                 }
                                 else
                                 {
