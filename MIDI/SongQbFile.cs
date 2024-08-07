@@ -366,7 +366,119 @@ namespace GH_Toolkit_Core.MIDI
                 var drumGen = new DrumAnimGenerator();
                 DrumsNotes = drumGen.AutoGenDrumAnims(Drums.Expert);
             }
+            if ((Game == GAME_GH5 || Game == GAME_GHWOR) && BandMoments.Count == 0)
+            {
+                Console.WriteLine("No band moments found, generating band moments");
+                BandMoments = GenerateBandMoments();
+            }
+        }
+        private List<int> GenerateBandMoments()
+        {
+
+            List<int> bandMoments = new List<int>();
+            var chorusMoments = new List<int>();
+            var allMoments = new List<int>();
+
+            float lastMarkerTime;
+
+            try 
+            {
+                lastMarkerTime = Markers.Last().Time / 1000f;
+            }
+            catch (Exception)
+            {
+                lastMarkerTime = 0;
+            }
+
+            int bandMomentsCount;
             
+            switch (lastMarkerTime)
+            {
+                case float n when (n < 60):
+                    bandMomentsCount = 1;
+                    break;
+                case float n when (n < 180):
+                    bandMomentsCount = 2;
+                    break;
+                case float n when (n < 300):
+                    bandMomentsCount = 3;
+                    break;
+                default:
+                    bandMomentsCount = 4;
+                    break;
+            }
+
+            if (Markers.Count <= bandMomentsCount)
+            {
+                Console.WriteLine("Not enough section markers to generate band moments");
+                return bandMoments;
+            }
+
+            string chorusRegex = @"^chorus.*[0-9]+[a-z]?$";
+            string endSongRegex = @"endofsong";
+
+            for (int i = 0; i < Markers.Count; i++)
+            {
+                var marker = Markers[i];
+
+                if (Regex.IsMatch(marker.Text, endSongRegex, RegexOptions.IgnoreCase))
+                {
+                    break;
+                }
+                if (Regex.IsMatch(marker.Text, chorusRegex, RegexOptions.IgnoreCase))
+                {
+                    chorusMoments.Add(marker.Time);
+                }
+                allMoments.Add(marker.Time);
+            }
+
+            if (chorusMoments.Count < bandMomentsCount)
+            {
+                Console.WriteLine("Not enough chorus markers found, generating band moments from all markers");
+                chorusMoments = allMoments;
+            }
+
+            GetFurthestIntegers(chorusMoments, bandMomentsCount);
+
+            var closestTime = 4000;
+
+            foreach (var moment in chorusMoments)
+            {
+                var bandMomentStart = GetClosestIntFromList(moment - closestTime, Fretbars);
+                var bandMomentEnd = moment + 15; //Just enough time to get the first note of the section
+                var length = bandMomentEnd - bandMomentStart;
+                bandMoments.Add(bandMomentStart);
+                bandMoments.Add(length);
+            }
+
+            return bandMoments;
+        }
+        public static void GetFurthestIntegers(List<int> numbers, int numMoments)
+        {
+            if (numbers == null || numbers.Count == 0 || numMoments <= 0)
+            {
+                throw new ArgumentException("Invalid input");
+            }
+
+            // Sort the list to make it easier to find furthest points
+            numbers.Sort();
+
+            while (numbers.Count > numMoments)
+            {
+                int shortLoc = 0;
+                int shortestDist = numbers[0];
+                for (int i = 1; i < numbers.Count; i++)
+                {
+                    int dist = numbers[i] - numbers[i - 1];
+                    if (dist < shortestDist)
+                    {
+                        shortestDist = dist;
+                        shortLoc = i;
+                    }
+                }
+
+                numbers.RemoveAt(shortLoc);
+            }
         }
         private List<AnimNote> makeOverride(TrackChunk track)
         {
@@ -1444,6 +1556,21 @@ namespace GH_Toolkit_Core.MIDI
                 {
                     minDiff = diff;
                     closest = camera.Time;
+                }
+            }
+            return closest;
+        }
+        private int GetClosestIntFromList(int integer, List<int> list)
+        {
+            int closest = 0;
+            int minDiff = int.MaxValue;
+            foreach (int item in list)
+            {
+                int diff = Math.Abs(item - integer);
+                if (diff < minDiff)
+                {
+                    minDiff = diff;
+                    closest = item;
                 }
             }
             return closest;
