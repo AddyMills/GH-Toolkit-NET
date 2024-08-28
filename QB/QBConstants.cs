@@ -324,7 +324,12 @@ namespace GH_Toolkit_Core.QB
             { NOTEQUALS, NOTEQUALS_BYTE },
             { QSKEY, QSKEY_BYTE },
             { RANDOMFLOAT, RANDOMFLOAT_BYTE },
-            { RANDOMINTEGER, RANDOMINTEGER_BYTE }
+            { RANDOMINTEGER, RANDOMINTEGER_BYTE },
+            { UNKNOWN52, 0x52 },
+            { UNKNOWN54, 0x54 },
+            { UNKNOWN55, 0x55 },
+            { UNKNOWN59, 0x59 },
+            { UNKNOWN5A, 0x5A }
         };
     }
 }
