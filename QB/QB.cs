@@ -30,6 +30,7 @@ namespace GH_Toolkit_Core.QB
         public static Dictionary<uint, string> SongHeaders;
         public static ReadWrite Reader;
         private static string QbKeyPattern = @"^[a-z0-9_]+$";
+        private static string FloatPattern = @"^[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?$";
         public static Regex QbKeyRegex = new Regex(QbKeyPattern, RegexOptions.IgnoreCase);
         public List<QBItem> Children { get; set; }
         public QB()
@@ -346,7 +347,7 @@ namespace GH_Toolkit_Core.QB
                 else
                 {
                     throw new ArgumentException($"Invalid hex string found: {hexString}");
-        }
+                }
 
 
             }
@@ -563,6 +564,10 @@ namespace GH_Toolkit_Core.QB
                     {
                         test = DebugReader.DebugCheck(itemString);
                     }
+                    else if (float.TryParse(itemString, out _))
+                    {
+                        test = $"`{itemString}`";
+                    }
                     else if (QbKeyRegex.IsMatch(itemString))
                     {
                         test = $"{itemString}";
@@ -707,6 +712,7 @@ namespace GH_Toolkit_Core.QB
                     "!a" => WORARRAY,
                     _ => throw new ArgumentException("Invalid reference string found.")
                 },
+                var d when Regex.IsMatch(d, FloatPattern) => FLOAT,
                 _ => QBKEY,
             };
         }
