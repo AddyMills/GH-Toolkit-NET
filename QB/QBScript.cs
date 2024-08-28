@@ -153,6 +153,13 @@ namespace GH_Toolkit_Core.QB
                         case RANDOMINTEGER:
                             AddScriptElem(strData);
                             return;
+                        case UNKNOWN52:
+                        case UNKNOWN54:
+                        case UNKNOWN55:
+                        case UNKNOWN59:
+                        case UNKNOWN5A:
+                            AddScriptElem(strData);
+                            return;
                         default:
                             string pattern = @"@\*[1-9][0-9]*";
                             Regex regex = new Regex(pattern);
@@ -391,7 +398,7 @@ namespace GH_Toolkit_Core.QB
                 {
                     object scriptItem = script[scriptPos];
                     UpdateItem(ref currItem, scriptItem);
-                    if (currItem == CASE || currItem == DEFAULT)
+                    if (currItem == CASE || currItem == DEFAULT || currItem == ENDSWITCH)
                     {
                         break;
                     }
@@ -997,7 +1004,7 @@ namespace GH_Toolkit_Core.QB
                         }
                         randomEntry = new RandomEntry(currItem);
                     }
-                    else if (randomEntry != null && currItem == NEWLINE && randomEntry.Actions.Count == 0)
+                    else if (randomEntry != null && currItem == NEWLINE && RandomEntries.Count == 0 && randomEntry.Actions.Count == 0)
                     {
                         PreRandomEntries.Add(scriptItem);
                     }
