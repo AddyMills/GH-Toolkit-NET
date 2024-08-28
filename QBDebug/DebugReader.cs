@@ -15,7 +15,7 @@ namespace GH_Toolkit_Core.Debug
     public class DebugReader
     {
         public static Dictionary<uint, string> ChecksumDbg { get; private set; }
-        public static Dictionary<string, uint>Ps2PakDbg { get; private set; }
+        public static Dictionary<string, uint> Ps2PakDbg { get; private set; }
 
         static DebugReader()
         {
@@ -71,7 +71,7 @@ namespace GH_Toolkit_Core.Debug
             var rootFolder = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
             
             var compressedPath = Path.Combine(rootFolder, "QBDebug", "keys.dbg");
-            var dbgPath = Path.Combine(rootFolder,"QBDebug", "keys.txt");
+            var dbgPath = Path.Combine(rootFolder, "QBDebug", "keys.txt");
             if (Path.Exists(compressedPath))
             {
                 DecompressToFile(compressedPath, dbgPath);
