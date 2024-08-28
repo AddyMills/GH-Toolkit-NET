@@ -103,6 +103,16 @@ namespace GH_Toolkit_Core.MIDI
         public const string VOCALIST = "vocalist";
         public const string RHYTHM = "rhythm";
 
+        public const string GH5DRUMS = "drums";
+        public const string GH5GUITAR = "guitar";
+        public const string GH5BASS = "bass";
+        public const string GH5VOCALS = "vocal";
+        public const string INSTRUMENT = "instrument";
+        public const string STARPOWER = "starpower";
+        public const string TAPPING = "tapping";
+        public const string DRUMFILL = "drumfill";
+
+
         public const string SLIDE_LYRIC = "+";
         public const string JOIN_LYRIC = "-";
         public const string HYPHEN_LYRIC = "=";
