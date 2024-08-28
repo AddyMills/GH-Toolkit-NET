@@ -324,6 +324,34 @@ namespace GH_Toolkit_Core.QB
                     return Reader.ReadUInt32(stream);
             }
         }
+        // This is a function that will read a string consisting of hex string and string pairs
+        // and return then as a dictionary
+        public static Dictionary<uint, string> GetQsDictFromString(string qsPairs)
+        {
+            var qsDict = new Dictionary<uint, string>();
+            string[] pairs = qsPairs.Split(new string[] { "\n" }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (string pair in pairs)
+            {
+                string[] pairSplit = pair.Split(new string[] { " " },2, StringSplitOptions.RemoveEmptyEntries);
+
+                string hexString = pairSplit[0].Trim();
+                string valueString = pairSplit[1].Trim();
+
+                //Console.WriteLine($"Processing pair: {hexString} -> {valueString}");
+
+                if (uint.TryParse(hexString, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint key))
+                {
+                    qsDict.Add(key, valueString);
+                }
+                else
+                {
+                    throw new ArgumentException($"Invalid hex string found: {hexString}");
+        }
+
+
+            }
+            return qsDict;
+        }
         public static List<float> ReadQBTuple(MemoryStream stream, uint amount, bool readHeader = true)
         {
             if (readHeader)
