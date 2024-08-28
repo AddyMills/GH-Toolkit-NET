@@ -954,5 +954,16 @@ namespace GH_Toolkit_Core.Methods
                 }
             }
         }
+        public static byte[] RemoveBom(byte[] data)
+        {
+            if (data.Length >= 2 && data[0] == 0xFF && data[1] == 0xFE)
+            {
+                // UTF-16 BOM detected, remove it
+                byte[] newData = new byte[data.Length - 2];
+                Array.Copy(data, 2, newData, 0, newData.Length);
+                return newData;
+            }
+            return data;
+        }
     }
 }
