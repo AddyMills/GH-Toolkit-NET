@@ -338,6 +338,10 @@ namespace GH_Toolkit_Core.Methods
             {
                 return ValueHex(intVal);
             }
+            else if (value is uint uintVal)
+            {
+                return ValueHex(uintVal);
+            }
             else if (value is float floatVal)
             {
                 return ValueHex(floatVal);
