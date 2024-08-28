@@ -300,7 +300,14 @@ namespace GH_Toolkit_Core.PAK
             }
             catch (Exception ex)
             {
-                test_pak = Compression.DecompressData(test_pak);
+                try
+                {
+                    test_pak = Compression.DecompressData(test_pak);
+                }
+                catch
+                {
+                    // PAK file can be compressed, but doesn't need to be. If ZLIB decompression fails, try to extract as is.
+                }
                 if (test_pab != null)
                 {
                     test_pab = Compression.DecompressData(test_pab);
@@ -424,17 +431,16 @@ namespace GH_Toolkit_Core.PAK
         public static List<PakEntry> ExtractPAK(byte[] pakBytes, byte[]? pabBytes, string endian = "big", string songName = "")
         {
             ReadWrite reader = new ReadWrite(endian);
-            if (Compression.isChnkCompressed(pakBytes))
+            bool pakComp = Compression.isChnkCompressed(pakBytes);
+            if (pakComp)
             {
                 pakBytes = Compression.DecompressWTPak(pakBytes);
             }
-            if (pabBytes != null && Compression.isChnkCompressed(pabBytes))
-            {
-                pabBytes = Compression.DecompressWTPak(pabBytes);
-            }
+            
             List<PakEntry> pakList = new List<PakEntry>();
             if (pabBytes != null)
             {
+                bool pabComp = Compression.isChnkCompressed(pabBytes);
                 uint pabStart = CheckPabType(pakBytes, endian);
                 if (pabStart != 0 && pabStart < pakBytes.Length)
                 {
@@ -442,11 +448,28 @@ namespace GH_Toolkit_Core.PAK
                     Array.Copy(pakBytes, 0, newPak, 0, pabStart);
                     pakBytes = newPak;
                 }
+                if (pabStart != 0 && pabComp)
+                {
+                    pabBytes = Compression.DecompressWTPak(pabBytes);
+                }
+
                 switch (pabStart)
                 {
                     case 0:
+                        pakList = GetNewPakEntries(pakBytes, endian, songName);
+                        var lastEntry = pakList[pakList.Count - 1];
+                        var pabTest = Compression.DecompressWTPak(pabBytes);
+                        bool isLarger = pabTest.Length >= (lastEntry.StartOffset + lastEntry.FileSize);
+                        if (isLarger) // If this is the case, the entire pab file should be decompressed first
+                        {
+                            GetPakDataNew(pakList, pabTest);
+                        }
+                        else // If pak is not compressed, the pab file should be loaded in chunks
+                        {
+
+                        }
                         //pakList = ExtractNewPak(pakBytes, pabBytes, endian, songName);
-                        throw new Exception("PAK type not yet implemented.");
+                        break;
                     case uint size when size >= pakBytes.Length:
                         byte[] bytes = new byte[pabStart + pabBytes.Length];
                         Array.Copy(pakBytes, 0, bytes, 0, pakBytes.Length);
@@ -530,7 +553,7 @@ namespace GH_Toolkit_Core.PAK
             stream.Close();
             return PakList;
         }
-        public static List<PakEntry> ExtractNewPak(byte[] pakBytes, byte[] pabBytes, string endian, string songName = "")
+        public static List<PakEntry> GetNewPakEntries(byte[] pakBytes, string endian, string songName = "")
         {
             ReadWrite reader = new ReadWrite(endian);
             MemoryStream stream = new MemoryStream(pakBytes);
@@ -544,11 +567,19 @@ namespace GH_Toolkit_Core.PAK
                 {
                     break;
                 }
+                PakList.Add(entry);
             }
             stream.Close();
             return PakList;
             }
-
+        public static void GetPakDataNew(List<PakEntry> entries, byte[] pabBytes)
+        {
+            foreach (var entry in entries)
+            {
+                entry.EntryData = new byte[entry.FileSize];
+                Array.Copy(pabBytes, entry.StartOffset, entry.EntryData, 0, entry.FileSize);
+            }
+        }
         private static PakEntry? GetPakEntry(MemoryStream stream, ReadWrite reader, Dictionary<uint, string> headers, uint header_start = 0)
         {
             PakEntry entry = new PakEntry();
@@ -614,6 +645,7 @@ namespace GH_Toolkit_Core.PAK
             }
             return entry;
         }
+        
         private static void GetCorrectExtension(PakEntry entry)
         {
             if (entry.Extension.IndexOf(DOT_QS) != -1)
@@ -651,11 +683,16 @@ namespace GH_Toolkit_Core.PAK
             public string? ConsoleType { get; set; }
             public bool IsQb {  get; set; }
             public bool Split {  get; set; }
+            public bool IsNewGame { get; private set; } = false;
             public string? AssetContext { get; set; }
             private ReadWrite Writer { get; set; }
             public PakCompiler(string game, bool isQb = false, bool split = false)
             {
                 Game = game;
+                if (Game == "GHWOR" || Game == "GH5")
+                {
+                   IsNewGame = true;
+                }
                 IsQb = isQb; // Meaning qb.pak, really only used for PS2 to differentiate .qb files from .mqb files
                 Split = split;
             }
@@ -749,6 +786,7 @@ namespace GH_Toolkit_Core.PAK
                     {
                         byte[] fileData;
                         string relPath = GetRelPath(folderPath, entry);
+                        Console.WriteLine($"Processing {relPath}");
                         string qbName;
                         if (Path.GetExtension(entry) == DOT_Q)
                         {
@@ -823,6 +861,10 @@ namespace GH_Toolkit_Core.PAK
                     {
                         pakSize += 16;
                     }
+                    else if (IsNewGame)
+                    {
+                        pakSize = 0;
+                    }
                     else
                     {
                         pakSize += (4096 - pakSize % 4096);
@@ -845,7 +887,10 @@ namespace GH_Toolkit_Core.PAK
                         }
                         pab.Write(entry.EntryData);
                         Writer.PadStreamTo(pab, 16);
-                        bytesPassed += entry.ByteLength;
+                        if (!IsNewGame)
+                        {
+                            bytesPassed += entry.ByteLength;
+                        }
                     }
                     if (ConsoleType == CONSOLE_PS2)
                     {
