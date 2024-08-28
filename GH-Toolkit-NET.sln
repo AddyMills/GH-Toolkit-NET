@@ -43,7 +43,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ScriptTester", "..\ScriptTe
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FileComparer", "..\FileComparer\FileComparer.csproj", "{F97E2D21-5B30-405F-9C41-58C9CDED3572}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PAK Compiler", "..\Pak-Compiler\PAK Compiler.csproj", "{7FCCD6E9-7213-4FF5-B336-BEB522AFA97E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Honeycomb", "..\Pak-Compiler\Honeycomb.csproj", "{7FCCD6E9-7213-4FF5-B336-BEB522AFA97E}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PAK Extractor", "..\PAK-Extractor\PAK Extractor.csproj", "{9A3792A3-FAD8-4B17-AD5B-2C89555EDE4D}"
 EndProject
