@@ -41,7 +41,7 @@ namespace GH_Toolkit_Core.Methods
             // Determine if bytes need to be flipped based on endianness and system architecture.
             _flipBytes = endian == "little" != BitConverter.IsLittleEndian;
             _endian = endian;
-            _game = game;
+            _game = game.ToUpper();
             _qbtype = QbTypeLookup;
             _qbstruct = QbStructLookup;
 
