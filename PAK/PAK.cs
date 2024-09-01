@@ -428,6 +428,31 @@ namespace GH_Toolkit_Core.PAK
             }
             return pabOff;
         }
+        public static byte[] DeflateData(string filepath)
+        {
+            byte[] magicBytes = new byte[] { 0x43, 0x48, 0x4E, 0x4B }; // "CHNK" in ASCII
+
+            byte[] data = File.ReadAllBytes(filepath);
+
+            try
+            {
+                byte[]? deflated = null;
+                if (data.Length >= 4 && data[0] == magicBytes[0] && data[1] == magicBytes[1] && data[2] == magicBytes[2] && data[3] == magicBytes[3])
+                {
+                    deflated = Compression.DecompressWTPak(data);
+                }
+                else
+                {
+                    deflated = Compression.DecompressData(data);
+                }
+                return deflated;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Could not deflate file. Is it already uncompressed?");
+            }
+            return data;
+        }
         public static List<PakEntry> ExtractPAK(byte[] pakBytes, byte[]? pabBytes, string endian = "big", string songName = "")
         {
             ReadWrite reader = new ReadWrite(endian);
@@ -648,7 +673,7 @@ namespace GH_Toolkit_Core.PAK
         
         private static void GetCorrectExtension(PakEntry entry)
         {
-            if (entry.Extension.IndexOf(DOT_QS) != -1)
+            if (entry.FullName.IndexOf(DOT_MID_QS) != -1)
             {
                 // QS files are weird inside paks and ".qs" is found twice. Don't need it twice.
                 entry.FullName += entry.Extension.Replace(DOT_QS, "");
@@ -849,6 +874,8 @@ namespace GH_Toolkit_Core.PAK
             }
             public (byte[], byte[]?) CompilePakEntries(List<PakEntry> PakEntries)
             {
+                int padToFull = 256;
+                int padToEntry = 32;
                 PakEntries.Add(new PakEntry(ConsoleType, Game, AssetContext)); // Last entry
                 byte[] pakData;
                 byte[]? pabData;
@@ -867,7 +894,7 @@ namespace GH_Toolkit_Core.PAK
                     }
                     else
                     {
-                        pakSize += (4096 - pakSize % 4096);
+                        pakSize += (padToFull - (pakSize % padToFull));
                     }
                     int bytesPassed = 0;
                     foreach (PakEntry entry in PakEntries)
@@ -886,7 +913,7 @@ namespace GH_Toolkit_Core.PAK
                             ReadWrite.WriteStringBytes(pak, entry.FullFlagPath);
                         }
                         pab.Write(entry.EntryData);
-                        Writer.PadStreamTo(pab, 16);
+                        Writer.PadStreamTo(pab, padToEntry);
                         if (!IsNewGame)
                         {
                             bytesPassed += entry.ByteLength;
@@ -898,7 +925,7 @@ namespace GH_Toolkit_Core.PAK
                     }
                     else
                     {
-                        Writer.PadStreamTo(pak, 4096);
+                        Writer.PadStreamTo(pak, padToFull);
                     }
                     pabData = pab.ToArray();
                     if (!Split)
