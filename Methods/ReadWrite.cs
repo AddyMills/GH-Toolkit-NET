@@ -30,6 +30,7 @@ namespace GH_Toolkit_Core.Methods
         private readonly Dictionary<string, byte> _qbstruct;
         private readonly Dictionary<string, byte> _scriptbytes;
         private readonly ReadWrite _scriptwriter;
+        private readonly bool _isGhGame;
         public ReadWrite(string endian)
         {
             // Determine if bytes need to be flipped based on endianness and system architecture.
@@ -41,7 +42,8 @@ namespace GH_Toolkit_Core.Methods
             // Determine if bytes need to be flipped based on endianness and system architecture.
             _flipBytes = endian == "little" != BitConverter.IsLittleEndian;
             _endian = endian;
-            _game = game.ToUpper();
+            _game = game;
+            _isGhGame = game.StartsWith("gh", StringComparison.InvariantCultureIgnoreCase);
             _qbtype = QbTypeLookup;
             _qbstruct = QbStructLookup;
 
@@ -50,7 +52,7 @@ namespace GH_Toolkit_Core.Methods
 
             _scriptwriter = new ReadWrite("little");
 
-            if (_endian == "little" && _game == "GH3")
+            if (_endian == "little" && _game.Equals("GH3", StringComparison.CurrentCultureIgnoreCase))
             {
                 if (_scriptbytes.ContainsKey(NOTEQUALS))
                 {
@@ -60,7 +62,7 @@ namespace GH_Toolkit_Core.Methods
         }
         public byte GetScriptByte(string scriptEntry)
         {
-            if ((scriptEntry == IF || scriptEntry == ELSE) && _game.StartsWith("GH"))
+            if ((scriptEntry == IF || scriptEntry == ELSE) && _isGhGame)
             {
                 scriptEntry = "fast" + scriptEntry;
             }
