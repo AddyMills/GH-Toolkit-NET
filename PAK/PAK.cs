@@ -713,8 +713,12 @@ namespace GH_Toolkit_Core.PAK
             private ReadWrite Writer { get; set; }
             public PakCompiler(string game, bool isQb = false, bool split = false)
             {
+                if (game.Contains("wor", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    game = GAME_GHWOR;
+                }
                 Game = game;
-                if (Game == "GHWOR" || Game == "GH5")
+                if (Game == GAME_GHWOR || Game == GAME_GH5)
                 {
                    IsNewGame = true;
                 }
