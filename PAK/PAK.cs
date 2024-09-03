@@ -713,6 +713,21 @@ namespace GH_Toolkit_Core.PAK
             private ReadWrite Writer { get; set; }
             public PakCompiler(string game, bool isQb = false, bool split = false)
             {
+                SetGame(game);
+                IsQb = isQb; // Meaning qb.pak, really only used for PS2 to differentiate .qb files from .mqb files
+                Split = split;
+            }
+            public PakCompiler(string game, string console, string? assetContext = null, bool isQb = false, bool split = false)
+            {
+                SetGame(game);
+                IsQb = isQb; // Meaning qb.pak, really only used for PS2 to differentiate .qb files from .mqb files
+                Split = split;
+                ConsoleType = console;
+                SetWriter();
+                AssetContext = assetContext;
+            }
+            private void SetGame(string game)
+            {
                 if (game.Contains("wor", StringComparison.InvariantCultureIgnoreCase))
                 {
                     game = GAME_GHWOR;
@@ -720,19 +735,8 @@ namespace GH_Toolkit_Core.PAK
                 Game = game;
                 if (Game == GAME_GHWOR || Game == GAME_GH5)
                 {
-                   IsNewGame = true;
+                    IsNewGame = true;
                 }
-                IsQb = isQb; // Meaning qb.pak, really only used for PS2 to differentiate .qb files from .mqb files
-                Split = split;
-            }
-            public PakCompiler(string game, string console, string? assetContext = null, bool isQb = false, bool split = false)
-            {
-                Game = game;
-                IsQb = isQb; // Meaning qb.pak, really only used for PS2 to differentiate .qb files from .mqb files
-                Split = split;
-                ConsoleType = console;
-                SetWriter();
-                AssetContext = assetContext;
             }
             private void SetConsole(string filePath)
             {
