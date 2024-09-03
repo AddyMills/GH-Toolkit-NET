@@ -351,8 +351,9 @@ namespace GH_Toolkit_Core.PAK
                     pakFileName += fileExt;
                 }
 
-                string saveName = Path.Combine(NewFolderPath, pakFileName);
-
+                var uri = new Uri(Path.Combine(NewFolderPath, pakFileName));
+                string saveName = uri.AbsolutePath;
+                
                 Console.WriteLine($"Extracting {pakFileName}");
                 Directory.CreateDirectory(Path.GetDirectoryName(saveName));
 
