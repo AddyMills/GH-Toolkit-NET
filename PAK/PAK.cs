@@ -317,7 +317,7 @@ namespace GH_Toolkit_Core.PAK
             return pakEntries;
         }
         
-        public static void ProcessPAKFromFile(string file, bool convertQ = true)
+        public static void ProcessPAKFromFile(string file, bool convertQ = true, string game = "")
         {
             string fileName = Path.GetFileName(file);
             string fileNoExt;
@@ -330,6 +330,7 @@ namespace GH_Toolkit_Core.PAK
                 return;
             }
             string fileExt = Path.GetExtension(file);
+            string consoleType = fileExt.Replace(".", "");
             string folderPath = Path.GetDirectoryName(file);
             string NewFolderPath = Path.Combine(folderPath, fileNoExt);
             bool debugFile = fileName.Contains("dbg.pak");
@@ -352,7 +353,7 @@ namespace GH_Toolkit_Core.PAK
                 }
 
                 var uri = new Uri(Path.Combine(NewFolderPath, pakFileName));
-                string saveName = uri.AbsolutePath;
+                string saveName = uri.LocalPath;
                 
                 Console.WriteLine($"Extracting {pakFileName}");
                 Directory.CreateDirectory(Path.GetDirectoryName(saveName));
@@ -368,7 +369,7 @@ namespace GH_Toolkit_Core.PAK
                     {
                         songHeader = fileNoExt.Substring(0, fileNoExt.LastIndexOf("_s"));
                     }
-                    List<QBItem> qBItems = DecompileQb(entry.EntryData, GetEndian(fileExt), songHeader);
+                    List<QBItem> qBItems = DecompileQb(entry.EntryData, GetEndian(fileExt), songHeader, game, consoleType);
                     QbToText(qBItems, saveName);
                 }
                 else
@@ -707,8 +708,13 @@ namespace GH_Toolkit_Core.PAK
         {
             public string Game { get; set; }
             public string? ConsoleType { get; set; }
-            public bool IsQb {  get; set; }
-            public bool Split {  get; set; }
+            public bool IsQb {  get; set; } = false;
+            public bool Split {  get; set; } = false;
+            public bool ZeroOffset { get
+                {
+                    return IsQb || Split;
+                }
+            }
             public bool IsNewGame { get; private set; } = false;
             public string? AssetContext { get; set; }
             private ReadWrite Writer { get; set; }
@@ -886,6 +892,7 @@ namespace GH_Toolkit_Core.PAK
                 int padToFull = 256;
                 int padToEntry = 32;
                 PakEntries.Add(new PakEntry(ConsoleType, Game, AssetContext)); // Last entry
+                bool splitWor = IsNewGame && ZeroOffset;
                 byte[] pakData;
                 byte[]? pabData;
                 using (MemoryStream pak = new MemoryStream())
@@ -897,11 +904,11 @@ namespace GH_Toolkit_Core.PAK
                     {
                         pakSize += 16;
                     }
-                    else if (IsNewGame)
+                    else if (splitWor)
                     {
                         pakSize = 0;
                     }
-                    else
+                    else if (pakSize % padToFull != 0)
                     {
                         pakSize += (padToFull - (pakSize % padToFull));
                     }
@@ -923,7 +930,7 @@ namespace GH_Toolkit_Core.PAK
                         }
                         pab.Write(entry.EntryData);
                         Writer.PadStreamTo(pab, padToEntry);
-                        if (!IsNewGame)
+                        if (!splitWor)
                         {
                             bytesPassed += entry.ByteLength;
                         }
