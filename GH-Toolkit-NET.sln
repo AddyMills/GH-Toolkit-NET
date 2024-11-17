@@ -59,6 +59,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pak-Decompressor", "..\Pak-
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GeneralTester", "..\NewSkaTester\GeneralTester.csproj", "{888DBBA6-6BD9-4322-AAF1-3BCCE03F8DB0}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PopstarConverter", "..\PopstarConverter\PopstarConverter.csproj", "{71319FA1-1F6B-4938-A04C-E526C7924FA2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -137,6 +139,10 @@ Global
 		{888DBBA6-6BD9-4322-AAF1-3BCCE03F8DB0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{888DBBA6-6BD9-4322-AAF1-3BCCE03F8DB0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{888DBBA6-6BD9-4322-AAF1-3BCCE03F8DB0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{71319FA1-1F6B-4938-A04C-E526C7924FA2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{71319FA1-1F6B-4938-A04C-E526C7924FA2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{71319FA1-1F6B-4938-A04C-E526C7924FA2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{71319FA1-1F6B-4938-A04C-E526C7924FA2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
