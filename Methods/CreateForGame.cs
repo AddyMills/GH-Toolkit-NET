@@ -71,9 +71,9 @@ namespace GH_Toolkit_Core.Methods
                 string STEVEN = "Steven Tyler";
 
                 var entry = new QBStructData();
-                string pString = platform == CONSOLE_PS2 ? STRING : WIDESTRING; // Depends on the platform
+                string pString = (platform == CONSOLE_PS2 || platform == CONSOLE_WII) ? STRING : WIDESTRING; // Depends on the platform
                 bool artistIsOther = ArtistTextSelect == "Other";
-                string artistText = !artistIsOther ? $"artist_text_{ArtistTextSelect.ToLower().Replace(" ", "_")}" : ArtistTextCustom;
+                string artistText = !artistIsOther ? GetArtistText() : ArtistTextCustom;
                 string artistType = artistIsOther ? pString : POINTER;
                 string gender = (Singer == STEVEN) ? "male" : Singer;
 
@@ -81,6 +81,14 @@ namespace GH_Toolkit_Core.Methods
                 entry.AddVarToStruct("name", Checksum, STRING);
                 entry.AddVarToStruct("title", Title, pString);
                 entry.AddVarToStruct("artist", Artist, pString);
+                if (CoverArtist != "")
+                {
+                    entry.AddVarToStruct("covered_by", CoverArtist, pString);
+                }
+                if (CoverYear != 0)
+                {
+                    entry.AddVarToStruct("cover_year", $", {CoverYear}", pString);
+                }
                 entry.AddVarToStruct("year", $", {Year}", pString);
                 entry.AddVarToStruct("artist_text", artistText, artistType);
                 entry.AddIntToStruct("original_artist", IsArtistFamousBy ? 0 : 1);
@@ -245,9 +253,10 @@ namespace GH_Toolkit_Core.Methods
                 bool hasDat = game == GAME_GH3 ? false : true;
                 string packageName;
                 packageName = PackageName;
+                var packageHash = PackageNameHashFormat(packageName);
                 if (platform == CONSOLE_PS3)
                 {
-                    var packageHash = PackageNameHashFormat(packageName);
+                    
                     fileType = "PKG";
                     Console.WriteLine("Compiling PKG file using Onyx CLI");
                     toCopyTo = Path.Combine(compilePath, "PS3");
@@ -299,7 +308,7 @@ namespace GH_Toolkit_Core.Methods
                     fileType = "STFS";
                     Console.WriteLine("Compiling STFS file using Onyx CLI");
 
-                    CreateOnyxStfsFolder(game, resources, compilePath, packageName);
+                    CreateOnyxStfsFolder(game, resources, compilePath, packageHash);
                     toCopyTo = Path.Combine(compilePath, "360");
                     string[] filesToCopy = Directory.GetFiles(compilePath);
                     foreach (string file in filesToCopy)
@@ -319,7 +328,7 @@ namespace GH_Toolkit_Core.Methods
                         }
                         File.Copy(file, Path.Combine(toCopyTo, Path.GetFileName(file) + ".xen"), true);
                     }
-                    string stfsSave = Path.Combine(CompileFolder, packageName.Replace(" ","_"));
+                    string stfsSave = Path.Combine(CompileFolder, packageHash.Replace(" ","_"));
                     onyxArgs = ["stfs", toCopyTo, "--to", stfsSave];
 
                 }
