@@ -173,12 +173,12 @@ namespace GH_Toolkit_Core.Methods
             byte[] byteArray = Encoding.BigEndianUnicode.GetBytes(str);
             stream.Write(byteArray, 0, byteArray.Length);
         }
-        public static void FillNullTermString(MemoryStream stream, uint padding)
+        public static void FillNullTermString(Stream stream, uint padding)
         {
             byte[] nullBytes = new byte[padding];
             stream.Write(nullBytes, 0, nullBytes.Length);
         }
-        public static byte[] ReadNoFlip(MemoryStream s, int count)
+        public static byte[] ReadNoFlip(Stream s, int count)
         {
             byte[] buffer = new byte[count];
             s.Read(buffer, 0, count);
@@ -188,7 +188,7 @@ namespace GH_Toolkit_Core.Methods
             }
             return buffer;
         }
-        public byte[] ReadAndMaybeFlipBytes(MemoryStream s, int count)
+        public byte[] ReadAndMaybeFlipBytes(Stream s, int count)
         {
             byte[] buffer = new byte[count];
             s.Read(buffer, 0, count);
@@ -198,27 +198,27 @@ namespace GH_Toolkit_Core.Methods
             }
             return buffer;
         }
-        public byte ReadUInt8(MemoryStream stream)
+        public byte ReadUInt8(Stream stream)
         {
             return ReadAndMaybeFlipBytes(stream, 1)[0];
         }
-        public ushort ReadUInt16(MemoryStream stream)
+        public ushort ReadUInt16(Stream stream)
         {
             return BitConverter.ToUInt16(ReadAndMaybeFlipBytes(stream, 2), 0);
         }
-        public uint ReadUInt32(MemoryStream stream)
+        public uint ReadUInt32(Stream stream)
         {
             return BitConverter.ToUInt32(ReadAndMaybeFlipBytes(stream, 4), 0);
         }
-        public float ReadFloat(MemoryStream stream)
+        public float ReadFloat(Stream stream)
         {
             return BitConverter.ToSingle(ReadAndMaybeFlipBytes(stream, 4), 0);
         }
-        public short ReadInt16(MemoryStream stream)
+        public short ReadInt16(Stream stream)
         {
             return unchecked((short)ReadUInt16(stream));
         }
-        public int ReadInt32(MemoryStream stream)
+        public int ReadInt32(Stream stream)
         {
             return unchecked((int)ReadUInt32(stream));
         }
@@ -875,9 +875,17 @@ namespace GH_Toolkit_Core.Methods
             source.CopyTo(dest);
             source.Close();
         }
-        public string Endian()
+        public string GetEndian()
         {
             return _endian;
+        }
+        public string GetGame()
+        {
+            return _game;
+        }
+        public string GetConsole()
+        {
+            return _console;
         }
         private static byte GetLastByte(Stream stream)
         {
