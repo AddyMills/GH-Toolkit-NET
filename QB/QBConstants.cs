@@ -39,6 +39,8 @@ namespace GH_Toolkit_Core.QB
         public const string CONSOLE_PS2 = "PS2";
         public const string CONSOLE_PS3 = "PS3";
         public const string CONSOLE_XBOX = "360";
+        public const string CONSOLE_NGC = "NGC";
+        public const string CONSOLE_WII = "WII";
         public const string CONSOLE_PC = "PC";
 
         public const string HEXSTART = "0x";
