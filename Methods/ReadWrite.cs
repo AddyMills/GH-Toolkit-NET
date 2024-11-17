@@ -26,6 +26,7 @@ namespace GH_Toolkit_Core.Methods
         private readonly bool _flipBytes;
         private readonly string _endian;
         private readonly string _game;
+        private readonly string _console;
         private readonly Dictionary<string, byte> _qbtype;
         private readonly Dictionary<string, byte> _qbstruct;
         private readonly Dictionary<string, byte> _scriptbytes;
@@ -37,22 +38,40 @@ namespace GH_Toolkit_Core.Methods
             _flipBytes = endian == "little" != BitConverter.IsLittleEndian;
             _endian = endian;
         }
-        public ReadWrite(string endian, string game, Dictionary<string, byte> QbTypeLookup, Dictionary<string, byte> QbStructLookup)
+        public ReadWrite(string endian, string game, string console)
         {
             // Determine if bytes need to be flipped based on endianness and system architecture.
             _flipBytes = endian == "little" != BitConverter.IsLittleEndian;
             _endian = endian;
             _game = game;
+            if (console.Equals(CONSOLE_WII, StringComparison.CurrentCultureIgnoreCase) || console.Equals(CONSOLE_NGC, StringComparison.CurrentCultureIgnoreCase))
+            {
+                _console = CONSOLE_WII;
+            }
+            else
+            {
+                _console = console.ToUpper();
+            }
+        }
+        public ReadWrite(string endian, string game, Dictionary<string, byte> QbTypeLookup, Dictionary<string, byte> QbStructLookup, string console = "")
+        {
+            // Determine if bytes need to be flipped based on endianness and system architecture.
+            _flipBytes = endian == "little" != BitConverter.IsLittleEndian;
+            _endian = endian;
+            _game = game;
+            _console = console;
             _isGhGame = game.StartsWith("gh", StringComparison.InvariantCultureIgnoreCase);
             _qbtype = QbTypeLookup;
             _qbstruct = QbStructLookup;
+
+            bool isWii = _console.Equals(CONSOLE_WII, StringComparison.CurrentCultureIgnoreCase) || _console.Equals(CONSOLE_NGC, StringComparison.CurrentCultureIgnoreCase);
 
             // Create a copy of the scriptDict from QBConstants
             _scriptbytes = new Dictionary<string, byte>(QBConstants.scriptDict);
 
             _scriptwriter = new ReadWrite("little");
 
-            if (_endian == "little" && _game.Equals("GH3", StringComparison.CurrentCultureIgnoreCase))
+            if ((_endian == "little" || isWii) && _game.Equals("GH3", StringComparison.CurrentCultureIgnoreCase))
             {
                 if (_scriptbytes.ContainsKey(NOTEQUALS))
                 {
@@ -60,6 +79,7 @@ namespace GH_Toolkit_Core.Methods
                 }
             }
         }
+
         public byte GetScriptByte(string scriptEntry)
         {
             if ((scriptEntry == IF || scriptEntry == ELSE) && _isGhGame)
