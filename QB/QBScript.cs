@@ -1475,7 +1475,7 @@ namespace GH_Toolkit_Core.QB
                     nextGlobal = true;
                     break;
                 case 0x4C:
-                    if (Reader.Endian() == "little")
+                    if (Reader.GetEndian() == "little" || Reader.GetConsole() == CONSOLE_WII)
                     {
                         list.Add(NOTEQUALS);
                     }
@@ -1487,7 +1487,7 @@ namespace GH_Toolkit_Core.QB
 
                     break;
                 case 0x4D:
-                    if (Reader.Endian() == "little")
+                    if (Reader.GetEndian() == "little")
                     {
                         list.Add(NOTEQUALS);
                     }
