@@ -4951,6 +4951,7 @@ namespace GH_Toolkit_Core.MIDI
                 TapNotes = ProcessTapNotes(allNotes, chords, songQb);
                 if (TapNotes.Count == 0 && sysexTaps != null)
                 {
+                    var sysTapsTemp = new List<StarPower>();
                     foreach (var taps in sysexTaps)
                     {
                         var tapUnder = chords.Where(x => x.Time >= taps.Time && x.Time < taps.Length).ToList();
@@ -4959,21 +4960,49 @@ namespace GH_Toolkit_Core.MIDI
                             // If there are no chords under the tap note, skip it
                             continue;
                         }
-                        var lastNote = chords.IndexOf(tapUnder[tapUnder.Count - 1]);
-                        var nextNote = chords.ElementAtOrDefault(lastNote + 1);
-                        var startTime = songQb.GameMilliseconds(taps.Time);
-                        int endTime;
-                        if (nextNote != null)
+                        var noteList = new List<List<MidiData.Chord>>();
+                        var tempList = new List<MidiData.Chord>();
+                        foreach (var chord in tapUnder)
                         {
-                            endTime = songQb.GameMilliseconds(nextNote.Time);
+                            if (chord.Notes.Count > 1)
+                            {
+                                if (tempList.Count == 0)
+                                {
+                                    continue;
+                                }
+                                noteList.Add(tempList);
+                                tempList = new List<MidiData.Chord>();
+                                continue;
+                            }
+                            tempList.Add(chord);
                         }
-                        else
+                        if (tempList.Count == 0 && noteList.Count == 0)
                         {
-                            // If there are no more notes, set the end time to the last sysex event + 1/4 note
-                            endTime = songQb.GameMilliseconds(taps.Length + songQb.TPB);
+                            continue;
                         }
-                        var length = endTime - startTime;
-                        TapNotes.Add(new StarPower(startTime, length, 1));
+                        if (tempList.Count != 0)
+                        {
+                            noteList.Add(tempList);
+                        }
+                        foreach (var tapList in noteList)
+                        {
+                            var lastNote = chords.IndexOf(tapList[tapList.Count - 1]);
+                            var nextNote = chords.ElementAtOrDefault(lastNote + 1);
+                            var startTime = songQb.GameMilliseconds(tapList[0].Time);
+                            int endTime;
+                            if (nextNote != null)
+                            {
+                                endTime = songQb.GameMilliseconds(nextNote.Time);
+                            }
+                            else
+                            {
+                                // If there are no more notes, set the end time to the last sysex event + 1/4 note
+                                endTime = songQb.GameMilliseconds(tapList[tapList.Count - 1].EndTime + songQb.TPB);
+                            }
+                            var length = endTime - startTime;
+                            TapNotes.Add(new StarPower(startTime, length, 1));
+                        }
+
                     }
                 }
                 StarEntries = CalculateStarPowerNotes(chords, StarPowerPhrases, songQb);
@@ -5161,7 +5190,7 @@ namespace GH_Toolkit_Core.MIDI
                 uint tapSize = 8;
 
                 bool drums = name == "drums";
-                bool gh6drums = diffName == "Expert" && ghwor && drums;
+                bool gh6drums = diffName == "expert" && ghwor && drums;
                 string entryType;
                 if (gh6drums)
                 {
