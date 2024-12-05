@@ -256,6 +256,8 @@ namespace GH_Toolkit_Core.PAK
             {
                 throw new Exception("Invalid File");
             }
+            bool isWii = fileName.EndsWith(".ngc", StringComparison.InvariantCultureIgnoreCase);
+
             string fileNoExt = fileName.Substring(0, fileName.ToLower().IndexOf(".pak"));
             string fileExt = Path.GetExtension(file);
             Console.WriteLine($"Processing {fileNoExt}");
@@ -296,7 +298,7 @@ namespace GH_Toolkit_Core.PAK
             }
             try
             {
-                pakEntries = ExtractPAK(test_pak, test_pab, endian: endian, songName: songName);
+                pakEntries = ExtractPAK(test_pak, test_pab, endian: endian, songName: songName, isWii: isWii);
             }
             catch (Exception ex)
             {
@@ -312,7 +314,7 @@ namespace GH_Toolkit_Core.PAK
                 {
                     test_pab = Compression.DecompressData(test_pab);
                 }
-                pakEntries = ExtractPAK(test_pak, test_pab, endian: endian, songName: songName);
+                pakEntries = ExtractPAK(test_pak, test_pab, endian: endian, songName: songName, isWii: isWii);
             }
             return pakEntries;
         }
@@ -321,6 +323,7 @@ namespace GH_Toolkit_Core.PAK
         {
             string fileName = Path.GetFileName(file);
             string fileNoExt;
+
             try
             {
                 fileNoExt = fileName.Substring(0, fileName.ToLower().IndexOf(".pak"));
@@ -455,7 +458,7 @@ namespace GH_Toolkit_Core.PAK
             }
             return data;
         }
-        public static List<PakEntry> ExtractPAK(byte[] pakBytes, byte[]? pabBytes, string endian = "big", string songName = "")
+        public static List<PakEntry> ExtractPAK(byte[] pakBytes, byte[]? pabBytes, string endian = "big", string songName = "", bool isWii = false)
         {
             ReadWrite reader = new ReadWrite(endian);
             bool pakComp = Compression.isChnkCompressed(pakBytes);
@@ -485,7 +488,11 @@ namespace GH_Toolkit_Core.PAK
                     case 0:
                         pakList = GetNewPakEntries(pakBytes, endian, songName);
                         var lastEntry = pakList[pakList.Count - 1];
-                        var pabTest = Compression.DecompressWTPak(pabBytes);
+                        var pabTest = pabBytes;
+                        if (pabComp)
+                        {
+                            pabTest = Compression.DecompressWTPak(pabBytes);
+                        }
                         bool isLarger = pabTest.Length >= (lastEntry.StartOffset + lastEntry.FileSize);
                         if (isLarger) // If this is the case, the entire pab file should be decompressed first
                         {
@@ -502,13 +509,13 @@ namespace GH_Toolkit_Core.PAK
                         Array.Copy(pakBytes, 0, bytes, 0, pakBytes.Length);
                         Array.Copy(pabBytes, 0, bytes, pabStart, pabBytes.Length);
                         pakBytes = bytes;
-                        pakList = ExtractOldPak(pakBytes, endian, songName);
+                        pakList = ExtractOldPak(pakBytes, endian, songName, isWii);
                         break;
                 }
             }
             else
             {
-                pakList = ExtractOldPak(pakBytes, endian, songName);
+                pakList = ExtractOldPak(pakBytes, endian, songName, isWii);
             }
             
 
@@ -531,7 +538,7 @@ namespace GH_Toolkit_Core.PAK
             }
             return files;
         }
-        public static List<PakEntry> ExtractOldPak(byte[] pakBytes, string endian, string songName = "")
+        public static List<PakEntry> ExtractOldPak(byte[] pakBytes, string endian, string songName = "", bool isWii = false)
         {
             ReadWrite reader = new ReadWrite(endian);
             MemoryStream stream = new MemoryStream(pakBytes);
@@ -543,7 +550,7 @@ namespace GH_Toolkit_Core.PAK
             while (true)
             {
                 uint header_start = (uint)stream.Position; // To keep track of which entry since the offset in the header needs to be added to the StartOffset below
-                PakEntry? entry = GetPakEntry(stream, reader, headers, header_start);
+                PakEntry? entry = GetPakEntry(stream, reader, headers, header_start, isWii);
                 if (entry == null)
                 {
                     break;
@@ -607,7 +614,7 @@ namespace GH_Toolkit_Core.PAK
                 Array.Copy(pabBytes, entry.StartOffset, entry.EntryData, 0, entry.FileSize);
             }
         }
-        private static PakEntry? GetPakEntry(MemoryStream stream, ReadWrite reader, Dictionary<uint, string> headers, uint header_start = 0)
+        private static PakEntry? GetPakEntry(MemoryStream stream, ReadWrite reader, Dictionary<uint, string> headers, uint header_start = 0, bool isWii = false)
         {
             PakEntry entry = new PakEntry();
             uint extension = reader.ReadUInt32(stream);
@@ -632,6 +639,10 @@ namespace GH_Toolkit_Core.PAK
             uint fullname = reader.ReadUInt32(stream);
             entry.FullName = DebugReader.DebugCheck(headers, fullname);
             uint name = reader.ReadUInt32(stream);
+            if (isWii)
+            {
+                (entry.AssetContext, entry.FullName) = (entry.FullName, entry.AssetContext);
+            }
             entry.NameNoExt = DebugReader.DebugCheck(headers, name);
             if (entry.FullName.StartsWith("0x"))
             {
@@ -712,7 +723,7 @@ namespace GH_Toolkit_Core.PAK
             public bool Split {  get; set; } = false;
             public bool ZeroOffset { get
                 {
-                    return IsQb || Split;
+                    return (IsQb || Split) && ConsoleType != CONSOLE_WII;
                 }
             }
             public bool IsNewGame { get; private set; } = false;
@@ -919,8 +930,17 @@ namespace GH_Toolkit_Core.PAK
                         pak.Write(Writer.ValueHex(entry.Extension), 0, 4);
                         pak.Write(Writer.ValueHex(entry.StartOffset), 0, 4);
                         pak.Write(Writer.ValueHex(entry.FileSize), 0, 4);
-                        pak.Write(Writer.ValueHex(entry.AssetContext), 0, 4);
-                        pak.Write(Writer.ValueHex(entry.FullName), 0, 4);
+                        if (ConsoleType == CONSOLE_WII && Game == GAME_GHWOR)
+                        {
+                            pak.Write(Writer.ValueHex(entry.FullName), 0, 4);
+                            pak.Write(Writer.ValueHex(entry.AssetContext), 0, 4);
+                            
+                        }
+                        else
+                        {
+                            pak.Write(Writer.ValueHex(entry.AssetContext), 0, 4);
+                            pak.Write(Writer.ValueHex(entry.FullName), 0, 4);
+                        }
                         pak.Write(Writer.ValueHex(entry.NameNoExt), 0, 4);
                         pak.Write(Writer.ValueHex(entry.Parent), 0, 4);
                         pak.Write(Writer.ValueHex(entry.Flags), 0, 4);
@@ -944,7 +964,7 @@ namespace GH_Toolkit_Core.PAK
                         Writer.PadStreamTo(pak, padToFull);
                     }
                     pabData = pab.ToArray();
-                    if (!Split)
+                    if (!Split || ConsoleType == CONSOLE_WII)
                     {
                         // Add pabData to pakData and make pabData null
                         pak.Write(pabData);
