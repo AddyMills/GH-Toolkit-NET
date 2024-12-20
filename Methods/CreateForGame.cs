@@ -10,10 +10,12 @@ using static GH_Toolkit_Core.QB.QBConstants;
 using static GH_Toolkit_Core.QB.QBArray;
 using static GH_Toolkit_Core.QB.QBStruct;
 using static GH_Toolkit_Core.Checksum.CRC;
+using static GH_Toolkit_Core.INI.SongIniData;
 using GH_Toolkit_Core.PS360;
 using System.Diagnostics;
 using GH_Toolkit_Core.Checksum;
 using System.Text.RegularExpressions;
+using GH_Toolkit_Core.INI;
 
 namespace GH_Toolkit_Core.Methods
 {
@@ -28,9 +30,9 @@ namespace GH_Toolkit_Core.Methods
             public string ArtistTextSelect { get; set; } = "";
             public string ArtistTextCustom { get; set; } = "";
             public string AlbumTitle { get; set; } = "If you find this text... Hi!";
-            public int Year { get; set; }
+            public int? Year { get; set; }
             public string CoverArtist { get; set; } = "";
-            public int CoverYear { get; set; }
+            public int? CoverYear { get; set; }
             public string Genre { get; set; } = "";
             public string ChartAuthor { get; set; } = "";
             public string Bassist { get; set; } = "";
@@ -46,6 +48,7 @@ namespace GH_Toolkit_Core.Methods
             public bool P2RhythmCheck { get; set; }
             public float BandVol { get; set; }
             public float GtrVol { get; set; }
+            public float Volume { get; set; }
             public string Countoff { get; set; } = "hihat01";
             public float HopoThreshold { get; set; } // Specifically Neversoft Hopo Threshold, not HMX
             public bool DoubleKick { get; set; } = false;
@@ -66,6 +69,59 @@ namespace GH_Toolkit_Core.Methods
                 { 
                     return $"{Title} by {Artist}".Replace("\\L", "");
                 } }
+            public GhMetadata()
+            {
+
+            }
+            public GhMetadata(SongIniData songData)
+            {
+                Title = songData.Title;
+                Artist = songData.Artist;
+                if (!songData.IsCover)
+                {
+                    ArtistTextSelect = "By";
+                }
+                else
+                {
+                    ArtistTextSelect = "As Made Famous By";
+                    CoverArtist = songData.CoverArtist ?? "";
+                    CoverYear = songData.CoverYear;
+                }
+                Year = songData.Year;
+                Genre = songData.Genre ?? "Rock";
+                ChartAuthor = songData.Charter;
+                Bassist = songData.Bassist ?? "Default";
+                Singer = songData.Vocalist ?? "default_singer";
+                IsArtistFamousBy = songData.IsCover;
+                AerosmithBand = songData.Aerosmith ?? "aerosmith";
+                Beat8thLow = songData.Low8Bars;
+                Beat8thHigh = songData.High8Bars;
+                Beat16thLow = songData.Low16Bars;
+                Beat16thHigh = songData.High16Bars;
+                OverrideBeatLines = songData.UseBeatTrack;
+                CoopAudioCheck = false;
+                P2RhythmCheck = false;
+                BandVol = songData.BandVolume;
+                GtrVol = songData.GuitarVolume;
+                Volume = songData.Volume;
+                HopoThreshold = songData.HopoFrequency ?? 500f;
+                //DoubleKick = songData.EasyOpens;
+                DrumKit = songData.Drumkit ?? "hihat01";
+                VocalScrollSpeed = songData.ScrollSpeed ?? 1.0f;
+                VocalTuningCents = songData.TuningCents;
+                SustainThreshold = (float)songData.SustainCutoffThreshold;
+
+
+
+                if (songData.Checksum == null)
+                {
+
+                }
+                else
+                {
+                    Checksum = songData.Checksum;
+                }
+            }
             public QBStructData GenerateGh3SongListEntry(string game, string platform)
             {
                 string STEVEN = "Steven Tyler";
@@ -89,7 +145,14 @@ namespace GH_Toolkit_Core.Methods
                 {
                     entry.AddVarToStruct("cover_year", $", {CoverYear}", pString);
                 }
-                entry.AddVarToStruct("year", $", {Year}", pString);
+                if (Year > 0)
+                {
+                    entry.AddVarToStruct("year", $", {Year}", pString);
+                }
+                else
+                {
+                    entry.AddVarToStruct("year", "", pString);
+                }
                 entry.AddVarToStruct("artist_text", artistText, artistType);
                 entry.AddIntToStruct("original_artist", IsArtistFamousBy ? 0 : 1);
                 entry.AddVarToStruct("version", "gh3", QBKEY);
@@ -162,7 +225,7 @@ namespace GH_Toolkit_Core.Methods
                 qsStrings.Add(Artist);
                 props.AddPointerToStruct("artist_text", GetArtistText());
                 props.AddIntToStruct("original_artist", GetOrigArtist());
-                props.AddIntToStruct("year", Year);
+                props.AddIntToStruct("year", (int)Year);
                 props.AddQsKeyToStruct("album_title", AlbumTitle);
                 qsStrings.Add(AlbumTitle);
                 props.AddQbKeyToStruct("singer", Singer);
