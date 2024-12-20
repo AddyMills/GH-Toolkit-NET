@@ -75,7 +75,6 @@ namespace GH_Toolkit_Core.QB
 
         public const string DOT_Q = ".q";
         public const string DOT_QB = ".qb";
-        public const string DOT_NQB = ".nqb";
         public const string DOT_MQB = ".mqb";
         public const string DOT_SQB = ".sqb";
         public const string DOT_QS = ".qs";

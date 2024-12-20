@@ -389,7 +389,7 @@ namespace GH_Toolkit_Core.QB
                 string key;
                 foreach (QBStructItem item in Items)
                 {
-                    key = item.Props.ID == FLAGBYTE ? "" : $"{GetQbKeyFormat(item.Props.ID)} = ";
+                    key = item.Props.ID == FLAGBYTE ? "" : $"{item.Props.ID} = ";
                     if (item.Data is QBArrayNode arrayNode)
                     {
                         writer.WriteLine(indent + $"{key}[");

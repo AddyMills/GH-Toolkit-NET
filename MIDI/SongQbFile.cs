@@ -4769,7 +4769,6 @@ namespace GH_Toolkit_Core.MIDI
                 var plural = oldScripts > 1 ? "s" : "";
                 Console.WriteLine($"Removed {oldScripts} old script{plural}. Update your Q file");
             }
-
             
             return newFile;
         }
@@ -5387,14 +5386,6 @@ namespace GH_Toolkit_Core.MIDI
                 QBStructData marker = new QBStructData();
                 marker.AddIntToStruct("Time", Time);
                 marker.AddVarToStruct("Marker", Text, markerType);
-                return marker;
-            }
-            public QBStructData ToStructQs()
-            {
-                string markerType = QSKEY;
-                QBStructData marker = new QBStructData();
-                marker.AddIntToStruct("Time", Time);
-                marker.AddVarToStruct("Marker", QsKeyString, markerType);
                 return marker;
             }
         }
