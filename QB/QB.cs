@@ -52,7 +52,7 @@ namespace GH_Toolkit_Core.QB
             // Blank QB Item to build one like Lego!
             public QBItem() { }
             // QB Item where Info is inferred from the data
-            public QBItem(string name, object data) 
+            public QBItem(string name, object data)
             {
                 SetName(name);
                 SetData(data);
@@ -182,7 +182,7 @@ namespace GH_Toolkit_Core.QB
             {
                 if (Data is List<float> floatList)
                 {
-                    if (floatList.Count < 2 || floatList.Count > 3) 
+                    if (floatList.Count < 2 || floatList.Count > 3)
                     {
                         throw new ArgumentException("List of float values does not contain only 2 or 3 items.");
                     }
@@ -333,7 +333,7 @@ namespace GH_Toolkit_Core.QB
             string[] pairs = qsPairs.Split(new string[] { "\n" }, StringSplitOptions.RemoveEmptyEntries);
             foreach (string pair in pairs)
             {
-                string[] pairSplit = pair.Split(new string[] { " " },2, StringSplitOptions.RemoveEmptyEntries);
+                string[] pairSplit = pair.Split(new string[] { " " }, 2, StringSplitOptions.RemoveEmptyEntries);
 
                 string hexString = pairSplit[0].Trim();
                 string valueString = pairSplit[1].Trim();
@@ -434,7 +434,7 @@ namespace GH_Toolkit_Core.QB
             {0x25, WORFLOAT },
             {0x26, WORQBKEY },
             {0x2C, WORARRAY }
-            
+
         };
 
         private static readonly Dictionary<byte, string> QbTypeGh3Ps2Struct = new Dictionary<byte, string>()
@@ -556,26 +556,7 @@ namespace GH_Toolkit_Core.QB
                 case QBKEY:
                 case QSKEY:
                 case POINTER:
-                    if (itemString == "default")
-                    {
-                        test = $"`{itemString}`";
-                    }
-                    else if (itemString.StartsWith("0x"))
-                    {
-                        test = DebugReader.DebugCheck(itemString);
-                    }
-                    else if (float.TryParse(itemString, out _))
-                    {
-                        test = $"`{itemString}`";
-                    }
-                    else if (QbKeyRegex.IsMatch(itemString))
-                    {
-                        test = $"{itemString}";
-                    }
-                    else
-                    {
-                        test = $"`{itemString}`";
-                    }
+                    test = GetQbKeyFormat(itemString);
                     if (itemType == QSKEY)
                     {
                         test = $"qs({test})";
@@ -602,6 +583,29 @@ namespace GH_Toolkit_Core.QB
             }
 
             return test;
+        }
+        public static string GetQbKeyFormat(string toFormat)
+        {
+            if (toFormat == "default")
+            {
+                return $"`{toFormat}`";
+            }
+            else if (toFormat.StartsWith("0x"))
+            {
+                return DebugReader.DebugCheck(toFormat);
+            }
+            else if (float.TryParse(toFormat, out _))
+            {
+                return $"`{toFormat}`";
+            }
+            else if (QbKeyRegex.IsMatch(toFormat))
+            {
+                return $"{toFormat}";
+            }
+            else
+            {
+                return $"`{toFormat}`";
+            }
         }
         public static string FloatsToText(List<float> floats)
         {
@@ -1069,7 +1073,7 @@ namespace GH_Toolkit_Core.QB
                                 {
                                     throw new QFileParseException("Closing bracket } found outside of struct!");
                                 }
-                                
+
                                 break;
                             case ']':
                                 if (currLevel.LevelType == ARRAY)
@@ -1111,10 +1115,10 @@ namespace GH_Toolkit_Core.QB
                             case '\n':
                                 if (currLevel.LevelType == SCRIPT)
                                 {
-                                        i -= (tmpValue.Length + 1);
-                                        tmpValue = LEFTPAR;
-                                        StateSwitch(currLevel);
-                                        AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                                    i -= (tmpValue.Length + 1);
+                                    tmpValue = LEFTPAR;
+                                    StateSwitch(currLevel);
+                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
                                 }
                                 break;
                             case ' ':
@@ -1128,7 +1132,7 @@ namespace GH_Toolkit_Core.QB
                                 if (currLevel.LevelType == SCRIPT)
                                 {
                                     string origVal = tmpValue;
-                                    tmpValue = tmpValue.Replace("\t","").Replace(" ", "");
+                                    tmpValue = tmpValue.Replace("\t", "").Replace(" ", "");
                                     try
                                     {
                                         StateSwitch(currLevel);
@@ -1147,7 +1151,7 @@ namespace GH_Toolkit_Core.QB
                                     StateSwitch(currLevel);
                                     AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, MULTIFLOAT);
                                 }
-                                
+
                                 break;
                             case '1':
                             case '2':
@@ -1501,7 +1505,7 @@ namespace GH_Toolkit_Core.QB
             {
                 currLevel.Parent.Struct.AddArrayToStruct(currLevel.Name, currLevel.Array);
             }
-            else 
+            else
             {
                 throw new NotImplementedException();
             }
