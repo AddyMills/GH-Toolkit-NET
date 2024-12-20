@@ -611,7 +611,8 @@ namespace GH_Toolkit_Core.MIDI
                 gameQb.Add(ScriptArrayQbItem($"{SongName}_drums", DrumsScripts));
                 gameQb.Add(MakePerformanceScriptsQb($"{SongName}_performance"));
                 var (voxQb, QsDict) = Vocals.AddVoxToQb(SongName);
-                QsList = QsDict;
+                // Merge QsDict with QsList
+                QsList = QsList.Concat(QsDict).ToDictionary(x => x.Key, x => x.Value);
                 gameQb.AddRange(voxQb);
             }
             else if (Game == GAME_GHWOR || Game == GAME_GH5)
