@@ -43,13 +43,14 @@ namespace GH_Toolkit_Core.PAK
             public string? FullFlagPath { get; set; } // If flags contains 0x20 byte, this gets added
             public byte[]? EntryData { get; set; }
             public byte[]? ExtraData { get; set; }
-            public string ConsoleType {  get; set; }
+            public string ConsoleType { get; set; }
             public int ByteLength { get; set; } = 32;
-            private string PakName { 
+            private string PakName
+            {
                 get
-                { 
+                {
                     return FullName == FLAGBYTE ? AssetContext! : FullName!;
-                } 
+                }
             }
             public PakEntry()
             {
@@ -107,7 +108,7 @@ namespace GH_Toolkit_Core.PAK
                 FullFlagPath = fullFlagPath;
             }
             public void SetFullName(string fullName)
-            { 
+            {
                 FullName = fullName;
             }
             public void SetNames(bool isQb)
@@ -212,7 +213,7 @@ namespace GH_Toolkit_Core.PAK
                         case DOT_SQB:
                             Flags |= 0x20;
                             break;
-                        default: 
+                        default:
                             throw new NotImplementedException();
                     }
                     if (NameNoExt.LastIndexOf(_SFX) != -1)
@@ -318,7 +319,7 @@ namespace GH_Toolkit_Core.PAK
             }
             return pakEntries;
         }
-        
+
         public static void ProcessPAKFromFile(string file, bool convertQ = true, string game = "")
         {
             string fileName = Path.GetFileName(file);
@@ -344,11 +345,12 @@ namespace GH_Toolkit_Core.PAK
             foreach (PakEntry entry in pakEntries)
             {
                 string pakFileName = entry.FullName;
-                bool convToQ = (entry.Extension == DOT_QB && convertQ) ? true : false;
+                bool convToQ = ((entry.Extension == DOT_QB || entry.Extension == DOT_NQB) && convertQ) ? true : false;
 
                 if (convToQ)
                 {
-                    pakFileName = pakFileName.Substring(0, pakFileName.LastIndexOf('.')) + ".q";
+                    string addN = entry.Extension == DOT_NQB ? "n" : "";
+                    pakFileName = pakFileName.Substring(0, pakFileName.LastIndexOf('.')) + $".{addN}q";
                 }
                 else if (!pakFileName.EndsWith(fileExt, StringComparison.CurrentCultureIgnoreCase))
                 {
@@ -360,10 +362,9 @@ namespace GH_Toolkit_Core.PAK
                     pakFileName = Regex.Replace(pakFileName, @"\\", "/");
                 }
 
-                
                 var uri = new Uri(Path.Combine(NewFolderPath, pakFileName));
                 string saveName = uri.LocalPath;
-                
+
                 Console.WriteLine($"Extracting {pakFileName}");
                 Directory.CreateDirectory(Path.GetDirectoryName(saveName));
 
@@ -399,7 +400,7 @@ namespace GH_Toolkit_Core.PAK
                             if (line.StartsWith("0x"))
                             {
                                 string check = line.Substring(0, line.IndexOf(" "));
-                                string stringData = line.Substring(line.IndexOf(" ")+1);
+                                string stringData = line.Substring(line.IndexOf(" ") + 1);
                                 if (check == "0xf9e6c3fe")
                                 {
 
@@ -412,9 +413,9 @@ namespace GH_Toolkit_Core.PAK
                                         master.Add(check);
                                         masterFileWriter.WriteLine(line);
                                     }
-                                    
+
                                 }
-                                
+
                             }
                         }
                     }
@@ -472,7 +473,7 @@ namespace GH_Toolkit_Core.PAK
             {
                 pakBytes = Compression.DecompressWTPak(pakBytes);
             }
-            
+
             List<PakEntry> pakList = new List<PakEntry>();
             if (pabBytes != null)
             {
@@ -506,7 +507,7 @@ namespace GH_Toolkit_Core.PAK
                         }
                         else // If pak is not compressed, the pab file should be loaded in chunks
                         {
-
+                            DecompressNewData(pakList, pabBytes);
                         }
                         //pakList = ExtractNewPak(pakBytes, pabBytes, endian, songName);
                         break;
@@ -523,7 +524,7 @@ namespace GH_Toolkit_Core.PAK
             {
                 pakList = ExtractOldPak(pakBytes, endian, songName, isWii);
             }
-            
+
 
             return pakList;
         }
@@ -570,7 +571,7 @@ namespace GH_Toolkit_Core.PAK
                         entry.FullName = entry.AssetContext;
                     }
                     // entry.FullName = entry.FullName.Replace(".qb", entry.Extension);
-                    if (entry.FullName.IndexOf(entry.Extension, StringComparison.CurrentCultureIgnoreCase) == -1) 
+                    if (entry.FullName.IndexOf(entry.Extension, StringComparison.CurrentCultureIgnoreCase) == -1)
                     {
                         GetCorrectExtension(entry);
                     }
@@ -591,11 +592,12 @@ namespace GH_Toolkit_Core.PAK
                     }
                     else
                     {
-                    Console.WriteLine("Could not find last entry. Trying Guitar Hero 3 Compression.");
-                    PakList.Clear();
-                    pakBytes = Compression.DecompressData(pakBytes);
-                    stream = new MemoryStream(pakBytes);
-                    TryGH3 = true;
+                        Console.WriteLine("Could not find last entry. Trying Guitar Hero 3 Compression.");
+                        pakBytes = Compression.DecompressData(pakBytes);
+                        stream = new MemoryStream(pakBytes);
+                        TryGH3 = true;
+                    }
+
                 }
             }
             stream.Close();
@@ -619,7 +621,7 @@ namespace GH_Toolkit_Core.PAK
             }
             stream.Close();
             return PakList;
-            }
+        }
         public static void GetPakDataNew(List<PakEntry> entries, byte[] pabBytes)
         {
             foreach (var entry in entries)
@@ -638,7 +640,7 @@ namespace GH_Toolkit_Core.PAK
                     newData = new byte[entry.FileSize];
                     Array.Copy(pabBytes, entry.StartOffset, newData, 0, entry.FileSize);
                     entry.EntryData = Compression.DecompressWTPak(newData);
-        }
+                }
                 else
                 {
                     entry.EntryData = new byte[entry.FileSize];
@@ -720,7 +722,7 @@ namespace GH_Toolkit_Core.PAK
             }
             return entry;
         }
-        
+
         private static void GetCorrectExtension(PakEntry entry)
         {
             if (entry.FullName.IndexOf(DOT_MID_QS) != -1)
@@ -872,7 +874,7 @@ namespace GH_Toolkit_Core.PAK
                 bool isPs2 = ConsoleType == CONSOLE_PS2;
                 List<PakEntry> PakEntries = new List<PakEntry>();
                 List<string> fileNames = new List<string>();
-                
+
 
                 foreach (string entry in entries)
                 {
@@ -888,7 +890,7 @@ namespace GH_Toolkit_Core.PAK
                             try
                             {
                                 qBItems = ParseQFile(entry);
-                                
+
                             }
                             catch (QFileParseException ex)
                             {
@@ -916,7 +918,7 @@ namespace GH_Toolkit_Core.PAK
                             fileData = File.ReadAllBytes(entry);
                         }
                         PakEntry pakEntry = new PakEntry(fileData, ConsoleType, AssetContext);
-                        
+
                         pakEntry.SetFullFlagPath(relPath);
                         pakEntry.SetNameNoExt(GetFileNoExt(Path.GetFileName(relPath)));
                         pakEntry.SetExtension(GetFileExt(relPath));
@@ -935,9 +937,9 @@ namespace GH_Toolkit_Core.PAK
 
                     }
                 }
-                
+
                 var (pakData, pabData) = CompilePakEntries(PakEntries);
-                
+
                 return (pakData, pabData);
 
             }
@@ -977,7 +979,7 @@ namespace GH_Toolkit_Core.PAK
                         {
                             pak.Write(Writer.ValueHex(entry.FullName), 0, 4);
                             pak.Write(Writer.ValueHex(entry.AssetContext), 0, 4);
-                            
+
                         }
                         else
                         {
@@ -1105,22 +1107,22 @@ namespace GH_Toolkit_Core.PAK
                 }
 
 
-                return relPath; 
+                return relPath;
             }
         }
-        public static (string pakSavePath, bool doubleKick) CreateSongPackage(string midiPath, 
-            string savePath, 
-            string songName, 
-            string game, 
-            string gameConsole,  
-            string skaPath = "", 
-            string perfOverride = "", 
-            string songScripts = "", 
-            string skaSource = "GHWT", 
+        public static (string pakSavePath, bool doubleKick) CreateSongPackage(string midiPath,
+            string savePath,
+            string songName,
+            string game,
+            string gameConsole,
+            string skaPath = "",
+            string perfOverride = "",
+            string songScripts = "",
+            string skaSource = "GHWT",
             string venueSource = "",
             int hopoThreshold = 170,
             int hopoType = 0,
-            bool rhythmTrack = false, 
+            bool rhythmTrack = false,
             bool overrideBeat = false,
             bool isSteven = false,
             bool easyOpens = false,
@@ -1128,16 +1130,16 @@ namespace GH_Toolkit_Core.PAK
             )
         {
             var midiFile = new SongQbFile(
-                midiPath, 
-                songName: songName, 
-                game: game, 
-                console: gameConsole, 
-                hopoThreshold: hopoThreshold, 
-                perfOverride: perfOverride, 
-                songScriptOverride: songScripts, 
+                midiPath,
+                songName: songName,
+                game: game,
+                console: gameConsole,
+                hopoThreshold: hopoThreshold,
+                perfOverride: perfOverride,
+                songScriptOverride: songScripts,
                 venueSource: venueSource,
-                rhythmTrack: rhythmTrack, 
-                overrideBeat: overrideBeat, 
+                rhythmTrack: rhythmTrack,
+                overrideBeat: overrideBeat,
                 hopoType: hopoType,
                 easyOpens: easyOpens,
                 skaPath: skaPath);
@@ -1247,7 +1249,7 @@ namespace GH_Toolkit_Core.PAK
                             skaType = SKELETON_WT_ROCKER;
                             break;
                     }
-                    
+
                     byte[] convertedSka;
                     string skaSave;
                     if (game == GAME_GH3 || game == GAME_GHA)
