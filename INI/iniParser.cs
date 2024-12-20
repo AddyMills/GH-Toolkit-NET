@@ -76,11 +76,11 @@ namespace GH_Toolkit_Core.INI
                             songData.HopoFrequency = hopo;
                         break;
                     case "preview_start_time":
-                        if (int.TryParse(key.Value, out var previewStart))
+                        if (int.TryParse(key.Value, out var previewStart) && previewStart >= 0)
                             songData.PreviewStartTime = previewStart;
                         break;
                     case "preview_end_time":
-                        if (int.TryParse(key.Value, out var previewEnd))
+                        if (int.TryParse(key.Value, out var previewEnd) && previewEnd >= 0)
                             songData.PreviewEndTime = previewEnd;
                         break;
                     case "use_beat_track":
