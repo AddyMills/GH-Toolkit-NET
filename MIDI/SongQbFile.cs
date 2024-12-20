@@ -1555,7 +1555,18 @@ namespace GH_Toolkit_Core.MIDI
             QBArrayNode markerArray = new QBArrayNode();
             foreach (Marker marker in Markers)
             {
-                QBStructData markerEntry = marker.ToStruct(GamePlatform);
+                QBStructData markerEntry = null;
+                if (marker.Text == "_ENDOFSONG" && Game == GAME_GHWT)
+                {
+                    marker.Text = $"\\L{marker.Text}";
+                    markerEntry = marker.ToStructQs();
+                    QsList.Add(marker.QsKeyString, $"\"{marker.Text}\"");
+                }
+                else
+                {
+                    markerEntry = marker.ToStruct(GamePlatform);
+                }
+
                 markerArray.AddStructToArray(markerEntry);
             }
             string markerName;
