@@ -544,7 +544,7 @@ namespace GH_Toolkit_Core.PAK
             }
             return files;
         }
-        public static List<PakEntry> ExtractOldPak(byte[] pakBytes, string endian, string songName = "", bool isWii = false)
+        public static List<PakEntry> ExtractOldPak(byte[] pakBytes, string endian, string songName = "", bool isWii = false, bool skipNameFlag = false)
         {
             ReadWrite reader = new ReadWrite(endian);
             MemoryStream stream = new MemoryStream(pakBytes);
@@ -556,7 +556,7 @@ namespace GH_Toolkit_Core.PAK
             while (true)
             {
                 uint header_start = (uint)stream.Position; // To keep track of which entry since the offset in the header needs to be added to the StartOffset below
-                PakEntry? entry = GetPakEntry(stream, reader, headers, header_start, isWii);
+                PakEntry? entry = GetPakEntry(stream, reader, headers, header_start, isWii, skipNameFlag);
                 if (entry == null)
                 {
                     break;
@@ -578,11 +578,19 @@ namespace GH_Toolkit_Core.PAK
                 }
                 catch (Exception ex)
                 {
-                    if (TryGH3 == true)
+                    PakList.Clear();
+                    if (skipNameFlag == false)
+                    {
+                        skipNameFlag = true;
+                        stream.Position = 0;
+                    }
+                    else if (TryGH3 == true)
                     {
                         Console.WriteLine(ex.Message);
                         throw new Exception("Could not extract PAK file.");
                     }
+                    else
+                    {
                     Console.WriteLine("Could not find last entry. Trying Guitar Hero 3 Compression.");
                     PakList.Clear();
                     pakBytes = Compression.DecompressData(pakBytes);
@@ -620,7 +628,25 @@ namespace GH_Toolkit_Core.PAK
                 Array.Copy(pabBytes, entry.StartOffset, entry.EntryData, 0, entry.FileSize);
             }
         }
-        private static PakEntry? GetPakEntry(MemoryStream stream, ReadWrite reader, Dictionary<uint, string> headers, uint header_start = 0, bool isWii = false)
+        public static void DecompressNewData(List<PakEntry> entries, byte[] pabBytes)
+        {
+            foreach (var entry in entries)
+            {
+                byte[]? newData = null;
+                if ((entry.Flags & 0x0200) != 0)
+                {
+                    newData = new byte[entry.FileSize];
+                    Array.Copy(pabBytes, entry.StartOffset, newData, 0, entry.FileSize);
+                    entry.EntryData = Compression.DecompressWTPak(newData);
+        }
+                else
+                {
+                    entry.EntryData = new byte[entry.FileSize];
+                    Array.Copy(pabBytes, entry.StartOffset, entry.EntryData, 0, entry.FileSize);
+                }
+            }
+        }
+        private static PakEntry? GetPakEntry(MemoryStream stream, ReadWrite reader, Dictionary<uint, string> headers, uint header_start = 0, bool isWii = false, bool skipFlagName = false)
         {
             PakEntry entry = new PakEntry();
             uint extension = reader.ReadUInt32(stream);
@@ -654,11 +680,16 @@ namespace GH_Toolkit_Core.PAK
             {
                 entry.FullName = $"{entry.FullName}.{entry.NameNoExt}";
             }
+            if (entry.FullName.IndexOf(entry.Extension, StringComparison.CurrentCultureIgnoreCase) == -1)
+            {
+                GetCorrectExtension(entry);
+            }
+
             uint parent = reader.ReadUInt32(stream);
             entry.Parent = parent;
             int flags = reader.ReadInt32(stream);
             entry.Flags = flags;
-            if ((flags & 0x20) != 0)
+            if ((flags & 0x20) != 0 && !skipFlagName)
             {
                 entry.ByteLength += 160;
                 var skipTo = stream.Position + 160;
@@ -705,6 +736,10 @@ namespace GH_Toolkit_Core.PAK
                 }
                 entry.SetExtension(DOT_QB);
             }
+            else if (entry.Extension.IndexOf(DOT_NQB) != -1)
+            {
+                entry.SetFullName(entry.FullName.Replace(DOT_QB, DOT_NQB));
+            }
             else
             {
                 entry.FullName += entry.Extension;
@@ -725,9 +760,11 @@ namespace GH_Toolkit_Core.PAK
         {
             public string Game { get; set; }
             public string? ConsoleType { get; set; }
-            public bool IsQb {  get; set; } = false;
-            public bool Split {  get; set; } = false;
-            public bool ZeroOffset { get
+            public bool IsQb { get; set; } = false;
+            public bool Split { get; set; } = false;
+            public bool ZeroOffset
+            {
+                get
                 {
                     return (IsQb || Split) && ConsoleType != CONSOLE_WII;
                 }
@@ -1098,7 +1135,7 @@ namespace GH_Toolkit_Core.PAK
                 hopoThreshold: hopoThreshold, 
                 perfOverride: perfOverride, 
                 songScriptOverride: songScripts, 
-                venueSource:venueSource, 
+                venueSource: venueSource,
                 rhythmTrack: rhythmTrack, 
                 overrideBeat: overrideBeat, 
                 hopoType: hopoType,
