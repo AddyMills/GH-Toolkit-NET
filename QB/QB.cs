@@ -556,26 +556,7 @@ namespace GH_Toolkit_Core.QB
                 case QBKEY:
                 case QSKEY:
                 case POINTER:
-                    if (itemString == "default")
-                    {
-                        test = $"`{itemString}`";
-                    }
-                    else if (itemString.StartsWith("0x"))
-                    {
-                        test = DebugReader.DebugCheck(itemString);
-                    }
-                    else if (float.TryParse(itemString, out _))
-                    {
-                        test = $"`{itemString}`";
-                    }
-                    else if (QbKeyRegex.IsMatch(itemString))
-                    {
-                        test = $"{itemString}";
-                    }
-                    else
-                    {
-                        test = $"`{itemString}`";
-                    }
+                    test = GetQbKeyFormat(itemString);
                     if (itemType == QSKEY)
                     {
                         test = $"qs({test})";
@@ -602,6 +583,29 @@ namespace GH_Toolkit_Core.QB
             }
 
             return test;
+        }
+        public static string GetQbKeyFormat(string toFormat)
+        {
+            if (toFormat == "default")
+            {
+                return $"`{toFormat}`";
+            }
+            else if (toFormat.StartsWith("0x"))
+            {
+                return DebugReader.DebugCheck(toFormat);
+            }
+            else if (float.TryParse(toFormat, out _))
+            {
+                return $"`{toFormat}`";
+            }
+            else if (QbKeyRegex.IsMatch(toFormat))
+            {
+                return $"{toFormat}";
+            }
+            else
+            {
+                return $"`{toFormat}`";
+            }
         }
         public static string FloatsToText(List<float> floats)
         {

@@ -344,11 +344,12 @@ namespace GH_Toolkit_Core.PAK
             foreach (PakEntry entry in pakEntries)
             {
                 string pakFileName = entry.FullName;
-                bool convToQ = (entry.Extension == DOT_QB && convertQ) ? true : false;
+                bool convToQ = ((entry.Extension == DOT_QB || entry.Extension == DOT_NQB) && convertQ) ? true : false;
 
                 if (convToQ)
                 {
-                    pakFileName = pakFileName.Substring(0, pakFileName.LastIndexOf('.')) + ".q";
+                    string addN = entry.Extension == DOT_NQB ? "n" : "";
+                    pakFileName = pakFileName.Substring(0, pakFileName.LastIndexOf('.')) + $".{addN}q";
                 }
                 else if (!pakFileName.EndsWith(fileExt, StringComparison.CurrentCultureIgnoreCase))
                 {
@@ -500,7 +501,7 @@ namespace GH_Toolkit_Core.PAK
                         }
                         else // If pak is not compressed, the pab file should be loaded in chunks
                         {
-
+                            DecompressNewData(pakList, pabBytes);
                         }
                         //pakList = ExtractNewPak(pakBytes, pabBytes, endian, songName);
                         break;
@@ -538,7 +539,7 @@ namespace GH_Toolkit_Core.PAK
             }
             return files;
         }
-        public static List<PakEntry> ExtractOldPak(byte[] pakBytes, string endian, string songName = "", bool isWii = false)
+        public static List<PakEntry> ExtractOldPak(byte[] pakBytes, string endian, string songName = "", bool isWii = false, bool skipNameFlag = false)
         {
             ReadWrite reader = new ReadWrite(endian);
             MemoryStream stream = new MemoryStream(pakBytes);
@@ -550,7 +551,7 @@ namespace GH_Toolkit_Core.PAK
             while (true)
             {
                 uint header_start = (uint)stream.Position; // To keep track of which entry since the offset in the header needs to be added to the StartOffset below
-                PakEntry? entry = GetPakEntry(stream, reader, headers, header_start, isWii);
+                PakEntry? entry = GetPakEntry(stream, reader, headers, header_start, isWii, skipNameFlag);
                 if (entry == null)
                 {
                     break;
@@ -572,16 +573,25 @@ namespace GH_Toolkit_Core.PAK
                 }
                 catch (Exception ex)
                 {
-                    if (TryGH3 == true)
+                    PakList.Clear();
+                    if (skipNameFlag == false)
+                    {
+                        skipNameFlag = true;
+                        stream.Position = 0;
+                    }
+                    else if (TryGH3 == true)
                     {
                         Console.WriteLine(ex.Message);
                         throw new Exception("Could not extract PAK file.");
                     }
-                    Console.WriteLine("Could not find last entry. Trying Guitar Hero 3 Compression.");
-                    PakList.Clear();
-                    pakBytes = Compression.DecompressData(pakBytes);
-                    stream = new MemoryStream(pakBytes);
-                    TryGH3 = true;
+                    else
+                    {
+                        Console.WriteLine("Could not find last entry. Trying Guitar Hero 3 Compression.");
+                        pakBytes = Compression.DecompressData(pakBytes);
+                        stream = new MemoryStream(pakBytes);
+                        TryGH3 = true;
+                    }
+
                 }
             }
             stream.Close();
@@ -614,7 +624,25 @@ namespace GH_Toolkit_Core.PAK
                 Array.Copy(pabBytes, entry.StartOffset, entry.EntryData, 0, entry.FileSize);
             }
         }
-        private static PakEntry? GetPakEntry(MemoryStream stream, ReadWrite reader, Dictionary<uint, string> headers, uint header_start = 0, bool isWii = false)
+        public static void DecompressNewData(List<PakEntry> entries, byte[] pabBytes)
+        {
+            foreach (var entry in entries)
+            {
+                byte[]? newData = null;
+                if ((entry.Flags & 0x0200) != 0)
+                {
+                    newData = new byte[entry.FileSize];
+                    Array.Copy(pabBytes, entry.StartOffset, newData, 0, entry.FileSize);
+                    entry.EntryData = Compression.DecompressWTPak(newData);
+                }
+                else
+                {
+                    entry.EntryData = new byte[entry.FileSize];
+                    Array.Copy(pabBytes, entry.StartOffset, entry.EntryData, 0, entry.FileSize);
+                }
+            }
+        }
+        private static PakEntry? GetPakEntry(MemoryStream stream, ReadWrite reader, Dictionary<uint, string> headers, uint header_start = 0, bool isWii = false, bool skipFlagName = false)
         {
             PakEntry entry = new PakEntry();
             uint extension = reader.ReadUInt32(stream);
@@ -648,11 +676,16 @@ namespace GH_Toolkit_Core.PAK
             {
                 entry.FullName = $"{entry.FullName}.{entry.NameNoExt}";
             }
+            if (entry.FullName.IndexOf(entry.Extension, StringComparison.CurrentCultureIgnoreCase) == -1)
+            {
+                GetCorrectExtension(entry);
+            }
+
             uint parent = reader.ReadUInt32(stream);
             entry.Parent = parent;
             int flags = reader.ReadInt32(stream);
             entry.Flags = flags;
-            if ((flags & 0x20) != 0)
+            if ((flags & 0x20) != 0 && !skipFlagName)
             {
                 entry.ByteLength += 160;
                 var skipTo = stream.Position + 160;
@@ -698,6 +731,10 @@ namespace GH_Toolkit_Core.PAK
                     entry.FullName += DOT_QB;
                 }
                 entry.SetExtension(DOT_QB);
+            }
+            else if (entry.Extension.IndexOf(DOT_NQB) != -1)
+            {
+                entry.SetFullName(entry.FullName.Replace(DOT_QB, DOT_NQB));
             }
             else
             {
