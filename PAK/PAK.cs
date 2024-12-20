@@ -355,6 +355,12 @@ namespace GH_Toolkit_Core.PAK
                     pakFileName += fileExt;
                 }
 
+                if (!OperatingSystem.IsWindows()) //Without this block it will write files such as "engine\folder\whatever.q" instead of creating folders on mac/linux
+                {
+                    pakFileName = Regex.Replace(pakFileName, @"\\", "/");
+                }
+
+                
                 var uri = new Uri(Path.Combine(NewFolderPath, pakFileName));
                 string saveName = uri.LocalPath;
                 
