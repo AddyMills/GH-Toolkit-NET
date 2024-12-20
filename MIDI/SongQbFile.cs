@@ -2040,6 +2040,12 @@ namespace GH_Toolkit_Core.MIDI
             {
                 
             }
+            else if (perfText.StartsWith("0x"))
+            {
+                var firstSpace = perfText.IndexOf(' ');
+                var textTillFirstSpace = perfText.Substring(0, firstSpace);
+                perfText = perfText.Replace(textTillFirstSpace, $"{SongName}_performance");
+            }
             else
             {
                 throw new FormatException("No proper performance array found");
