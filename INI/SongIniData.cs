@@ -22,7 +22,7 @@ namespace GH_Toolkit_Core.INI
         public int? BassTier { get; set; } = 1;
         public int? DrumsTier { get; set; } = 1;
         public int? VocalsTier { get; set; } = 1;
-        public decimal? SustainCutoffThreshold { get; set; } = 0.45m;
+        public decimal? SustainCutoffThreshold { get; set; }
         public int? HopoFrequency { get; set; }
         public int? PreviewStartTime { get; set; }
         public int? PreviewEndTime { get; set; }
