@@ -25,7 +25,7 @@ namespace GH_Toolkit_Core.QB
         public const string POINTER = "Pointer";
         public const string QSKEY = "QsKey";
         public const string EMPTY = "StructFlag"; // Used for arrays and structs
-        public const string EMPTYARRAY = "Empty"; 
+        public const string EMPTYARRAY = "Empty";
         public const string ROOT = "Root";
         public const string MULTIFLOAT = "MultiFloat";
 
@@ -75,6 +75,7 @@ namespace GH_Toolkit_Core.QB
 
         public const string DOT_Q = ".q";
         public const string DOT_QB = ".qb";
+        public const string DOT_NQB = ".nqb";
         public const string DOT_MQB = ".mqb";
         public const string DOT_SQB = ".sqb";
         public const string DOT_QS = ".qs";
@@ -186,7 +187,7 @@ namespace GH_Toolkit_Core.QB
         public const string DefaultZPriority = "0";
         public const string DefaultAlpha = "1.0";
         public const string DefaultIDelay = "0.0";
-            
+
         // Compiling Constants
         public const string SONG_PERFORMANCE = "song_performance";
         public const string FEMALE_ANIM_STRUCT = "car_female_anim_struct";
