@@ -1401,7 +1401,7 @@ namespace GH_Toolkit_Core.MIDI
 
         public static bool IsNoteInChord(Note n1, Note n2, long tickThreshold)
         {
-            return Math.Abs(n1.Time - n2.Time) <= tickThreshold;
+            return Math.Abs(n1.Time - n2.Time) < tickThreshold;
         }
 
     }
