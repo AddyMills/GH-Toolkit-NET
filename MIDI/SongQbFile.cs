@@ -2296,6 +2296,7 @@ namespace GH_Toolkit_Core.MIDI
                 if (strobeMode)
                 {
                     notes.Add(new MidiData.Note((SevenBitNumber)blendLookup[0], defaultTick, blendNoteTime));
+                    prevLen = 0;
                 }
                 else
                 {
