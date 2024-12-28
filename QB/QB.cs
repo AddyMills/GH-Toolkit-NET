@@ -523,6 +523,11 @@ namespace GH_Toolkit_Core.QB
 
             return qbList;
         }
+        public static List<QBItem> DecompileQbFromFile(string qbPath, string endian = "big", string songName = "", string game = "", string console = "")
+        {
+            byte[] qbBytes = File.ReadAllBytes(qbPath);
+            return DecompileQb(qbBytes, endian, songName, game, console);
+        }
         public static string QbItemText(string itemType, object itemData)
         {
             string itemString;
