@@ -40,5 +40,9 @@ namespace GH_Toolkit_Core.Methods
         {
             public FFProbeException(string message) : base(message) { }
         }
+        public class ImproperIfBlockException : Exception
+        {
+            public ImproperIfBlockException(string message) : base(message) { }
+        }
     }
 }
