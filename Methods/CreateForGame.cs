@@ -16,6 +16,8 @@ using System.Diagnostics;
 using GH_Toolkit_Core.Checksum;
 using System.Text.RegularExpressions;
 using GH_Toolkit_Core.INI;
+using GH_Toolkit_Core.MIDI;
+using System.Globalization;
 
 namespace GH_Toolkit_Core.Methods
 {
@@ -51,6 +53,7 @@ namespace GH_Toolkit_Core.Methods
             public float Volume { get; set; }
             public string Countoff { get; set; } = "hihat01";
             public float HopoThreshold { get; set; } // Specifically Neversoft Hopo Threshold, not HMX
+            public int HmxHopoThreshold { get; set; }
             public bool DoubleKick { get; set; } = false;
             public string DrumKit { get; set; } = "";
             public float VocalScrollSpeed { get; set; }
@@ -91,7 +94,7 @@ namespace GH_Toolkit_Core.Methods
                 Genre = songData.Genre ?? "Rock";
                 ChartAuthor = songData.Charter;
                 Bassist = songData.Bassist ?? "Default";
-                Singer = songData.Vocalist ?? "default_singer";
+                Singer = songData.Vocalist ?? "male";
                 IsArtistFamousBy = songData.IsCover;
                 AerosmithBand = songData.Aerosmith ?? "aerosmith";
                 Beat8thLow = songData.Low8Bars;
@@ -104,24 +107,16 @@ namespace GH_Toolkit_Core.Methods
                 BandVol = songData.BandVolume;
                 GtrVol = songData.GuitarVolume;
                 Volume = songData.Volume;
-                HopoThreshold = songData.HopoFrequency ?? 500f;
+                HopoThreshold = 500f;
+                HmxHopoThreshold = songData.HopoFrequency ?? 170;
                 //DoubleKick = songData.EasyOpens;
                 DrumKit = songData.Drumkit ?? "hihat01";
                 VocalScrollSpeed = songData.ScrollSpeed ?? 1.0f;
                 VocalTuningCents = songData.TuningCents;
-                SustainThreshold = (float)songData.SustainCutoffThreshold;
-
-
-
-                if (songData.Checksum == null)
-                {
-
-                }
-                else
-                {
-                    Checksum = songData.Checksum;
-                }
+                SustainThreshold = (float?)songData.SustainCutoffThreshold ?? 0.45f;
+                Checksum = songData.Checksum ?? $"{CreateChecksum(Title)}";
             }
+
             public QBStructData GenerateGh3SongListEntry(string game, string platform)
             {
                 string STEVEN = "Steven Tyler";
@@ -693,6 +688,25 @@ namespace GH_Toolkit_Core.Methods
             string qbString = string.Concat(toCombine);
             var qbKey = CRC.QBKeyUInt(qbString);
             return (uint)(minNum + (qbKey % minNum));
+        }
+        public static string CreateChecksum(string toChecksum)
+        {
+            // Normalize the string to get the diacritics separated
+            string formD = toChecksum.Normalize(NormalizationForm.FormD);
+            StringBuilder sb = new StringBuilder();
+            foreach (char ch in formD)
+            {
+                // Keep the char if it is a letter and not a diacritic
+                if (CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark)
+                {
+                    sb.Append(ch);
+                }
+            }
+            // Remove non-alphabetic characters
+            string alphanumericOnly = Regex.Replace(sb.ToString(), "[^A-Za-z]", "").ToLower();
+
+            // Return the normalized string without diacritics and non-alphabetic characters
+            return alphanumericOnly;
         }
         public static string MakeConsoleChecksumHex(string[] toCombine)
         {
