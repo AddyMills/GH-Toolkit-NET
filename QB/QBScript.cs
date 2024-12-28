@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
+using static GH_Toolkit_Core.Methods.Exceptions;
 using static GH_Toolkit_Core.QB.QB;
 using static GH_Toolkit_Core.QB.QBConstants;
 using static GH_Toolkit_Core.QB.QBScript;
@@ -683,6 +684,10 @@ namespace GH_Toolkit_Core.QB
                         ConditionalCollection conditional = new ConditionalCollection(script, ref scriptPos);
                         currCondition.Actions.Add(conditional);
                         scriptPos--;
+                    }
+                    else if (currItem == ENDSCRIPT)
+                    {
+                        throw new ImproperIfBlockException("Endscript found before endif in conditional block.");
                     }
                     else
                     {

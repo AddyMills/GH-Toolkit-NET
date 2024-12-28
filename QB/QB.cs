@@ -667,6 +667,7 @@ namespace GH_Toolkit_Core.QB
             inQbKey,
             inQsKey,
             inComment,
+            inCommentScript,
             inScript,
             inArray,
             inStruct,
@@ -821,6 +822,7 @@ namespace GH_Toolkit_Core.QB
             string tmpKey = "";
             string tmpValue = "";
             string tmpType;
+
             for (int i = 0; i < data.Length; i++)
             {
                 char c = data[i];
@@ -1363,6 +1365,7 @@ namespace GH_Toolkit_Core.QB
                                 continue;
                         }
                         break;
+
                 }
             }
             return qbFile.Children;
@@ -1625,16 +1628,32 @@ namespace GH_Toolkit_Core.QB
                     stream.Write(qbID, 0, qbID.Length);
                     stream.Write(qbNameHex, 0, qbNameHex.Length);
 
-                    var (itemData, otherData) = Reader.GetItemData(item.Info.Type, item.Data, (int)stream.Position + qbPos + 8);
-                    // itemData is either the data itself (for simple data), or a pointer to the data
-                    // otherData is the data if itemData is not simple
-
-                    stream.Write(itemData, 0, itemData.Length);
-                    byte[] nextItem = Reader.ValueHex(0);
-                    stream.Write(nextItem, 0, nextItem.Length);
-                    if (otherData != null)
+                    try
                     {
-                        stream.Write(otherData, 0, otherData.Length);
+                        var (itemData, otherData) = Reader.GetItemData(item.Info.Type, item.Data, (int)stream.Position + qbPos + 8);
+                        // itemData is either the data itself (for simple data), or a pointer to the data
+                        // otherData is the data if itemData is not simple
+
+                        stream.Write(itemData, 0, itemData.Length);
+                        byte[] nextItem = Reader.ValueHex(0);
+                        stream.Write(nextItem, 0, nextItem.Length);
+                        if (otherData != null)
+                        {
+                            stream.Write(otherData, 0, otherData.Length);
+                        }
+                    }
+                    catch (ImproperIfBlockException ex)
+                    {
+                        Console.WriteLine($"Improper if block found in script {item.Name}");
+                        Console.WriteLine("This is usually caused by forgetting to place an \"endif\" in the script.");
+                        Console.WriteLine("Cancelling compilation.");
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error compiling {item.Name}");
+                        Console.WriteLine("Please copy this log and report it to AddyMills.");
+                        throw;
                     }
                     Reader.PadStreamToFour(stream);
                 }
