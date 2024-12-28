@@ -15,8 +15,8 @@ namespace GH_Toolkit_Core.INI
         public string Charter { get; set; }
         public string Genre { get; set; }
         public string Checksum { get; set; }
-        public int? Year { get; set; } = 0;
-        public int? CoverYear { get; set; } = 0;
+        public int? Year { get; set; } 
+        public int? CoverYear { get; set; } 
         public int? BandTier { get; set; } = 1;
         public int? GuitarTier { get; set; } = 1;
         public int? BassTier { get; set; } = 1;
@@ -46,6 +46,9 @@ namespace GH_Toolkit_Core.INI
         public bool BassMic { get; set; }
         public bool EasyOpens { get; set; }
         public string LipsyncSource { get; set; } = "GHWT";
+        public string SkaSource { get; set; } = "GHWT";
+        public string HopoType { get; set; } = "RB";
+
         public string VenueSource { get; set; } = "GHWT";
         public string WtdeGameIcon { get; set; }
         public string WtdeGameCategory { get; set; }

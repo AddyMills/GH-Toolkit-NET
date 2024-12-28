@@ -22,6 +22,7 @@ namespace GH_Toolkit_Core.INI
         public static SongIniData ParseSongIni(IniData ini, string iniSection)
         {
             var songData = new SongIniData();
+            songData.HopoFrequency = 170;
 
             foreach (var key in ini[iniSection])
             {
@@ -159,6 +160,12 @@ namespace GH_Toolkit_Core.INI
                         break;
                     case "lipsync_source":
                         songData.LipsyncSource = key.Value;
+                        break;
+                    case "ska_source":
+                        songData.SkaSource = key.Value;
+                        break;
+                    case "hopo_type":
+                        songData.HopoType = key.Value;
                         break;
                     case "venue_source":
                         songData.VenueSource = key.Value;
