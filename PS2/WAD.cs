@@ -24,6 +24,7 @@ namespace GH_Toolkit_Core.PS2
         private const uint HEADERSIZE = 16;
         private const uint EOF = 0xffffffff;
         private readonly bool flipBytes = InitializeFlipBytes();
+
         private static bool InitializeFlipBytes()
         {
             // Your logic to determine the value of flipBytes
@@ -115,13 +116,20 @@ namespace GH_Toolkit_Core.PS2
             }
             return hedEntries;
         }
-        private static void ProcessEntries(List<WadEntry> hedEntries, Dictionary<uint, FolderEntry> folders, List<uint> folderChecks, HedFile hedFile)
+        private static void ProcessEntries(List<WadEntry> hedEntries, Dictionary<uint, FolderEntry> folders, List<uint> folderChecks, HedFile hedFile, bool cliMode = true)
         {
             uint sectorIndex = 0;
-
+            if (!cliMode)
+            {
+                Console.WriteLine($"Adding {hedEntries.Count} to new WAD file. Please wait...");
+            }
             foreach (var entry in hedEntries)
             {
-                Console.WriteLine($"Adding {entry.RelPath}");
+                if (cliMode)
+                {
+                    Console.WriteLine($"Adding {entry.RelPath}");
+                }
+                    
                 entry.sectorIndex = sectorIndex;
                 UpdateFolderEntries(entry, folders, folderChecks);
                 hedFile.AddEntry(sectorIndex, entry.fileSize, "\\" + entry.RelPath);
@@ -238,7 +246,8 @@ namespace GH_Toolkit_Core.PS2
             }
 
         }
-        public static void CompileWADFile(string filePath)
+
+        public static void CompileWADFile(string filePath, bool cliMode = true)
         {
             ValidateFilePath(filePath);
             string parentFolder = Path.GetDirectoryName(filePath);
@@ -254,7 +263,7 @@ namespace GH_Toolkit_Core.PS2
 
             HedFile hedFile = new HedFile(); // All entries by Sector Index and file names
 
-            ProcessEntries(hedEntries, folders, folderChecks, hedFile);
+            ProcessEntries(hedEntries, folders, folderChecks, hedFile, cliMode);
             SaveWadToFile(hedEntries, Path.Combine(saveFolder, "DATAP.WAD"));
 
             MemoryStream datapd = new MemoryStream(); // File of all entries by folder name
@@ -278,10 +287,19 @@ namespace GH_Toolkit_Core.PS2
             SaveStreamToFile(datapd, Path.Combine(saveFolder, "DATAPD.HDP"));
             SaveStreamToFile(datapf, Path.Combine(saveFolder, "DATAPF.HDP"));
             SaveStreamToFile(datahed, Path.Combine(saveFolder, "DATAP.HED"));
+            if (!cliMode)
+            {
+                Console.WriteLine("WAD file compiled successfully.");
+            }
             return;
         }
-        public static void ExtractWADFile(List<HedEntry> HedFiles, byte[] wad, string extractPath)
+        public static void ExtractWADFile(List<HedEntry> HedFiles, byte[] wad, string extractPath, bool cliMode = true)
         {
+            if (!cliMode)
+            {
+                // Write "Found x files" when using a GUI
+                Console.WriteLine($"Found {HedFiles.Count} files.");
+            }
             for (int i = 0; i < HedFiles.Count; i++)
             {
                 byte[] fileData = new byte[HedFiles[i].FileSize];
@@ -292,8 +310,17 @@ namespace GH_Toolkit_Core.PS2
                 }
                 string extractFilePath = Path.Combine(extractPath, HedFiles[i].FilePath);
                 Directory.CreateDirectory(Path.GetDirectoryName(extractFilePath));
-                Console.WriteLine($"Extracting File {i + 1}/{HedFiles.Count}: {HedFiles[i].FilePath}");
+                if (cliMode)
+                {
+                    // GUI seems to be sloooooow with writing text, so only write to console in CLI mode
+                    Console.WriteLine($"Extracting File {i + 1}/{HedFiles.Count}: {HedFiles[i].FilePath}");
+                }                
                 File.WriteAllBytes(extractFilePath, fileData);
+            }
+            if (!cliMode)
+            {
+                // Write "All x files extracted" when using GUI instead
+                Console.WriteLine($"All {HedFiles.Count} files extracted.");
             }
         }
 
