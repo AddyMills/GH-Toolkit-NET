@@ -44,6 +44,14 @@ namespace GH_Toolkit_Core.PAK
             public byte[]? EntryData { get; set; }
             public byte[]? ExtraData { get; set; }
             public string ConsoleType { get; set; }
+            private string Game { get; set; }
+            public bool isPs2orWii
+            {
+                get
+                {
+                    return ConsoleType == CONSOLE_PS2 || ConsoleType == CONSOLE_WII;
+                }
+            }
             public int ByteLength { get; set; } = 32;
             private string PakName
             {
@@ -52,7 +60,7 @@ namespace GH_Toolkit_Core.PAK
                     return FullName == FLAGBYTE ? AssetContext! : FullName!;
                 }
             }
-            public PakEntry()
+            public PakEntry(string game = "GH3")
             {
 
             }
@@ -113,27 +121,34 @@ namespace GH_Toolkit_Core.PAK
             }
             public void SetNames(bool isQb)
             {
-                if (ConsoleType == CONSOLE_PS2)
+                if (isPs2orWii && !FullFlagPath!.StartsWith(HEXSTART))
                 {
                     if ((Flags & 0x20) != 0)
                     {
-                        if (FullFlagPath!.ToLower().IndexOf(DOTPS2) == -1)
+                        if (FullFlagPath!.ToLower().IndexOf(DOTPS2) == -1 && FullFlagPath!.ToLower().IndexOf(DOTNGC) == -1)
                         {
-                            FullFlagPath += DOTPS2;
+                            if (ConsoleType == CONSOLE_PS2)
+                            {
+                                FullFlagPath += DOTPS2;
+                            }
+                            else
+                            {
+                                FullFlagPath += DOTNGC;
+                            }
                         }
-                        AssetContext = FullFlagPath;
+                        //AssetContext = FullFlagPath;
                         FullFlagPath = FullFlagPath.PadRight(160, '\0');
                         ByteLength += 160;
                     }
-                    if (!isQb && FullFlagPath.EndsWith(DOTPS2))
+                    if (!isQb && (FullFlagPath.EndsWith(DOTPS2) || FullFlagPath.EndsWith(DOTNGC)))
                     {
-                        AssetContext = AssetContext.Substring(0, AssetContext.IndexOf(DOTPS2));
-                        if (AssetContext.IndexOf(DOT_MID_QB) != -1)
+                        FullName = FullFlagPath.Substring(0, FullFlagPath.Length - 4);
+                        if (FullName.IndexOf(DOT_MID_QB) != -1)
                         {
-                            AssetContext = AssetContext.Substring(0, AssetContext.IndexOf(DOT_QB));
+                            FullName = FullFlagPath.Substring(0, FullFlagPath.IndexOf(DOT_QB));
                         }
                     }
-                    FullName = FLAGBYTE;
+
                 }
                 else if (FullFlagPath!.StartsWith(HEXSTART))
                 {
@@ -165,6 +180,21 @@ namespace GH_Toolkit_Core.PAK
                     else
                     {
                         NameNoExt = FullName;
+                    }
+                    if (isPs2orWii)
+                    {
+                        if (FullFlagPath!.ToLower().IndexOf(DOTPS2) == -1 && FullFlagPath!.ToLower().IndexOf(DOTNGC) == -1)
+                        {
+                            if (ConsoleType == CONSOLE_PS2)
+                            {
+                                FullFlagPath += DOTPS2;
+                            }
+                            else
+                            {
+                                FullFlagPath += DOTNGC;
+                            }
+                        }
+                        FullFlagPath = FullFlagPath.PadRight(160, '\0');
                     }
                 }
                 else if (FullFlagPath.IndexOf(DOT_MID_QS) != -1)
@@ -204,7 +234,7 @@ namespace GH_Toolkit_Core.PAK
             }
             public void SetFlags()
             {
-                if (ConsoleType == CONSOLE_PS2)
+                if (isPs2orWii && Game != GAME_GHWOR)
                 {
                     switch (Extension)
                     {
@@ -322,6 +352,7 @@ namespace GH_Toolkit_Core.PAK
 
         public static void ProcessPAKFromFile(string file, bool convertQ = true, string game = "")
         {
+            file = Path.GetFullPath(file);
             string fileName = Path.GetFileName(file);
             string fileNoExt;
 
@@ -331,6 +362,7 @@ namespace GH_Toolkit_Core.PAK
             }
             catch
             {
+                Console.WriteLine("Invalid File, skipping");
                 return;
             }
             string fileExt = Path.GetExtension(file);
@@ -530,6 +562,7 @@ namespace GH_Toolkit_Core.PAK
         }
         public static List<string> GetFilesFromFolder(string filePath)
         {
+            filePath = Path.GetFullPath(filePath);
             List<string> files = new List<string>();
             if (Directory.Exists(filePath))
             {
@@ -612,7 +645,7 @@ namespace GH_Toolkit_Core.PAK
 
             while (true)
             {
-                PakEntry? entry = GetPakEntry(stream, reader, headers, 0);
+                PakEntry? entry = GetPakEntry(stream, reader, headers, 0, game: GAME_GHWOR);
                 if (entry == null)
                 {
                     break;
@@ -648,9 +681,9 @@ namespace GH_Toolkit_Core.PAK
                 }
             }
         }
-        private static PakEntry? GetPakEntry(MemoryStream stream, ReadWrite reader, Dictionary<uint, string> headers, uint header_start = 0, bool isWii = false, bool skipFlagName = false)
+        private static PakEntry? GetPakEntry(MemoryStream stream, ReadWrite reader, Dictionary<uint, string> headers, uint header_start = 0, bool isWii = false, bool skipFlagName = false, string game = "")
         {
-            PakEntry entry = new PakEntry();
+            PakEntry entry = new PakEntry(game);
             uint extension = reader.ReadUInt32(stream);
             if (extension != 0x2cb3ef3b && extension != 0xb524565f)
             {
@@ -975,11 +1008,10 @@ namespace GH_Toolkit_Core.PAK
                         pak.Write(Writer.ValueHex(entry.Extension), 0, 4);
                         pak.Write(Writer.ValueHex(entry.StartOffset), 0, 4);
                         pak.Write(Writer.ValueHex(entry.FileSize), 0, 4);
-                        if (ConsoleType == CONSOLE_WII && Game == GAME_GHWOR)
+                        if (ConsoleType == CONSOLE_WII || ConsoleType == CONSOLE_PS2)
                         {
                             pak.Write(Writer.ValueHex(entry.FullName), 0, 4);
                             pak.Write(Writer.ValueHex(entry.AssetContext), 0, 4);
-
                         }
                         else
                         {
