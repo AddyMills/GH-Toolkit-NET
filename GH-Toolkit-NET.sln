@@ -49,7 +49,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PAK Extractor", "..\PAK-Ext
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WAD Compiler", "..\WAD-Compiler\WAD Compiler.csproj", "{C5C5594F-D99A-4365-8A2C-05DA0C063EAF}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PAK Manipulator", "..\PAK Manipulator\PAK Manipulator.csproj", "{1487208C-FB5F-47E5-802D-DE1BB057AFF3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PAK Manipulator", "..\PAK-Manipulator\PAK Manipulator.csproj", "{1487208C-FB5F-47E5-802D-DE1BB057AFF3}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RemoveReadOnly", "..\RemoveReadOnly\RemoveReadOnly.csproj", "{20C591DB-C745-4841-9D24-622EE59E31DA}"
 EndProject
