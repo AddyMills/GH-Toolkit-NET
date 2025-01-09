@@ -122,7 +122,8 @@ namespace GH_Toolkit_Core.Methods
             }
 
             // Convert byte list to string using UTF-8 encoding
-            return Encoding.UTF8.GetString(byteList.ToArray());
+            var itemString = Encoding.Latin1.GetString(byteList.ToArray());
+            return itemString;
         }
         public static string ReadWideString(MemoryStream memoryStream, string endian = "little")
         {
@@ -392,7 +393,7 @@ namespace GH_Toolkit_Core.Methods
                 switch (valueType)
                 {
                     case STRING:
-                        return Encoding.UTF8.GetBytes(strVal);
+                        return Encoding.Latin1.GetBytes(strVal);
                     case WIDESTRING:
                         return Encoding.BigEndianUnicode.GetBytes(strVal);
                     default:
@@ -713,10 +714,10 @@ namespace GH_Toolkit_Core.Methods
                     scriptPos -= 1;
                     break;
                 default:
-                    if (scriptString == FASTELSE)
+                    /*if (scriptString == NOTEQUALS)
                     {
 
-                    }
+                    }*/
                     AddScriptToStream(_scriptbytes[scriptString], crcStream, scriptStream);
                     break;
             }
