@@ -66,7 +66,7 @@ namespace GH_Toolkit_Core.PAK
             }
             public PakEntry(string console, string game, string? assetContext = null)
             {
-                if (console == CONSOLE_PS2 && game == GAME_GH3)
+                if ((console == CONSOLE_PS2 || console == CONSOLE_WII) && game == GAME_GH3)
                 {
                     MakeLastEntry("last");
                 }
@@ -751,6 +751,7 @@ namespace GH_Toolkit_Core.PAK
                         break;
                 }
                 entry.FullName = tempString.Replace(DOTPS2, "", StringComparison.InvariantCultureIgnoreCase);
+                entry.FullName = tempString.Replace(DOTNGC, "", StringComparison.InvariantCultureIgnoreCase);
                 stream.Position = skipTo;
             }
             return entry;
@@ -841,6 +842,10 @@ namespace GH_Toolkit_Core.PAK
                 {
                     ConsoleType = CONSOLE_PS2;
                 }
+                else if (ext == DOTNGC)
+                {
+                    ConsoleType = CONSOLE_WII;
+                }
                 else
                 {
                     ConsoleType = CONSOLE_XBOX;
@@ -904,7 +909,7 @@ namespace GH_Toolkit_Core.PAK
                         }
                     }
                 }
-                bool isPs2 = ConsoleType == CONSOLE_PS2;
+                bool isPs2orWii = (ConsoleType == CONSOLE_PS2 || ConsoleType == CONSOLE_WII);
                 List<PakEntry> PakEntries = new List<PakEntry>();
                 List<string> fileNames = new List<string>();
 
@@ -922,7 +927,7 @@ namespace GH_Toolkit_Core.PAK
                             List<QBItem> qBItems;
                             try
                             {
-                                qBItems = ParseQFile(entry);
+                                qBItems = ParseQFile(entry, ConsoleType);
 
                             }
                             catch (QFileParseException ex)
@@ -938,7 +943,8 @@ namespace GH_Toolkit_Core.PAK
                             }
                             //AddConsoleExt(ref relPath);
                             relPath += "b";
-                            qbName = isPs2 ? DebugReader.Ps2PakString(relPath) : relPath;
+                            //qbName = (isPs2orWii && Game == GAME_GH3) ? DebugReader.Ps2PakString(relPath) : relPath;
+                            qbName = (isPs2orWii && Game == GAME_GH3) ? $"c:/gh3c/data/{relPath}" : relPath;
                             fileData = CompileQbFile(qBItems, qbName, game: Game, console: ConsoleType!);
                         }
                         else if ((Path.GetExtension(entry) == DOT_QB))
