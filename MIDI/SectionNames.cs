@@ -1,4 +1,5 @@
-﻿using System;
+﻿using IniParser.Model;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -24,9 +25,25 @@ namespace GH_Toolkit_Core.MIDI
             var funcDict = new Dictionary<string, string>();
             var rootFolder = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
             var sectionPath = Path.Combine(rootFolder, "MIDI", "Sections.txt");
+            var customSectionsPath = Path.Combine(rootFolder, "MIDI", "CustomSections.txt");
+
+            if (Path.Exists(sectionPath))
+            {
+                LoadSections(sectionPath, funcDict);
+            }
+            if (Path.Exists(customSectionsPath))
+            {
+                LoadSections(customSectionsPath, funcDict);
+            }
+
+            return funcDict;
+        }
+
+        private static void LoadSections(string filename, Dictionary<string, string> funcDict)
+        {
             try
             {
-                var textLines = File.ReadAllLines(sectionPath);
+                var textLines = File.ReadAllLines(filename);
 
                 foreach (var line in textLines)
                 {
@@ -52,7 +69,6 @@ namespace GH_Toolkit_Core.MIDI
             {
                 Console.WriteLine($"Error reading or processing the file: {ex.Message}");
             }
-            return funcDict;
         }
     }
 }
