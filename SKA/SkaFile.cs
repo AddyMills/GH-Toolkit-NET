@@ -75,8 +75,8 @@ namespace GH_Toolkit_Core.SKA
         public int OffsetTransFrames { get; set; } // Offset to the translation frames
         public int OffsetQuatBoneSize { get; set; } // Offset to the quaternion bone size array
         public int OffsetTransBoneSize { get; set; } // Offset to the translation bone size array
-        public Dictionary<int, ushort> QuatBoneSizes { get; set; } = new Dictionary<int, ushort>(); // Dictionary of bone sizes for quaternion frames per bone
-        public Dictionary<int, ushort> TransBoneSizes { get; set; } = new Dictionary<int, ushort>(); // Dictionary of bone sizes for translation frames per bone
+        public Dictionary<int, int> QuatBoneSizes { get; set; } = new Dictionary<int, int>(); // Dictionary of bone sizes for quaternion frames per bone
+        public Dictionary<int, int> TransBoneSizes { get; set; } = new Dictionary<int, int>(); // Dictionary of bone sizes for translation frames per bone
         public Dictionary<int, List<BoneFrameQuat>> QuatData { get; set; } = new Dictionary<int, List<BoneFrameQuat>>(); // Dictionary of quaternion data per bone
         public Dictionary<int, List<BoneFrameTrans>> TransData { get; set; } = new Dictionary<int, List<BoneFrameTrans>>(); // Dictionary of translation data per bone
         public Dictionary<int, List<(ushort frame, int position)>> BonePointerData { get; set; } = new Dictionary<int, List<(ushort frame, int position)>>(); // Dictionary of bone pointer data per bone
@@ -410,7 +410,8 @@ namespace GH_Toolkit_Core.SKA
             stream.Seek(OffsetTransBoneSize, SeekOrigin.Begin);
             for (byte i = 0; i < NumBones; i++)
             {
-                TransBoneSizes.Add(i, _rw.ReadUInt16(stream));
+                int boneSize = _rw.ReadUInt16(stream);
+                TransBoneSizes.Add(i, boneSize);
             }
         }
 
