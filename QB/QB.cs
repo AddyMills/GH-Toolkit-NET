@@ -32,6 +32,7 @@ namespace GH_Toolkit_Core.QB
         private static string QbKeyPattern = @"^[a-z0-9_]+$";
         private static string FloatPattern = @"^[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?$";
         public static Regex QbKeyRegex = new Regex(QbKeyPattern, RegexOptions.IgnoreCase);
+        private static bool WideStringSwap = false;
         public List<QBItem> Children { get; set; }
         public QB()
         {
@@ -483,7 +484,10 @@ namespace GH_Toolkit_Core.QB
             var qbDict = new Dictionary<string, QBItem>();
             foreach (QBItem item in qbList)
             {
-                qbDict.Add(item.Name.ToLower(), item);
+                if (!qbDict.ContainsKey(item.Name.ToLower()))
+                {
+                    qbDict.Add(item.Name.ToLower(), item);
+                } 
             }
             return qbDict;
         }
@@ -807,11 +811,20 @@ namespace GH_Toolkit_Core.QB
             }
             return ParseQFile(data);
         }
-        public static List<QBItem> ParseQFile(string data)
+        public static List<QBItem> ParseQFile(string data, string console = CONSOLE_XBOX)
         {
+            WideStringSwap = console == CONSOLE_PS2 || console == CONSOLE_WII;
             if (File.Exists(data))
             {
-                data = File.ReadAllText(data);
+                var tempData = File.ReadAllText(data);
+                if (tempData.Contains('�')) 
+                {
+                    data = File.ReadAllText(data, Encoding.Latin1);
+                }
+                else
+                {
+                    data = tempData;
+                }
             }
             ParseLevel root = new ParseLevel(null, ParseState.whitespace, ROOT);
             ParseLevel currLevel = root;
@@ -882,7 +895,7 @@ namespace GH_Toolkit_Core.QB
                                 }
                                 break;
                             case '=':
-                                tmpKey = tmpKey.Trim();
+                                tmpKey = StripQbKeyQuotes(tmpKey.Trim());
                                 currLevel.State = ParseState.inValue;
                                 if (tmpKey == "qb_file" && qbFile.Children.Count == 0)
                                 {
@@ -1411,6 +1424,10 @@ namespace GH_Toolkit_Core.QB
             {
                 return;
             }
+            if (WideStringSwap && itemType == WIDESTRING)
+            {
+                itemType = STRING; // Make it a string if it's a wide string on PS2 and Wii
+            }
             switch (currLevel.LevelType)
             {
                 case ROOT:
@@ -1611,7 +1628,7 @@ namespace GH_Toolkit_Core.QB
                 QbStructLookup = QbTypeLookup;
                 endian = "big";
             }
-            Reader = new ReadWrite(endian, game, QbTypeLookup, QbStructLookup);
+            Reader = new ReadWrite(endian, game, QbTypeLookup, QbStructLookup, console);
             byte[] qbNameHex = Reader.ValueHex(qbName);
 
             int qbPos = 28;
