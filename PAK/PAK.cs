@@ -1271,14 +1271,14 @@ namespace GH_Toolkit_Core.PAK
                             {
                                 skaType = SKELETON_GH3_GUITARIST;
                             }
-                            else if (Regex.IsMatch(skaFile, skaPatternSing))
+                            else
                             {
                                 skaType = gameConsole == CONSOLE_PS2 ? SKELETON_GH3_SINGER_PS2 : SKELETON_GH3_SINGER;
                             }
-                            else
+                            /*else
                             {
                                 continue;
-                            }
+                            }*/
                             break;
                         case GAME_GHA:
                             skaType = isGuitarist ? SKELETON_GH3_GUITARIST : (isSteven ? SKELETON_STEVE : SKELETON_GHA_SINGER);
