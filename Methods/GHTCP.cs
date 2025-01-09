@@ -1,5 +1,8 @@
 ﻿using System.Security.Cryptography;
-using Ionic.Zip;
+using SystemZip = System.IO.Compression;
+using ICSharpCode.SharpZipLib.Core;
+using ICSharpCode.SharpZipLib.Zip;
+//using Ionic.Zip;
 
 /*
  * The file is for implementation of my versions of GHTCP Methods 
@@ -81,14 +84,11 @@ namespace GH_Toolkit_Core.Methods
         }
         public static void MakeUnprotectedZip(string extractPath, string zipPath)
         {
-            using (ZipFile zip = new ZipFile())
-            {
-                zip.AddDirectory(extractPath);
-                zip.Save(zipPath);
-            }
+            SystemZip.ZipFile.CreateFromDirectory(extractPath, zipPath);
         }
         private static void ExtractZip(string zipPath, string extractPath, out bool isEncrypted, string password = "")
         {
+            /*
             isEncrypted = false;
             using (ZipFile zip = ZipFile.Read(zipPath))
             {
@@ -107,11 +107,69 @@ namespace GH_Toolkit_Core.Methods
                     Console.WriteLine("An error occurred while extracting the zip file: " + e.Message);
                     throw;
                 }
+            }*/
+            isEncrypted = false;
+
+            try
+            {
+                using (FileStream fs = File.OpenRead(zipPath))
+                using (ZipFile zipFile = new ZipFile(fs))
+                {
+                    if (!string.IsNullOrEmpty(password))
+                    {
+                        zipFile.Password = password; // Set the password for potentially encrypted files
+                    }
+
+                    bool passwordUsed = false;
+
+                    foreach (ZipEntry entry in zipFile)
+                    {
+                        if (!entry.IsFile) continue; // Skip directories
+
+                        // Check if the entry is encrypted
+                        if (entry.IsCrypted && !string.IsNullOrEmpty(password))
+                        {
+                            passwordUsed = true; // Mark that a password was needed for extraction
+                        }
+
+                        string entryFileName = entry.Name;
+                        byte[] buffer = new byte[4096]; // Buffer size
+
+                        // Create output directory structure if necessary
+                        string fullPath = Path.Combine(extractPath, entryFileName);
+                        string directoryName = Path.GetDirectoryName(fullPath);
+                        if (directoryName.Length > 0)
+                        {
+                            Directory.CreateDirectory(directoryName);
+                        }
+
+                        // Extract file
+                        using (Stream zipStream = zipFile.GetInputStream(entry))
+                        using (FileStream streamWriter = File.Create(fullPath))
+                        {
+                            StreamUtils.Copy(zipStream, streamWriter, buffer);
+                        }
+                    }
+
+                    // Set isEncrypted to true if the archive was password-protected and the password was used
+                    isEncrypted = passwordUsed;
+                }
+            }
+            catch (ZipException ex) when (ex.Message.Contains("Wrong password"))
+            {
+                Console.WriteLine("The zip file is encrypted, and an incorrect or no password was provided.");
+                throw;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("An error occurred while extracting the zip file: " + e.Message);
+                throw;
             }
         }
 
         private static void ExtractSongs(string zipPath, string extractPath, out bool isEncrypted, string password = "")
         {
+            /*
             string songs = "songs.info";
             isEncrypted = false;
 
@@ -137,6 +195,59 @@ namespace GH_Toolkit_Core.Methods
                     Console.WriteLine("An error occurred while extracting the zip file: " + e.Message);
                     throw;
                 }
+            }*/
+            string songs = "songs.info";
+            isEncrypted = false;
+
+            try
+            {
+                using (FileStream fs = File.OpenRead(zipPath))
+                using (ZipFile zipFile = new ZipFile(fs))
+                {
+                    if (!string.IsNullOrEmpty(password))
+                    {
+                        zipFile.Password = password; // Set the password for potentially encrypted files
+                    }
+
+                    ZipEntry songsFile = zipFile.GetEntry(songs);
+                    if (songsFile == null)
+                    {
+                        throw new Exception("The SGH file does not contain a songs.info file");
+                    }
+
+                    bool passwordUsed = false;
+
+                    // Check if the entry is encrypted
+                    if (songsFile.IsCrypted && !string.IsNullOrEmpty(password))
+                    {
+                        passwordUsed = true;
+                    }
+
+                    Directory.CreateDirectory(extractPath);
+
+                    // Extract the songs.info file
+                    string outputPath = Path.Combine(extractPath, songs);
+                    byte[] buffer = new byte[4096]; // Buffer size
+
+                    using (Stream zipStream = zipFile.GetInputStream(songsFile))
+                    using (FileStream streamWriter = File.Create(outputPath))
+                    {
+                        StreamUtils.Copy(zipStream, streamWriter, buffer);
+                    }
+
+                    // Set isEncrypted to true if the archive was password-protected and the password was used
+                    isEncrypted = passwordUsed;
+                }
+            }
+            catch (ZipException ex) when (ex.Message.Contains("Wrong password"))
+            {
+                Console.WriteLine("The zip file is encrypted, and an incorrect or no password was provided.");
+                throw;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("An error occurred while extracting the zip file: " + e.Message);
+                throw;
             }
         }
     }

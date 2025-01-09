@@ -30,7 +30,9 @@ namespace GH_Toolkit_Core.QB
         public static Dictionary<uint, string> SongHeaders;
         public static ReadWrite Reader;
         private static string QbKeyPattern = @"^[a-z0-9_]+$";
+        private static string FloatPattern = @"^[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?$";
         public static Regex QbKeyRegex = new Regex(QbKeyPattern, RegexOptions.IgnoreCase);
+        private static bool WideStringSwap = false;
         public List<QBItem> Children { get; set; }
         public QB()
         {
@@ -51,7 +53,7 @@ namespace GH_Toolkit_Core.QB
             // Blank QB Item to build one like Lego!
             public QBItem() { }
             // QB Item where Info is inferred from the data
-            public QBItem(string name, object data) 
+            public QBItem(string name, object data)
             {
                 SetName(name);
                 SetData(data);
@@ -181,7 +183,7 @@ namespace GH_Toolkit_Core.QB
             {
                 if (Data is List<float> floatList)
                 {
-                    if (floatList.Count < 2 || floatList.Count > 3) 
+                    if (floatList.Count < 2 || floatList.Count > 3)
                     {
                         throw new ArgumentException("List of float values does not contain only 2 or 3 items.");
                     }
@@ -324,6 +326,34 @@ namespace GH_Toolkit_Core.QB
                     return Reader.ReadUInt32(stream);
             }
         }
+        // This is a function that will read a string consisting of hex string and string pairs
+        // and return then as a dictionary
+        public static Dictionary<uint, string> GetQsDictFromString(string qsPairs)
+        {
+            var qsDict = new Dictionary<uint, string>();
+            string[] pairs = qsPairs.Split(new string[] { "\n" }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (string pair in pairs)
+            {
+                string[] pairSplit = pair.Split(new string[] { " " }, 2, StringSplitOptions.RemoveEmptyEntries);
+
+                string hexString = pairSplit[0].Trim();
+                string valueString = pairSplit[1].Trim();
+
+                //Console.WriteLine($"Processing pair: {hexString} -> {valueString}");
+
+                if (uint.TryParse(hexString, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint key))
+                {
+                    qsDict.Add(key, valueString);
+                }
+                else
+                {
+                    throw new ArgumentException($"Invalid hex string found: {hexString}");
+                }
+
+
+            }
+            return qsDict;
+        }
         public static List<float> ReadQBTuple(MemoryStream stream, uint amount, bool readHeader = true)
         {
             if (readHeader)
@@ -405,7 +435,7 @@ namespace GH_Toolkit_Core.QB
             {0x25, WORFLOAT },
             {0x26, WORQBKEY },
             {0x2C, WORARRAY }
-            
+
         };
 
         private static readonly Dictionary<byte, string> QbTypeGh3Ps2Struct = new Dictionary<byte, string>()
@@ -454,7 +484,10 @@ namespace GH_Toolkit_Core.QB
             var qbDict = new Dictionary<string, QBItem>();
             foreach (QBItem item in qbList)
             {
-                qbDict.Add(item.Name.ToLower(), item);
+                if (!qbDict.ContainsKey(item.Name.ToLower()))
+                {
+                    qbDict.Add(item.Name.ToLower(), item);
+                } 
             }
             return qbDict;
         }
@@ -464,21 +497,21 @@ namespace GH_Toolkit_Core.QB
 
             return QbEntryDict(qbList);
         }
-        public static byte[] CompileQbFromDict(Dictionary<string, QBItem> qbDict, string filePath, string game = GAME_GH3, string console = CONSOLE_XBOX)
+        public static byte[] CompileQbFromDict(Dictionary<string, QBItem> qbDict, string qbPath, string game = GAME_GH3, string console = CONSOLE_XBOX)
         {
             var qbList = new List<QBItem>();
             foreach (KeyValuePair<string, QBItem> item in qbDict)
             {
                 qbList.Add(item.Value);
             }
-            var bytes = CompileQbFile(qbList, filePath, game, console);
+            var bytes = CompileQbFile(qbList, qbPath, game, console);
             return bytes;
         }
 
-        public static List<QBItem> DecompileQb(byte[] qbBytes, string endian = "big", string songName = "")
+        public static List<QBItem> DecompileQb(byte[] qbBytes, string endian = "big", string songName = "", string game = "", string console = "")
         {
             SetStructType(endian);
-            Reader = new ReadWrite(endian);
+            Reader = new ReadWrite(endian, game, console);
 
             var qbList = new List<QBItem>();
             SongHeaders = DebugReader.MakeDictFromName(songName);
@@ -493,6 +526,11 @@ namespace GH_Toolkit_Core.QB
             }
 
             return qbList;
+        }
+        public static List<QBItem> DecompileQbFromFile(string qbPath, string endian = "big", string songName = "", string game = "", string console = "")
+        {
+            byte[] qbBytes = File.ReadAllBytes(qbPath);
+            return DecompileQb(qbBytes, endian, songName, game, console);
         }
         public static string QbItemText(string itemType, object itemData)
         {
@@ -527,22 +565,7 @@ namespace GH_Toolkit_Core.QB
                 case QBKEY:
                 case QSKEY:
                 case POINTER:
-                    if (itemString == "default")
-                    {
-                        test = $"`{itemString}`";
-                    }
-                    else if (itemString.StartsWith("0x"))
-                    {
-                        test = DebugReader.DebugCheck(itemString);
-                    }
-                    else if (QbKeyRegex.IsMatch(itemString))
-                    {
-                        test = $"{itemString}";
-                    }
-                    else
-                    {
-                        test = $"`{itemString}`";
-                    }
+                    test = GetQbKeyFormat(itemString);
                     if (itemType == QSKEY)
                     {
                         test = $"qs({test})";
@@ -569,6 +592,29 @@ namespace GH_Toolkit_Core.QB
             }
 
             return test;
+        }
+        public static string GetQbKeyFormat(string toFormat)
+        {
+            if (toFormat == "default")
+            {
+                return $"`{toFormat}`";
+            }
+            else if (toFormat.StartsWith("0x"))
+            {
+                return DebugReader.DebugCheck(toFormat);
+            }
+            else if (float.TryParse(toFormat, out _))
+            {
+                return $"`{toFormat}`";
+            }
+            else if (QbKeyRegex.IsMatch(toFormat))
+            {
+                return $"{toFormat}";
+            }
+            else
+            {
+                return $"`{toFormat}`";
+            }
         }
         public static string FloatsToText(List<float> floats)
         {
@@ -625,6 +671,7 @@ namespace GH_Toolkit_Core.QB
             inQbKey,
             inQsKey,
             inComment,
+            inCommentScript,
             inScript,
             inArray,
             inStruct,
@@ -679,6 +726,7 @@ namespace GH_Toolkit_Core.QB
                     "!a" => WORARRAY,
                     _ => throw new ArgumentException("Invalid reference string found.")
                 },
+                var d when Regex.IsMatch(d, FloatPattern) => FLOAT,
                 _ => QBKEY,
             };
         }
@@ -763,11 +811,20 @@ namespace GH_Toolkit_Core.QB
             }
             return ParseQFile(data);
         }
-        public static List<QBItem> ParseQFile(string data)
+        public static List<QBItem> ParseQFile(string data, string console = CONSOLE_XBOX)
         {
+            WideStringSwap = console == CONSOLE_PS2 || console == CONSOLE_WII;
             if (File.Exists(data))
             {
-                data = File.ReadAllText(data);
+                var tempData = File.ReadAllText(data);
+                if (tempData.Contains('�')) 
+                {
+                    data = File.ReadAllText(data, Encoding.Latin1);
+                }
+                else
+                {
+                    data = tempData;
+                }
             }
             ParseLevel root = new ParseLevel(null, ParseState.whitespace, ROOT);
             ParseLevel currLevel = root;
@@ -778,6 +835,7 @@ namespace GH_Toolkit_Core.QB
             string tmpKey = "";
             string tmpValue = "";
             string tmpType;
+
             for (int i = 0; i < data.Length; i++)
             {
                 char c = data[i];
@@ -837,7 +895,7 @@ namespace GH_Toolkit_Core.QB
                                 }
                                 break;
                             case '=':
-                                tmpKey = tmpKey.Trim();
+                                tmpKey = StripQbKeyQuotes(tmpKey.Trim());
                                 currLevel.State = ParseState.inValue;
                                 if (tmpKey == "qb_file" && qbFile.Children.Count == 0)
                                 {
@@ -1035,7 +1093,7 @@ namespace GH_Toolkit_Core.QB
                                 {
                                     throw new QFileParseException("Closing bracket } found outside of struct!");
                                 }
-                                
+
                                 break;
                             case ']':
                                 if (currLevel.LevelType == ARRAY)
@@ -1077,10 +1135,10 @@ namespace GH_Toolkit_Core.QB
                             case '\n':
                                 if (currLevel.LevelType == SCRIPT)
                                 {
-                                        i -= (tmpValue.Length + 1);
-                                        tmpValue = LEFTPAR;
-                                        StateSwitch(currLevel);
-                                        AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                                    i -= (tmpValue.Length + 1);
+                                    tmpValue = LEFTPAR;
+                                    StateSwitch(currLevel);
+                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
                                 }
                                 break;
                             case ' ':
@@ -1094,7 +1152,7 @@ namespace GH_Toolkit_Core.QB
                                 if (currLevel.LevelType == SCRIPT)
                                 {
                                     string origVal = tmpValue;
-                                    tmpValue = tmpValue.Replace("\t","").Replace(" ", "");
+                                    tmpValue = tmpValue.Replace("\t", "").Replace(" ", "");
                                     try
                                     {
                                         StateSwitch(currLevel);
@@ -1113,7 +1171,7 @@ namespace GH_Toolkit_Core.QB
                                     StateSwitch(currLevel);
                                     AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, MULTIFLOAT);
                                 }
-                                
+
                                 break;
                             case '1':
                             case '2':
@@ -1320,6 +1378,7 @@ namespace GH_Toolkit_Core.QB
                                 continue;
                         }
                         break;
+
                 }
             }
             return qbFile.Children;
@@ -1364,6 +1423,10 @@ namespace GH_Toolkit_Core.QB
             if (tmpKey == "" && tmpValue == "" && (itemType != WIDESTRING && itemType != STRING))
             {
                 return;
+            }
+            if (WideStringSwap && itemType == WIDESTRING)
+            {
+                itemType = STRING; // Make it a string if it's a wide string on PS2 and Wii
             }
             switch (currLevel.LevelType)
             {
@@ -1467,7 +1530,7 @@ namespace GH_Toolkit_Core.QB
             {
                 currLevel.Parent.Struct.AddArrayToStruct(currLevel.Name, currLevel.Array);
             }
-            else 
+            else
             {
                 throw new NotImplementedException();
             }
@@ -1565,7 +1628,7 @@ namespace GH_Toolkit_Core.QB
                 QbStructLookup = QbTypeLookup;
                 endian = "big";
             }
-            Reader = new ReadWrite(endian, game, QbTypeLookup, QbStructLookup);
+            Reader = new ReadWrite(endian, game, QbTypeLookup, QbStructLookup, console);
             byte[] qbNameHex = Reader.ValueHex(qbName);
 
             int qbPos = 28;
@@ -1582,16 +1645,32 @@ namespace GH_Toolkit_Core.QB
                     stream.Write(qbID, 0, qbID.Length);
                     stream.Write(qbNameHex, 0, qbNameHex.Length);
 
-                    var (itemData, otherData) = Reader.GetItemData(item.Info.Type, item.Data, (int)stream.Position + qbPos + 8);
-                    // itemData is either the data itself (for simple data), or a pointer to the data
-                    // otherData is the data if itemData is not simple
-
-                    stream.Write(itemData, 0, itemData.Length);
-                    byte[] nextItem = Reader.ValueHex(0);
-                    stream.Write(nextItem, 0, nextItem.Length);
-                    if (otherData != null)
+                    try
                     {
-                        stream.Write(otherData, 0, otherData.Length);
+                        var (itemData, otherData) = Reader.GetItemData(item.Info.Type, item.Data, (int)stream.Position + qbPos + 8);
+                        // itemData is either the data itself (for simple data), or a pointer to the data
+                        // otherData is the data if itemData is not simple
+
+                        stream.Write(itemData, 0, itemData.Length);
+                        byte[] nextItem = Reader.ValueHex(0);
+                        stream.Write(nextItem, 0, nextItem.Length);
+                        if (otherData != null)
+                        {
+                            stream.Write(otherData, 0, otherData.Length);
+                        }
+                    }
+                    catch (ImproperIfBlockException ex)
+                    {
+                        Console.WriteLine($"Improper if block found in script {item.Name}");
+                        Console.WriteLine("This is usually caused by forgetting to place an \"endif\" in the script.");
+                        Console.WriteLine("Cancelling compilation.");
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error compiling {item.Name}");
+                        Console.WriteLine("Please copy this log and report it to AddyMills.");
+                        throw;
                     }
                     Reader.PadStreamToFour(stream);
                 }

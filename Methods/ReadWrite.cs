@@ -26,31 +26,52 @@ namespace GH_Toolkit_Core.Methods
         private readonly bool _flipBytes;
         private readonly string _endian;
         private readonly string _game;
+        private readonly string _console;
         private readonly Dictionary<string, byte> _qbtype;
         private readonly Dictionary<string, byte> _qbstruct;
         private readonly Dictionary<string, byte> _scriptbytes;
         private readonly ReadWrite _scriptwriter;
+        private readonly bool _isGhGame;
         public ReadWrite(string endian)
         {
             // Determine if bytes need to be flipped based on endianness and system architecture.
             _flipBytes = endian == "little" != BitConverter.IsLittleEndian;
             _endian = endian;
         }
-        public ReadWrite(string endian, string game, Dictionary<string, byte> QbTypeLookup, Dictionary<string, byte> QbStructLookup)
+        public ReadWrite(string endian, string game, string console)
         {
             // Determine if bytes need to be flipped based on endianness and system architecture.
             _flipBytes = endian == "little" != BitConverter.IsLittleEndian;
             _endian = endian;
             _game = game;
+            if (console.Equals(CONSOLE_WII, StringComparison.CurrentCultureIgnoreCase) || console.Equals(CONSOLE_NGC, StringComparison.CurrentCultureIgnoreCase))
+            {
+                _console = CONSOLE_WII;
+            }
+            else
+            {
+                _console = console.ToUpper();
+            }
+        }
+        public ReadWrite(string endian, string game, Dictionary<string, byte> QbTypeLookup, Dictionary<string, byte> QbStructLookup, string console = "")
+        {
+            // Determine if bytes need to be flipped based on endianness and system architecture.
+            _flipBytes = endian == "little" != BitConverter.IsLittleEndian;
+            _endian = endian;
+            _game = game;
+            _console = console;
+            _isGhGame = game.StartsWith("gh", StringComparison.InvariantCultureIgnoreCase);
             _qbtype = QbTypeLookup;
             _qbstruct = QbStructLookup;
+
+            bool isWii = _console.Equals(CONSOLE_WII, StringComparison.CurrentCultureIgnoreCase) || _console.Equals(CONSOLE_NGC, StringComparison.CurrentCultureIgnoreCase);
 
             // Create a copy of the scriptDict from QBConstants
             _scriptbytes = new Dictionary<string, byte>(QBConstants.scriptDict);
 
             _scriptwriter = new ReadWrite("little");
 
-            if (_endian == "little" && _game == "GH3")
+            if ((_endian == "little" || isWii) && _game.Equals("GH3", StringComparison.CurrentCultureIgnoreCase))
             {
                 if (_scriptbytes.ContainsKey(NOTEQUALS))
                 {
@@ -58,9 +79,10 @@ namespace GH_Toolkit_Core.Methods
                 }
             }
         }
+
         public byte GetScriptByte(string scriptEntry)
         {
-            if ((scriptEntry == IF || scriptEntry == ELSE) && _game.StartsWith("GH"))
+            if ((scriptEntry == IF || scriptEntry == ELSE) && _isGhGame)
             {
                 scriptEntry = "fast" + scriptEntry;
             }
@@ -100,7 +122,8 @@ namespace GH_Toolkit_Core.Methods
             }
 
             // Convert byte list to string using UTF-8 encoding
-            return Encoding.UTF8.GetString(byteList.ToArray());
+            var itemString = Encoding.Latin1.GetString(byteList.ToArray());
+            return itemString;
         }
         public static string ReadWideString(MemoryStream memoryStream, string endian = "little")
         {
@@ -151,12 +174,12 @@ namespace GH_Toolkit_Core.Methods
             byte[] byteArray = Encoding.BigEndianUnicode.GetBytes(str);
             stream.Write(byteArray, 0, byteArray.Length);
         }
-        public static void FillNullTermString(MemoryStream stream, uint padding)
+        public static void FillNullTermString(Stream stream, uint padding)
         {
             byte[] nullBytes = new byte[padding];
             stream.Write(nullBytes, 0, nullBytes.Length);
         }
-        public static byte[] ReadNoFlip(MemoryStream s, int count)
+        public static byte[] ReadNoFlip(Stream s, int count)
         {
             byte[] buffer = new byte[count];
             s.Read(buffer, 0, count);
@@ -166,7 +189,7 @@ namespace GH_Toolkit_Core.Methods
             }
             return buffer;
         }
-        public byte[] ReadAndMaybeFlipBytes(MemoryStream s, int count)
+        public byte[] ReadAndMaybeFlipBytes(Stream s, int count)
         {
             byte[] buffer = new byte[count];
             s.Read(buffer, 0, count);
@@ -176,27 +199,27 @@ namespace GH_Toolkit_Core.Methods
             }
             return buffer;
         }
-        public byte ReadUInt8(MemoryStream stream)
+        public byte ReadUInt8(Stream stream)
         {
             return ReadAndMaybeFlipBytes(stream, 1)[0];
         }
-        public ushort ReadUInt16(MemoryStream stream)
+        public ushort ReadUInt16(Stream stream)
         {
             return BitConverter.ToUInt16(ReadAndMaybeFlipBytes(stream, 2), 0);
         }
-        public uint ReadUInt32(MemoryStream stream)
+        public uint ReadUInt32(Stream stream)
         {
             return BitConverter.ToUInt32(ReadAndMaybeFlipBytes(stream, 4), 0);
         }
-        public float ReadFloat(MemoryStream stream)
+        public float ReadFloat(Stream stream)
         {
             return BitConverter.ToSingle(ReadAndMaybeFlipBytes(stream, 4), 0);
         }
-        public short ReadInt16(MemoryStream stream)
+        public short ReadInt16(Stream stream)
         {
             return unchecked((short)ReadUInt16(stream));
         }
-        public int ReadInt32(MemoryStream stream)
+        public int ReadInt32(Stream stream)
         {
             return unchecked((int)ReadUInt32(stream));
         }
@@ -338,6 +361,10 @@ namespace GH_Toolkit_Core.Methods
             {
                 return ValueHex(intVal);
             }
+            else if (value is uint uintVal)
+            {
+                return ValueHex(uintVal);
+            }
             else if (value is float floatVal)
             {
                 return ValueHex(floatVal);
@@ -366,7 +393,7 @@ namespace GH_Toolkit_Core.Methods
                 switch (valueType)
                 {
                     case STRING:
-                        return Encoding.UTF8.GetBytes(strVal);
+                        return Encoding.Latin1.GetBytes(strVal);
                     case WIDESTRING:
                         return Encoding.BigEndianUnicode.GetBytes(strVal);
                     default:
@@ -687,10 +714,10 @@ namespace GH_Toolkit_Core.Methods
                     scriptPos -= 1;
                     break;
                 default:
-                    if (scriptString == FASTELSE)
+                    /*if (scriptString == NOTEQUALS)
                     {
 
-                    }
+                    }*/
                     AddScriptToStream(_scriptbytes[scriptString], crcStream, scriptStream);
                     break;
             }
@@ -849,9 +876,17 @@ namespace GH_Toolkit_Core.Methods
             source.CopyTo(dest);
             source.Close();
         }
-        public string Endian()
+        public string GetEndian()
         {
             return _endian;
+        }
+        public string GetGame()
+        {
+            return _game;
+        }
+        public string GetConsole()
+        {
+            return _console;
         }
         private static byte GetLastByte(Stream stream)
         {
@@ -953,6 +988,17 @@ namespace GH_Toolkit_Core.Methods
                     CopyDirectory(subDir.FullName, newDestinationDir, true);
                 }
             }
+        }
+        public static byte[] RemoveBom(byte[] data)
+        {
+            if (data.Length >= 2 && data[0] == 0xFF && data[1] == 0xFE)
+            {
+                // UTF-16 BOM detected, remove it
+                byte[] newData = new byte[data.Length - 2];
+                Array.Copy(data, 2, newData, 0, newData.Length);
+                return newData;
+            }
+            return data;
         }
     }
 }

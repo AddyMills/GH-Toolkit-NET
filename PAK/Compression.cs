@@ -1,7 +1,8 @@
 ﻿using System.Diagnostics;
 using System.Text;
 using GH_Toolkit_Core.Methods;
-using Ionic.Zlib;
+//using Ionic.Zlib;
+using System.IO.Compression;
 using static GH_Toolkit_Core.PAK.PAK;
 
 /*
@@ -88,6 +89,19 @@ namespace GH_Toolkit_Core.PAK
 
         public static byte[] DecompressData(byte[] compressedChunk)
         {
+            /*
+            using MemoryStream compressedStream = new MemoryStream(compressedChunk);
+            using DeflateStream deflateStream = new DeflateStream(compressedStream, CompressionMode.Decompress);
+            using MemoryStream decompressedStream = new MemoryStream();
+
+            byte[] buffer = new byte[4096];  // Adjust buffer size as necessary
+            int bytesRead;
+            while ((bytesRead = deflateStream.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                decompressedStream.Write(buffer, 0, bytesRead);
+            }
+            return decompressedStream.ToArray();
+            */
             using MemoryStream compressedStream = new MemoryStream(compressedChunk);
             using DeflateStream deflateStream = new DeflateStream(compressedStream, CompressionMode.Decompress);
             using MemoryStream decompressedStream = new MemoryStream();

@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
+using static GH_Toolkit_Core.Methods.Exceptions;
 using static GH_Toolkit_Core.QB.QB;
 using static GH_Toolkit_Core.QB.QBConstants;
 using static GH_Toolkit_Core.QB.QBScript;
@@ -151,6 +152,13 @@ namespace GH_Toolkit_Core.QB
                         case RANDOMRANGE:
                         case RANDOMFLOAT:
                         case RANDOMINTEGER:
+                            AddScriptElem(strData);
+                            return;
+                        case UNKNOWN52:
+                        case UNKNOWN54:
+                        case UNKNOWN55:
+                        case UNKNOWN59:
+                        case UNKNOWN5A:
                             AddScriptElem(strData);
                             return;
                         default:
@@ -391,7 +399,7 @@ namespace GH_Toolkit_Core.QB
                 {
                     object scriptItem = script[scriptPos];
                     UpdateItem(ref currItem, scriptItem);
-                    if (currItem == CASE || currItem == DEFAULT)
+                    if (currItem == CASE || currItem == DEFAULT || currItem == ENDSWITCH)
                     {
                         break;
                     }
@@ -676,6 +684,10 @@ namespace GH_Toolkit_Core.QB
                         ConditionalCollection conditional = new ConditionalCollection(script, ref scriptPos);
                         currCondition.Actions.Add(conditional);
                         scriptPos--;
+                    }
+                    else if (currItem == ENDSCRIPT)
+                    {
+                        throw new ImproperIfBlockException("Endscript found before endif in conditional block.");
                     }
                     else
                     {
@@ -997,7 +1009,7 @@ namespace GH_Toolkit_Core.QB
                         }
                         randomEntry = new RandomEntry(currItem);
                     }
-                    else if (randomEntry != null && currItem == NEWLINE && randomEntry.Actions.Count == 0)
+                    else if (randomEntry != null && currItem == NEWLINE && RandomEntries.Count == 0 && randomEntry.Actions.Count == 0)
                     {
                         PreRandomEntries.Add(scriptItem);
                     }
@@ -1468,7 +1480,7 @@ namespace GH_Toolkit_Core.QB
                     nextGlobal = true;
                     break;
                 case 0x4C:
-                    if (Reader.Endian() == "little")
+                    if (Reader.GetEndian() == "little" || Reader.GetConsole() == CONSOLE_WII)
                     {
                         list.Add(NOTEQUALS);
                     }
@@ -1480,7 +1492,7 @@ namespace GH_Toolkit_Core.QB
 
                     break;
                 case 0x4D:
-                    if (Reader.Endian() == "little")
+                    if (Reader.GetEndian() == "little")
                     {
                         list.Add(NOTEQUALS);
                     }

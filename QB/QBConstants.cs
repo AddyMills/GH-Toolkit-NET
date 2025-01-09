@@ -25,7 +25,7 @@ namespace GH_Toolkit_Core.QB
         public const string POINTER = "Pointer";
         public const string QSKEY = "QsKey";
         public const string EMPTY = "StructFlag"; // Used for arrays and structs
-        public const string EMPTYARRAY = "Empty"; 
+        public const string EMPTYARRAY = "Empty";
         public const string ROOT = "Root";
         public const string MULTIFLOAT = "MultiFloat";
 
@@ -39,6 +39,8 @@ namespace GH_Toolkit_Core.QB
         public const string CONSOLE_PS2 = "PS2";
         public const string CONSOLE_PS3 = "PS3";
         public const string CONSOLE_XBOX = "360";
+        public const string CONSOLE_NGC = "NGC";
+        public const string CONSOLE_WII = "WII";
         public const string CONSOLE_PC = "PC";
 
         public const string HEXSTART = "0x";
@@ -73,6 +75,7 @@ namespace GH_Toolkit_Core.QB
 
         public const string DOT_Q = ".q";
         public const string DOT_QB = ".qb";
+        public const string DOT_NQB = ".nqb";
         public const string DOT_MQB = ".mqb";
         public const string DOT_SQB = ".sqb";
         public const string DOT_QS = ".qs";
@@ -184,7 +187,7 @@ namespace GH_Toolkit_Core.QB
         public const string DefaultZPriority = "0";
         public const string DefaultAlpha = "1.0";
         public const string DefaultIDelay = "0.0";
-            
+
         // Compiling Constants
         public const string SONG_PERFORMANCE = "song_performance";
         public const string FEMALE_ANIM_STRUCT = "car_female_anim_struct";
@@ -324,7 +327,12 @@ namespace GH_Toolkit_Core.QB
             { NOTEQUALS, NOTEQUALS_BYTE },
             { QSKEY, QSKEY_BYTE },
             { RANDOMFLOAT, RANDOMFLOAT_BYTE },
-            { RANDOMINTEGER, RANDOMINTEGER_BYTE }
+            { RANDOMINTEGER, RANDOMINTEGER_BYTE },
+            { UNKNOWN52, 0x52 },
+            { UNKNOWN54, 0x54 },
+            { UNKNOWN55, 0x55 },
+            { UNKNOWN59, 0x59 },
+            { UNKNOWN5A, 0x5A }
         };
     }
 }

@@ -27,12 +27,12 @@ namespace GH_Toolkit_Core.QB
             public string ID { get; set; }
             public object DataValue { get; set; }
             public uint NextItem { get; set; }
-            public QBStructProps(string key, object value) 
-            { 
+            public QBStructProps(string key, object value)
+            {
                 ID = key;
                 DataValue = value;
             }
-            public QBStructProps(MemoryStream stream, string itemType) 
+            public QBStructProps(MemoryStream stream, string itemType)
             {
                 ID = ReadQBKey(stream);
                 /*if (ID == "0x00000000")
@@ -80,7 +80,7 @@ namespace GH_Toolkit_Core.QB
                     }
                     type = listFloat.Count == 2 ? PAIR : VECTOR;
                 }
-                Info = new QBStructInfo(type); 
+                Info = new QBStructInfo(type);
             }
             public QBStructItem(string key, int value) // Construct an integer item
             {
@@ -170,7 +170,7 @@ namespace GH_Toolkit_Core.QB
                     else
                     {
                         throw new KeyNotFoundException($"The key '{key}' was not found in the struct.");
-                    } 
+                    }
                 }
                 set
                 {
@@ -389,7 +389,7 @@ namespace GH_Toolkit_Core.QB
                 string key;
                 foreach (QBStructItem item in Items)
                 {
-                    key = item.Props.ID == FLAGBYTE ? "" : $"{item.Props.ID} = ";
+                    key = item.Props.ID == FLAGBYTE ? "" : $"{GetQbKeyFormat(item.Props.ID)} = ";
                     if (item.Data is QBArrayNode arrayNode)
                     {
                         writer.WriteLine(indent + $"{key}[");
@@ -464,10 +464,10 @@ namespace GH_Toolkit_Core.QB
                 {
                     using (var writer = new StringWriter())
                     {
-                        StructToText(writer, level+1);
+                        StructToText(writer, level + 1);
                         return writer.ToString().Trim();
                     }
-                }                
+                }
             }
         }
     }
