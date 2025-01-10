@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static GH_Toolkit_Core.Methods.GlobalVariables;
 
 namespace GH_Toolkit_Core.MIDI
 {
@@ -13,7 +14,7 @@ namespace GH_Toolkit_Core.MIDI
         {
             public static List<string> AnimLoops { get; private set; }
             public static List<string> AnimLoopsCams { get; private set; }
-            private static string filesLocation = Path.Join(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "Other");
+            private static string filesLocation = Path.Join(ExeRootFolder, "Other");
 
             static AnimLoopsCache()
             {

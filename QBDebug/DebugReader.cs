@@ -9,6 +9,7 @@ using System.Security.Policy;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using static GH_Toolkit_Core.Methods.GlobalVariables;
 
 namespace GH_Toolkit_Core.Debug
 {
@@ -25,7 +26,7 @@ namespace GH_Toolkit_Core.Debug
         static Dictionary<string, uint> ReadPs2PakDbg()
         {
             var funcDict = new Dictionary<string, uint>();
-            var rootFolder = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            var rootFolder = ExeRootFolder;
             var compressedPath = Path.Combine(rootFolder, "QBDebug", "PS2Pak.dbg");
             var dbgPath = Path.Combine(rootFolder, "QBDebug", "ps2pak.txt");
             if (Path.Exists(compressedPath))
@@ -68,8 +69,8 @@ namespace GH_Toolkit_Core.Debug
         static Dictionary<uint, string> ReadQBDebug()
         {
             var funcDict = new Dictionary<uint, string>();
-            var rootFolder = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-            
+            var rootFolder = ExeRootFolder;
+
             var compressedPath = Path.Combine(rootFolder, "QBDebug", "keys.dbg");
             var dbgPath = Path.Combine(rootFolder, "QBDebug", "keys.txt");
             if (Path.Exists(compressedPath))

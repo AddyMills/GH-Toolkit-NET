@@ -1,12 +1,12 @@
 ﻿using System.Reflection;
 using YamlDotNet.Serialization;
+using static GH_Toolkit_Core.Methods.GlobalVariables;
 
 namespace GH_Toolkit_Core.PS360
 {
     public class YAML
     {
-        private static string ExeLocation = Assembly.GetExecutingAssembly().Location;
-        private static string ExeDirectory = Path.GetDirectoryName(ExeLocation);
+        private static string ExeDirectory = ExeRootFolder;
 
         private static int gh3Title = 0x415607F7;
         private static int ghwtTitle = 0x4156081A;

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static GH_Toolkit_Core.Methods.GlobalVariables;
 
 /*
  * * This file is intended to be a collection of custom methods to read and create sections to be used in custom songs
@@ -23,7 +24,7 @@ namespace GH_Toolkit_Core.MIDI
         static Dictionary<string, string> GetSectionsFromText()
         {
             var funcDict = new Dictionary<string, string>();
-            var rootFolder = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            var rootFolder = Path.GetDirectoryName(ExeRootFolder);
             var sectionPath = Path.Combine(rootFolder, "MIDI", "Sections.txt");
             var customSectionsPath = Path.Combine(rootFolder, "MIDI", "CustomSections.txt");
 

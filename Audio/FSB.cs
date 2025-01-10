@@ -13,6 +13,7 @@ using System.Diagnostics;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using static GH_Toolkit_Core.Methods.Exceptions;
+using static GH_Toolkit_Core.Methods.GlobalVariables;
 
 
 
@@ -20,7 +21,7 @@ namespace GH_Toolkit_Core.Audio
 {
     public class FSB
     {
-        private static string? rootFolder = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+        private static string? rootFolder = ExeRootFolder;
         private static string? audioPad48k128kbps = Path.Combine(rootFolder, "Audio\\Blank Audio\\48k128kbps.mp3");
         private ReadWrite fsb_writer = new ReadWrite("little");
         private ReadWrite dat_writer = new ReadWrite("big");
