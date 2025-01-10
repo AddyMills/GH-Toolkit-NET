@@ -671,7 +671,7 @@ namespace GH_Toolkit_Core.QB
             inQbKey,
             inQsKey,
             inComment,
-            inCommentScript,
+            inBlockComment,
             inScript,
             inArray,
             inStruct,
@@ -694,6 +694,7 @@ namespace GH_Toolkit_Core.QB
             public QBArrayNode? Array { get; set; }
             public QBStructData? Struct { get; set; }
             public QBScriptData? Script { get; set; }
+            private ParseState lastState = ParseState.whitespace;
             public ParseLevel(ParseLevel? parent, ParseState state, string type)
             {
                 Parent = parent;
@@ -707,6 +708,14 @@ namespace GH_Toolkit_Core.QB
             public void SetStringType(StringType str)
             {
                 StringType = str;
+            }
+            public void SetLastState(ParseState state)
+            {
+                lastState = state;
+            }
+            public ParseState GetLastState()
+            {
+                return lastState;
             }
         }
         public static string GetParseType(string data)
@@ -836,6 +845,9 @@ namespace GH_Toolkit_Core.QB
             string tmpValue = "";
             string tmpType;
 
+            bool lastForwardSlash = false;
+            
+
             for (int i = 0; i < data.Length; i++)
             {
                 char c = data[i];
@@ -850,9 +862,32 @@ namespace GH_Toolkit_Core.QB
                             case '\t':
                                 continue;
                             case ';':
-                            case '/':
                                 tmpValue = "";
+                                currLevel.SetLastState(currLevel.State);
                                 currLevel.State = ParseState.inComment;
+                                break;
+                            case '/':
+                                if (lastForwardSlash)
+                                {
+                                    currLevel.SetLastState(currLevel.State);
+                                    currLevel.State = ParseState.inComment;
+                                }
+                                else
+                                {
+                                    lastForwardSlash = true;
+                                }
+                                break;
+                            case '*':
+                                if (lastForwardSlash)
+                                {
+                                    currLevel.SetLastState(currLevel.State);
+                                    currLevel.State = ParseState.inBlockComment;
+                                    lastForwardSlash = false;
+                                }
+                                else
+                                {
+                                    throw new QFileParseException("Invalid character found at start of line");
+                                }
                                 break;
                             case '(':
                                 break;
@@ -1372,7 +1407,21 @@ namespace GH_Toolkit_Core.QB
                         {
                             case '\r':
                             case '\n':
-                                currLevel.State = ParseState.whitespace;
+                                currLevel.State = currLevel.GetLastState();
+                                break;
+                            default:
+                                continue;
+                        }
+                        break;
+                    case ParseState.inBlockComment:
+                        switch (c)
+                        {
+                            case '*':
+                                if (data[i + 1] == '/')
+                                {
+                                    currLevel.State = currLevel.GetLastState();
+                                    i++;
+                                }
                                 break;
                             default:
                                 continue;
@@ -1489,6 +1538,31 @@ namespace GH_Toolkit_Core.QB
             else if (c == '(' && tmpValue == "")
             {
                 currLevel.State = ParseState.inMultiFloat;
+                return true;
+            }
+            else if (c == ';' && tmpValue == "")
+            {
+                currLevel.SetLastState(currLevel.State);
+                currLevel.State = ParseState.inComment;
+                return true;
+            }
+            else if (c == '/' && tmpValue == "")
+            {
+                tmpValue += c;
+                return true;
+            }
+            else if (c == '/' && tmpValue == "/")
+            {
+                tmpValue = "";
+                currLevel.SetLastState(currLevel.State);
+                currLevel.State = ParseState.inComment;
+                return true;
+            }
+            else if (c == '*' && tmpValue == "/")
+            {
+                tmpValue = "";
+                currLevel.SetLastState(currLevel.State);
+                currLevel.State = ParseState.inBlockComment;
                 return true;
             }
 
