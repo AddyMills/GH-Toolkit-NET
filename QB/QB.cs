@@ -16,6 +16,7 @@ using System.Collections;
 using System.Text;
 using static GH_Toolkit_Core.PAK.PAK;
 using Melanchall.DryWetMidi.Composing;
+using System.Runtime.CompilerServices;
 
 /*
  * * This file is intended to be a collection of methods to read and create QB files
@@ -844,593 +845,659 @@ namespace GH_Toolkit_Core.QB
             string tmpKey = "";
             string tmpValue = "";
             string tmpType;
+            int lineNumber = 1; // Start from line 1
+            bool lastCharWasCarriageReturn = false;
 
             bool lastForwardSlash = false;
-            
-
-            for (int i = 0; i < data.Length; i++)
+            try
             {
-                char c = data[i];
-                switch (currLevel.State)
+                for (int i = 0; i < data.Length; i++)
                 {
-                    case ParseState.whitespace:
-                        switch (c)
+                    char c = data[i];
+                    if (c == '\n')
+                    {
+                        // Increment line number only if the last character wasn't '\r'
+                        if (!lastCharWasCarriageReturn)
                         {
-                            case ' ':
-                            case '\r':
-                            case '\n':
-                            case '\t':
-                                continue;
-                            case ';':
-                                tmpValue = "";
-                                currLevel.SetLastState(currLevel.State);
-                                currLevel.State = ParseState.inComment;
-                                break;
-                            case '/':
-                                if (lastForwardSlash)
-                                {
-                                    currLevel.SetLastState(currLevel.State);
-                                    currLevel.State = ParseState.inComment;
-                                }
-                                else
-                                {
-                                    lastForwardSlash = true;
-                                }
-                                break;
-                            case '*':
-                                if (lastForwardSlash)
-                                {
-                                    currLevel.SetLastState(currLevel.State);
-                                    currLevel.State = ParseState.inBlockComment;
-                                    lastForwardSlash = false;
-                                }
-                                else
-                                {
-                                    throw new QFileParseException("Invalid character found at start of line");
-                                }
-                                break;
-                            case '(':
-                                break;
-                            default:
-                                currLevel.State = ParseState.inKey;
-                                tmpKey = new string(c, 1);
-                                break;
+                            lineNumber++;
                         }
-                        break;
-                    case ParseState.inKey:
-                        switch (c)
-                        {
-                            case '\r':
-                            case '\n':
-                            case '\'':
-                            case '"':
-                                if (currLevel.LevelType == STRUCT)
-                                {
-                                    HandleStructFlag(ref i, ref tmpKey, currLevel);
-                                    break;
-                                }
-                                throw new QFileParseException($"QB Item Key {tmpKey} found without any data!");
-                            case ' ':
-                            case '\t':
-                                if (tmpKey == SCRIPTKEY)
-                                {
-                                    currLevel.State = ParseState.inValue;
-                                }
-                                /*else if (tmpKey.StartsWith("#\"") && tmpKey.EndsWith("\""))
-                                {
-                                    tmpKey = tmpKey.Substring(2, tmpKey.Length - 3); // Removing #"" from the start and end
-                                }
-                                else if (tmpKey.StartsWith("`") && tmpKey.EndsWith("`"))
-                                {
-                                    tmpKey = tmpKey.Substring(1, tmpKey.Length - 2); // Removing ` from the start and end
-                                }*/
-                                else
-                                {
-                                    tmpKey += c;
-                                }
-                                break;
-                            case '=':
-                                tmpKey = StripQbKeyQuotes(tmpKey.Trim());
-                                currLevel.State = ParseState.inValue;
-                                if (tmpKey == "qb_file" && qbFile.Children.Count == 0)
-                                {
-                                    // Old file if it's the first item and should be ignored.
-                                    tmpKey = "";
+                    }
+                    else if (c == '\r')
+                    {
+                        // Increment line number for '\r' and set the flag
+                        lineNumber++;
+                        lastCharWasCarriageReturn = true;
+                    }
+                    else
+                    {
+                        // Reset the flag if it's not a newline sequence
+                        lastCharWasCarriageReturn = false;
+                    }
+                    switch (currLevel.State)
+                    {
+                        case ParseState.whitespace:
+                            switch (c)
+                            {
+                                case ' ':
+                                case '\r':
+                                case '\n':
+                                case '\t':
+                                    continue;
+                                case ';':
+                                    tmpValue = "";
+                                    currLevel.SetLastState(currLevel.State);
                                     currLevel.State = ParseState.inComment;
-                                }
-                                break;
-                            default:
-                                if (tmpKey.EndsWith(" ") || tmpKey.EndsWith("\t"))
-                                {
-                                    tmpKey = tmpKey.TrimStart();
-                                    if ((tmpKey.StartsWith("#\"") || tmpKey.StartsWith("`")) && !(tmpKey.EndsWith("\" ") || tmpKey.EndsWith("` ")))
+                                    break;
+                                case '/':
+                                    if (lastForwardSlash)
+                                    {
+                                        currLevel.SetLastState(currLevel.State);
+                                        currLevel.State = ParseState.inComment;
+                                    }
+                                    else
+                                    {
+                                        lastForwardSlash = true;
+                                    }
+                                    break;
+                                case '*':
+                                    if (lastForwardSlash)
+                                    {
+                                        currLevel.SetLastState(currLevel.State);
+                                        currLevel.State = ParseState.inBlockComment;
+                                        lastForwardSlash = false;
+                                    }
+                                    else
+                                    {
+                                        throw new QFileParseException("Invalid character found at start of line");
+                                    }
+                                    break;
+                                case '(':
+                                    break;
+                                default:
+                                    currLevel.State = ParseState.inKey;
+                                    tmpKey = new string(c, 1);
+                                    break;
+                            }
+                            break;
+                        case ParseState.inKey:
+                            switch (c)
+                            {
+                                case '\r':
+                                case '\n':
+                                case '\'':
+                                case '"':
+                                    if (currLevel.LevelType == STRUCT)
+                                    {
+                                        HandleStructFlag(ref i, ref tmpKey, currLevel);
+                                        break;
+                                    }
+                                    throw new QFileParseException($"QB Item Key {tmpKey} found without any data!");
+                                case ' ':
+                                case '\t':
+                                    if (tmpKey == SCRIPTKEY)
+                                    {
+                                        currLevel.State = ParseState.inValue;
+                                    }
+                                    /*else if (tmpKey.StartsWith("#\"") && tmpKey.EndsWith("\""))
+                                    {
+                                        tmpKey = tmpKey.Substring(2, tmpKey.Length - 3); // Removing #"" from the start and end
+                                    }
+                                    else if (tmpKey.StartsWith("`") && tmpKey.EndsWith("`"))
+                                    {
+                                        tmpKey = tmpKey.Substring(1, tmpKey.Length - 2); // Removing ` from the start and end
+                                    }*/
+                                    else
                                     {
                                         tmpKey += c;
                                     }
-                                    else if (currLevel.LevelType == STRUCT)
+                                    break;
+                                case '=':
+                                    tmpKey = StripQbKeyQuotes(tmpKey.Trim());
+                                    currLevel.State = ParseState.inValue;
+                                    if (tmpKey == "qb_file" && qbFile.Children.Count == 0)
                                     {
-                                        HandleStructFlag(ref i, ref tmpKey, currLevel);
+                                        // Old file if it's the first item and should be ignored.
+                                        tmpKey = "";
+                                        currLevel.State = ParseState.inComment;
+                                    }
+                                    break;
+                                default:
+                                    if (tmpKey.EndsWith(" ") || tmpKey.EndsWith("\t"))
+                                    {
+                                        tmpKey = tmpKey.TrimStart();
+                                        if ((tmpKey.StartsWith("#\"") || tmpKey.StartsWith("`")) && !(tmpKey.EndsWith("\" ") || tmpKey.EndsWith("` ")))
+                                        {
+                                            tmpKey += c;
+                                        }
+                                        else if (currLevel.LevelType == STRUCT)
+                                        {
+                                            HandleStructFlag(ref i, ref tmpKey, currLevel);
+                                        }
+                                        else
+                                        {
+                                            throw new QFileParseException($"No equals sign found between two values at {tmpKey}");
+                                        }
                                     }
                                     else
                                     {
-                                        throw new QFileParseException($"No equals sign found between two values at {tmpKey}");
+                                        tmpKey += c;
                                     }
+                                    break;
+
+                            }
+                            break;
+                        case ParseState.inValue:
+                            if (ParseSpecialCheck(c, ref tmpValue, currLevel))
+                            {
+                                continue;
+                            }
+                            if (c == '[' && tmpValue == "")
+                            {
+                                if (currLevel.LevelType == SCRIPT)
+                                {
+                                    tmpValue = new string(c, 1);
+                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
                                 }
                                 else
                                 {
-                                    tmpKey += c;
+                                    AddLevel(ref currLevel, ref currItem, ParseState.inArray, ARRAY, ref tmpKey);
                                 }
-                                break;
-
-                        }
-                        break;
-                    case ParseState.inValue:
-                        if (ParseSpecialCheck(c, ref tmpValue, currLevel))
-                        {
-                            continue;
-                        }
-                        if (c == '[' && tmpValue == "")
-                        {
-                            if (currLevel.LevelType == SCRIPT)
-                            {
-                                tmpValue = new string(c, 1);
-                                AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                                continue;
                             }
-                            else
-                            {
-                                AddLevel(ref currLevel, ref currItem, ParseState.inArray, ARRAY, ref tmpKey);
-                            }
-                            continue;
-                        }
-                        if (c == '{' && tmpValue == "" && currLevel.LevelType != SCRIPT)
-                        {
-                            AddLevel(ref currLevel, ref currItem, ParseState.inStruct, STRUCT, ref tmpKey);
-                            continue;
-                        }
-                        else if (c == '{' && tmpValue == "" && currLevel.LevelType == SCRIPT)
-                        {
-                            if (escaped)
+                            if (c == '{' && tmpValue == "" && currLevel.LevelType != SCRIPT)
                             {
                                 AddLevel(ref currLevel, ref currItem, ParseState.inStruct, STRUCT, ref tmpKey);
-                                escaped = false;
+                                continue;
                             }
-                            else
+                            else if (c == '{' && tmpValue == "" && currLevel.LevelType == SCRIPT)
                             {
-                                tmpValue = new string(c, 1);
-                                AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                                if (escaped)
+                                {
+                                    AddLevel(ref currLevel, ref currItem, ParseState.inStruct, STRUCT, ref tmpKey);
+                                    escaped = false;
+                                }
+                                else
+                                {
+                                    tmpValue = new string(c, 1);
+                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                                }
+                                continue;
                             }
-                            continue;
-                        }
-                        switch (c)
-                        {
-                            case ',':
-                                if (currLevel.LevelType == ARRAY)
-                                {
-                                    continue;
-                                }
-                                else if (currLevel.LevelType == SCRIPT)
-                                {
-                                    tmpValue += c;
-                                }
-                                else
-                                {
-                                    throw new QFileParseException($"Comma found outside of array or script at character {i}");
-                                }
-                                break;
-                            case '\r':
-                            case '\n':
-                            case ' ':
-                            case '\t':
-                                if (tmpValue == "" && currLevel.LevelType != SCRIPT)
-                                {
-                                    throw new QFileParseException($"QB Item Key {tmpKey} found without any data!");
-                                }
-                                else if (tmpValue == "" && currLevel.LevelType == SCRIPT)
-                                {
-                                    if (c == '\n')
+                            switch (c)
+                            {
+                                case ',':
+                                    if (currLevel.LevelType == ARRAY)
                                     {
-                                        currLevel.Script.AddScriptElem(NEWLINE);
+                                        continue;
                                     }
-                                    continue;
-                                }
-                                else if (tmpKey == SCRIPTKEY)
-                                {
-                                    AddLevel(ref currLevel, ref currItem, ParseState.inValue, SCRIPT, ref tmpValue);
-                                    ClearTmpValues(ref tmpKey, ref tmpValue);
+                                    else if (currLevel.LevelType == SCRIPT)
+                                    {
+                                        tmpValue += c;
+                                    }
+                                    else
+                                    {
+                                        throw new QFileParseException($"Comma found outside of array or script at character {i}");
+                                    }
                                     break;
-                                }
-                                StateSwitch(currLevel);
-                                AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
-                                if (currLevel.LevelType == SCRIPT)
-                                {
-                                    if (c == '\n')
+                                case '\r':
+                                case '\n':
+                                case ' ':
+                                case '\t':
+                                    if (tmpValue == "" && currLevel.LevelType != SCRIPT)
                                     {
-                                        currLevel.Script.AddScriptElem(NEWLINE);
+                                        throw new QFileParseException($"QB Item Key {tmpKey} found without any data!");
                                     }
-                                }
-                                break;
-                            case '(':
-                                if (tmpValue.ToLower() == "qs")
-                                {
-                                    currLevel.State = ParseState.inQsKey;
-                                    tmpValue = "";
-                                }
-                                else
-                                {
-                                    if (tmpValue != "")
+                                    else if (tmpValue == "" && currLevel.LevelType == SCRIPT)
                                     {
-                                        tmpValue += c;
+                                        if (c == '\n')
+                                        {
+                                            currLevel.Script.AddScriptElem(NEWLINE);
+                                        }
+                                        continue;
+                                    }
+                                    else if (tmpKey == SCRIPTKEY)
+                                    {
+                                        AddLevel(ref currLevel, ref currItem, ParseState.inValue, SCRIPT, ref tmpValue);
+                                        if (c == '\n')
+                                        {
+                                            currLevel.Script.AddScriptElem(NEWLINE);
+                                        }
+                                        ClearTmpValues(ref tmpKey, ref tmpValue);
                                         break;
+                                    }
+                                    StateSwitch(currLevel);
+                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
+                                    if (currLevel.LevelType == SCRIPT)
+                                    {
+                                        if (c == '\n')
+                                        {
+                                            currLevel.Script.AddScriptElem(NEWLINE);
+                                        }
+                                    }
+                                    break;
+                                case '(':
+                                    if (tmpValue.ToLower() == "qs")
+                                    {
+                                        currLevel.State = ParseState.inQsKey;
+                                        tmpValue = "";
                                     }
                                     else
                                     {
-                                        throw new QFileParseException($"Unsupported character '(' in value of {tmpKey}");
+                                        if (tmpValue != "")
+                                        {
+                                            tmpValue += c;
+                                            break;
+                                        }
+                                        else
+                                        {
+                                            throw new QFileParseException($"Unsupported character '(' in value of {tmpKey}");
+                                        }
                                     }
-                                }
-                                break;
-                            case ')':
-                            case ':':
-                                if (currLevel.LevelType != SCRIPT)
-                                {
-                                    if (tmpValue != "")
+                                    break;
+                                case ')':
+                                case ':':
+                                    if (currLevel.LevelType != SCRIPT)
+                                    {
+                                        if (tmpValue != "")
+                                        {
+                                            tmpValue += c;
+                                            break;
+                                        }
+                                        else
+                                        {
+                                            throw new QFileParseException($"'{c}' found where it shouldn't be!");
+                                        }
+                                    }
+                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
+                                    tmpValue = new string(c, 1);
+                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                                    break;
+                                case '.':
+
+                                    if (currLevel.LevelType != SCRIPT)
                                     {
                                         tmpValue += c;
-                                        break;
+                                    }
+                                    else if (float.TryParse(tmpValue, out float val))
+                                    {
+                                        tmpValue += c;
+                                    }
+                                    else if (tmpValue == "<")
+                                    {
+                                        tmpValue += c;
+                                    }
+                                    else if (Regex.Match(tmpValue, ALLARGS_REGEX, RegexOptions.IgnoreCase).Success)
+                                    {
+                                        tmpValue += c;
                                     }
                                     else
                                     {
-                                        throw new QFileParseException($"'{c}' found where it shouldn't be!");
+                                        AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
+                                        tmpValue = new string(c, 1);
+                                        AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
                                     }
-                                }
-                                AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
-                                tmpValue = new string(c, 1);
-                                AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
-                                break;
-                            case '.':
-
-                                if (currLevel.LevelType != SCRIPT)
-                                {
-                                    tmpValue += c;
-                                }
-                                else if (float.TryParse(tmpValue, out float val))
-                                {
-                                    tmpValue += c;
-                                }
-                                else if (tmpValue == "<")
-                                {
-                                    tmpValue += c;
-                                }
-                                else if (Regex.Match(tmpValue, ALLARGS_REGEX, RegexOptions.IgnoreCase).Success)
-                                {
-                                    tmpValue += c;
-                                }
-                                else
-                                {
-                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
-                                    tmpValue = new string(c, 1);
-                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
-                                }
-                                break;
-                            case '}':
-                                if (currLevel.LevelType == STRUCT)
-                                {
-                                    StateSwitch(currLevel);
-                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
-                                    CloseStruct(ref currLevel, ref currItem, ref qbFile);
-                                }
-                                else if (currLevel.LevelType == SCRIPT)
-                                {
-                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
-                                    tmpValue = new string(c, 1);
-                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
-                                }
-                                else
-                                {
-                                    throw new QFileParseException("Closing bracket } found outside of struct!");
-                                }
-
-                                break;
-                            case ']':
-                                if (currLevel.LevelType == ARRAY)
-                                {
-                                    StateSwitch(currLevel);
-                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
-                                    CloseArray(ref currLevel, ref currItem, ref qbFile);
-                                }
-                                else if (currLevel.LevelType == SCRIPT)
-                                {
-                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
-                                    tmpValue = new string(c, 1);
-                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
-                                }
-                                else
-                                {
-                                    throw new QFileParseException("Closing brace ] found outside of array!");
-                                }
-                                break;
-                            case '\\':
-                                if (currLevel.LevelType == SCRIPT)
-                                {
-                                    escaped = true;
-                                }
-                                else
-                                {
-                                    throw new QFileParseException("\\ character found outside of string or script!");
-                                }
-                                break;
-                            default:
-                                tmpValue += c;
-                                break;
-                        }
-                        break;
-                    case ParseState.inMultiFloat:
-                        switch (c)
-                        {
-                            case '\r':
-                            case '\n':
-                                if (currLevel.LevelType == SCRIPT)
-                                {
-                                    i -= (tmpValue.Length + 1);
-                                    tmpValue = LEFTPAR;
-                                    StateSwitch(currLevel);
-                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
-                                }
-                                break;
-                            case ' ':
-                            case '\t':
-                                if (currLevel.LevelType == SCRIPT)
-                                {
-                                    tmpValue += c;
-                                }
-                                break;
-                            case ')':
-                                if (currLevel.LevelType == SCRIPT)
-                                {
-                                    string origVal = tmpValue;
-                                    tmpValue = tmpValue.Replace("\t", "").Replace(" ", "");
-                                    try
+                                    break;
+                                case '}':
+                                    if (currLevel.LevelType == STRUCT)
                                     {
                                         StateSwitch(currLevel);
-                                        AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, MULTIFLOAT);
+                                        AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
+                                        CloseStruct(ref currLevel, ref currItem, ref qbFile);
                                     }
-                                    catch
+                                    else if (currLevel.LevelType == SCRIPT)
                                     {
-                                        i -= (origVal.Length + 1);
+                                        AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
+                                        tmpValue = new string(c, 1);
+                                        AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                                    }
+                                    else
+                                    {
+                                        throw new QFileParseException("Closing bracket } found outside of struct!");
+                                    }
+
+                                    break;
+                                case ']':
+                                    if (currLevel.LevelType == ARRAY)
+                                    {
+                                        StateSwitch(currLevel);
+                                        AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
+                                        CloseArray(ref currLevel, ref currItem, ref qbFile);
+                                    }
+                                    else if (currLevel.LevelType == SCRIPT)
+                                    {
+                                        AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
+                                        tmpValue = new string(c, 1);
+                                        AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                                    }
+                                    else
+                                    {
+                                        throw new QFileParseException("Closing brace ] found outside of array!");
+                                    }
+                                    break;
+                                case '\\':
+                                    if (currLevel.LevelType == SCRIPT)
+                                    {
+                                        escaped = true;
+                                    }
+                                    else
+                                    {
+                                        throw new QFileParseException("\\ character found outside of string or script!");
+                                    }
+                                    break;
+                                /*
+                                case '*':
+                                case '+':
+                                case '-':
+                                case '/':
+                                    if (currLevel.LevelType == SCRIPT)
+                                    {
+                                        if (tmpValue != "")
+                                        {
+                                            AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
+                                            tmpValue = new string(c, 1);
+                                            AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                                        }
+                                        else
+                                        {
+                                            tmpValue += c;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        tmpValue += c;
+                                    }
+                                    break;
+                                */
+                                default:
+                                    tmpValue += c;
+                                    break;
+                            }
+                            break;
+                        case ParseState.inMultiFloat:
+                            switch (c)
+                            {
+                                case '\r':
+                                case '\n':
+                                    if (currLevel.LevelType == SCRIPT)
+                                    {
+                                        i -= (tmpValue.Length + 1);
                                         tmpValue = LEFTPAR;
                                         StateSwitch(currLevel);
                                         AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
                                     }
-                                }
-                                else
-                                {
-                                    StateSwitch(currLevel);
-                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, MULTIFLOAT);
-                                }
+                                    break;
+                                case ' ':
+                                case '\t':
+                                    if (currLevel.LevelType == SCRIPT)
+                                    {
+                                        tmpValue += c;
+                                    }
+                                    break;
+                                case ')':
+                                    if (currLevel.LevelType == SCRIPT)
+                                    {
+                                        string origVal = tmpValue;
+                                        tmpValue = tmpValue.Replace("\t", "").Replace(" ", "");
+                                        try
+                                        {
+                                            StateSwitch(currLevel);
+                                            AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, MULTIFLOAT);
+                                        }
+                                        catch
+                                        {
+                                            i -= (origVal.Length + 1);
+                                            tmpValue = LEFTPAR;
+                                            StateSwitch(currLevel);
+                                            AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        StateSwitch(currLevel);
+                                        AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, MULTIFLOAT);
+                                    }
 
-                                break;
-                            case '1':
-                            case '2':
-                            case '3':
-                            case '4':
-                            case '5':
-                            case '6':
-                            case '7':
-                            case '8':
-                            case '9':
-                            case '0':
-                            case ',':
-                            case '.':
-                            case '-':
-                            case 'E':
-                                tmpValue += c;
-                                break;
-                            default:
-                                if (currLevel.LevelType == SCRIPT)
-                                {
-                                    i -= (tmpValue.Length + 1);
-                                    tmpValue = LEFTPAR;
-                                    StateSwitch(currLevel);
+                                    break;
+                                case '1':
+                                case '2':
+                                case '3':
+                                case '4':
+                                case '5':
+                                case '6':
+                                case '7':
+                                case '8':
+                                case '9':
+                                case '0':
+                                case ',':
+                                case '.':
+                                case '-':
+                                case 'E':
+                                    tmpValue += c;
+                                    break;
+                                default:
+                                    if (currLevel.LevelType == SCRIPT)
+                                    {
+                                        i -= (tmpValue.Length + 1);
+                                        tmpValue = LEFTPAR;
+                                        StateSwitch(currLevel);
+                                        AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
+                                        break;
+                                    }
+                                    throw new QFileParseException("Unknown value found in Pair/Vector value");
+                            }
+                            break;
+                        case ParseState.inArray:
+                            if (ParseSpecialCheck(c, ref tmpValue, currLevel))
+                            {
+                                continue;
+                            }
+                            if (!(tmpValue == ""))
+                            {
+                                throw new NotImplementedException();
+                            }
+                            switch (c)
+                            {
+                                case '\r':
+                                case '\n':
+                                case ' ':
+                                case '\t':
+                                case ',':
+                                    break;
+                                case '{':
+                                    AddLevel(ref currLevel, ref currItem, ParseState.inStruct, STRUCT, ref tmpKey);
+                                    break;
+                                case '[':
+                                    AddLevel(ref currLevel, ref currItem, ParseState.inArray, ARRAY, ref tmpKey);
+                                    break;
+                                case ']':
+                                    CloseArray(ref currLevel, ref currItem, ref qbFile);
+                                    break;
+                                default:
+                                    tmpValue = new string(c, 1);
+                                    currLevel.State = ParseState.inValue;
+                                    break;
+                            }
+                            break;
+                        case ParseState.inStruct:
+                            switch (c)
+                            {
+                                case '\r':
+                                case '\n':
+                                case ' ':
+                                case '\t':
+                                    break;
+                                case '[':
+                                    tmpKey = FLAGBYTE;
+                                    AddLevel(ref currLevel, ref currItem, ParseState.inArray, ARRAY, ref tmpKey);
+                                    break;
+                                case '{':
+                                    tmpKey = FLAGBYTE;
+                                    AddLevel(ref currLevel, ref currItem, ParseState.inStruct, STRUCT, ref tmpKey);
+                                    break;
+                                case '}':
+                                    CloseStruct(ref currLevel, ref currItem, ref qbFile);
+                                    break;
+                                default:
+                                    i--;
+                                    currLevel.State = ParseState.inKey;
+                                    break;
+                            }
+                            break;
+                        case ParseState.inString:
+                            switch (c)
+                            {
+                                case '"':
+                                    if (escaped || currLevel.StringType == StringType.isString)
+                                    {
+                                        tmpValue += c;
+                                        escaped = false;
+                                        Console.WriteLine($"Warning: {currLevel.Name} contains double quotes");
+                                    }
+                                    else
+                                    {
+                                        AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, WIDESTRING);
+                                        StateSwitch(currLevel);
+                                    }
+                                    break;
+                                case '\'':
+                                    if (escaped)
+                                    {
+                                        tmpValue += c;
+                                        escaped = false;
+                                    }
+                                    else if (currLevel.StringType == StringType.isWideString)
+                                    {
+                                        tmpValue += c;
+                                    }
+                                    else
+                                    {
+                                        AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, STRING);
+                                        StateSwitch(currLevel);
+                                    }
+                                    break;
+                                case '\\':
+                                    if (escaped)
+                                    {
+                                        tmpValue += c;
+                                        escaped = false;
+                                    }
+                                    else
+                                    {
+                                        escaped = true;
+                                    }
+                                    break;
+                                default:
+                                    if (escaped)
+                                    {
+                                        //throw new InvalidOperationException("Invalid character found after escape character");
+                                        escaped = false;
+                                        tmpValue += '\\';
+                                    }
+                                    tmpValue += c;
+                                    break;
+                            }
+                            break;
+                        case ParseState.inQbKey:
+                            switch (c)
+                            {
+                                case '"':
+                                case '`':
+                                    tmpValue += c;
+                                    if (tmpKey == SCRIPTKEY)
+                                    {
+                                        tmpValue = StripQbKeyQuotes(tmpValue);
+                                        AddLevel(ref currLevel, ref currItem, ParseState.inValue, SCRIPT, ref tmpValue);
+                                        ClearTmpValues(ref tmpKey, ref tmpValue);
+                                        break;
+                                    }
+                                    if (tmpValue.StartsWith("<"))
+                                    {
+                                        throw new Exception();
+                                    }
                                     AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
-                                    break;
-                                }
-                                throw new QFileParseException("Unknown value found in Pair/Vector value");
-                        }
-                        break;
-                    case ParseState.inArray:
-                        if (ParseSpecialCheck(c, ref tmpValue, currLevel))
-                        {
-                            continue;
-                        }
-                        if (!(tmpValue == ""))
-                        {
-                            throw new NotImplementedException();
-                        }
-                        switch (c)
-                        {
-                            case '\r':
-                            case '\n':
-                            case ' ':
-                            case '\t':
-                            case ',':
-                                break;
-                            case '{':
-                                AddLevel(ref currLevel, ref currItem, ParseState.inStruct, STRUCT, ref tmpKey);
-                                break;
-                            case '[':
-                                AddLevel(ref currLevel, ref currItem, ParseState.inArray, ARRAY, ref tmpKey);
-                                break;
-                            case ']':
-                                CloseArray(ref currLevel, ref currItem, ref qbFile);
-                                break;
-                            default:
-                                tmpValue = new string(c, 1);
-                                currLevel.State = ParseState.inValue;
-                                break;
-                        }
-                        break;
-                    case ParseState.inStruct:
-                        switch (c)
-                        {
-                            case '\r':
-                            case '\n':
-                            case ' ':
-                            case '\t':
-                                break;
-                            case '[':
-                                tmpKey = FLAGBYTE;
-                                AddLevel(ref currLevel, ref currItem, ParseState.inArray, ARRAY, ref tmpKey);
-                                break;
-                            case '{':
-                                tmpKey = FLAGBYTE;
-                                AddLevel(ref currLevel, ref currItem, ParseState.inStruct, STRUCT, ref tmpKey);
-                                break;
-                            case '}':
-                                CloseStruct(ref currLevel, ref currItem, ref qbFile);
-                                break;
-                            default:
-                                i--;
-                                currLevel.State = ParseState.inKey;
-                                break;
-                        }
-                        break;
-                    case ParseState.inString:
-                        switch (c)
-                        {
-                            case '"':
-                                if (escaped || currLevel.StringType == StringType.isString)
-                                {
-                                    tmpValue += c;
-                                    escaped = false;
-                                    Console.WriteLine($"Warning: {currLevel.Name} contains double quotes");
-                                }
-                                else
-                                {
-                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, WIDESTRING);
                                     StateSwitch(currLevel);
-                                }
-                                break;
-                            case '\'':
-                                if (escaped)
-                                {
-                                    tmpValue += c;
-                                    escaped = false;
-                                }
-                                else if (currLevel.StringType == StringType.isWideString)
-                                {
-                                    tmpValue += c;
-                                }
-                                else
-                                {
-                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, STRING);
-                                    StateSwitch(currLevel);
-                                }
-                                break;
-                            case '\\':
-                                if (escaped)
-                                {
-                                    tmpValue += c;
-                                    escaped = false;
-                                }
-                                else
-                                {
-                                    escaped = true;
-                                }
-                                break;
-                            default:
-                                if (escaped)
-                                {
-                                    //throw new InvalidOperationException("Invalid character found after escape character");
-                                    escaped = false;
-                                    tmpValue += '\\';
-                                }
-                                tmpValue += c;
-                                break;
-                        }
-                        break;
-                    case ParseState.inQbKey:
-                        switch (c)
-                        {
-                            case '"':
-                            case '`':
-                                tmpValue += c;
-                                if (tmpKey == SCRIPTKEY)
-                                {
-                                    tmpValue = StripQbKeyQuotes(tmpValue);
-                                    AddLevel(ref currLevel, ref currItem, ParseState.inValue, SCRIPT, ref tmpValue);
-                                    ClearTmpValues(ref tmpKey, ref tmpValue);
                                     break;
-                                }
-                                if (tmpValue.StartsWith("<"))
-                                {
-                                    throw new Exception();
-                                }
-                                AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QBKEY);
-                                StateSwitch(currLevel);
-                                break;
-                            default:
-                                tmpValue += c;
-                                break;
-                        }
-                        break;
-                    case ParseState.inQsKey:
-                        switch (c)
-                        {
-                            case '"':
-                            case '`':
-                                if (tmpValue == "#")
-                                {
-                                    tmpValue = "";
-                                }
-                                else
-                                {
-                                    continue;
-                                }
-                                break;
-                            case ')':
-                                AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QSKEY);
-                                StateSwitch(currLevel);
-                                break;
-                            default:
-                                tmpValue += c;
-                                break;
-                        }
-                        break;
-                    case ParseState.inScript:
-                        switch (c)
-                        {
-                            default:
-                                break;
-                        }
-                        break;
-                    case ParseState.inComment:
-                        switch (c)
-                        {
-                            case '\r':
-                            case '\n':
-                                currLevel.State = currLevel.GetLastState();
-                                break;
-                            default:
-                                continue;
-                        }
-                        break;
-                    case ParseState.inBlockComment:
-                        switch (c)
-                        {
-                            case '*':
-                                if (data[i + 1] == '/')
-                                {
+                                default:
+                                    tmpValue += c;
+                                    break;
+                            }
+                            break;
+                        case ParseState.inQsKey:
+                            switch (c)
+                            {
+                                case '"':
+                                case '`':
+                                    if (tmpValue == "#")
+                                    {
+                                        tmpValue = "";
+                                    }
+                                    else
+                                    {
+                                        continue;
+                                    }
+                                    break;
+                                case ')':
+                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QSKEY);
+                                    StateSwitch(currLevel);
+                                    break;
+                                default:
+                                    tmpValue += c;
+                                    break;
+                            }
+                            break;
+                        case ParseState.inScript:
+                            switch (c)
+                            {
+                                default:
+                                    break;
+                            }
+                            break;
+                        case ParseState.inComment:
+                            switch (c)
+                            {
+                                case '\r':
+                                case '\n':
                                     currLevel.State = currLevel.GetLastState();
-                                    i++;
-                                }
-                                break;
-                            default:
-                                continue;
-                        }
-                        break;
+                                    break;
+                                default:
+                                    continue;
+                            }
+                            break;
+                        case ParseState.inBlockComment:
+                            switch (c)
+                            {
+                                case '*':
+                                    if (data[i + 1] == '/')
+                                    {
+                                        currLevel.State = currLevel.GetLastState();
+                                        i++;
+                                    }
+                                    break;
+                                default:
+                                    continue;
+                            }
+                            break;
 
+                    }
                 }
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in script {GetRootItem(currLevel)}");
+                throw new QFileParseException($"Line {lineNumber} - {ex.Message}");
+            }
             return qbFile.Children;
+        }
+        private static string GetRootItem(ParseLevel currLevel)
+        {
+            if (currLevel.Parent.LevelType == ROOT)
+            {
+                return currLevel.Name;
+            }
+            else
+            {
+                return GetRootItem(currLevel.Parent);
+            }
         }
         private static void HandleWhitespace(char c, ref ParseLevel currLevel, ref string tmpValue)
         {
