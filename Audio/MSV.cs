@@ -1,10 +1,11 @@
 ﻿using NAudio.Wave;
 using GH_Toolkit_Core.Methods;
 using System.Text;
+using static GH_Toolkit_Core.Methods.GlobalVariables;
 
 namespace GH_Toolkit_Core.Audio
 {
-    public class MSV
+    public partial class MSV
     {
         private static readonly byte[] MSVp = { (byte)'M', (byte)'S', (byte)'V', (byte)'p' };
         private static readonly int BUFFER_SIZE = 128 * 28;
@@ -58,6 +59,9 @@ namespace GH_Toolkit_Core.Audio
             {
                 var waveFormat = wavReader.WaveFormat;
                 var channels = waveFormat.Channels;
+                string folderPath = Path.GetDirectoryName(filePath);
+                string fileNoExt = Path.GetFileNameWithoutExtension(filePath);
+                string fullPath = Path.Combine(folderPath, fileNoExt);
                 // Assuming the stereo file has 1 or 2 channels
                 if (channels != 1 && channels != 2)
                 {
@@ -77,10 +81,28 @@ namespace GH_Toolkit_Core.Audio
 
                 // Directly write from waveProvider to MemoryStream
                 WaveFileWriter.WriteWavFileToStream(resampledStream, waveProvider);
+                //File.WriteAllBytes(Path.Combine(folderPath, $"{fileNoExt}_test.wav"), resampledStream.ToArray());
+                
+
                 resampledStream.Position = 0; // Reset the stream position to the beginning
-                string folderPath = Path.GetDirectoryName(filePath);
-                string fileNoExt = Path.GetFileNameWithoutExtension(filePath);
-                string fullPath = Path.Combine(folderPath, fileNoExt);
+                using (var wav2 = new WaveFileReader(resampledStream))
+                {
+                    var dataPosition = resampledStream.Length - wav2.Length;
+                    // Put all bytes from resampledStream starting at dataPosition until the end into a new byte array
+                    byte[] data = new byte[resampledStream.Length - dataPosition];
+                    resampledStream.Position = dataPosition;
+                    resampledStream.Read(data, 0, data.Length);
+                    // Overwrite the resampledStream with the data array
+                    resampledStream.SetLength(0);
+                    resampledStream.Write(data, 0, data.Length);
+                    resampledStream.Position = 0;
+
+                }
+                if (resampledStream.Length % 4 != 0)
+                {
+                    // Pad the stream with zeroes to ensure the stream length is a multiple of 4
+                    resampledStream.SetLength(resampledStream.Length + (4 - (resampledStream.Length % 4)));
+                }
                 string[] streams = SplitStereoToMono(resampledStream, fullPath);
                 return streams;
             }
@@ -289,6 +311,17 @@ namespace GH_Toolkit_Core.Audio
                 pack_s_1 = di - s_0;
             }
         }
+        public void CombineMSVStreams(string gtr, string rhy, string back, string output = "")
+        {
+            var gtr1 = Path.Combine(Path.GetDirectoryName(gtr), "gtr_1.msvs");
+            var gtr2 = Path.Combine(Path.GetDirectoryName(gtr), "gtr_2.msvs");
+            var rhy1 = Path.Combine(Path.GetDirectoryName(rhy), "rhythm_1.msvs");
+            var rhy2 = Path.Combine(Path.GetDirectoryName(rhy), "rhythm_2.msvs");
+            var back1 = Path.Combine(Path.GetDirectoryName(back), "backing_1.msvs");
+            var back2 = Path.Combine(Path.GetDirectoryName(back), "backing_2.msvs");
+            CombineMSVStreams(gtr1, gtr2, rhy1, rhy2, back1, back2, output);
+
+        }
         public void CombineMSVStreams(string gtr1, string gtr2, string rhy1, string rhy2, string back1, string back2, string output = "")
         {
             // Define the chunk size
@@ -343,7 +376,7 @@ namespace GH_Toolkit_Core.Audio
             return false;
         }
 
-        public void makePs2Audio(string filePath, string songName = "") // Always assumes 16-bit PCM. The file should be sent to the check method first before this one.
+        public async Task makePs2Audio(string filePath, string songName = "") // Always assumes 16-bit PCM. The file should be sent to the check method first before this one.
         {
             string extension = Path.GetExtension(filePath);
             string[] streams;
@@ -360,6 +393,96 @@ namespace GH_Toolkit_Core.Audio
             makeMSV(streams[1], songName);
             File.Delete(streams[0]);
             File.Delete(streams[1]);
+        }
+
+        private void MakeAllAudioEqualLength(string[] audioFiles)
+        {
+            int longestAudio = 0;
+            int largestFile = 0;
+            foreach (var audio in audioFiles)
+            {
+                var audioBytes = File.ReadAllBytes(audio);
+                using (var reader = new MemoryStream(audioBytes))
+                {
+                    if (reader.Length > longestAudio)
+                    {
+                        longestAudio = (int)reader.Length;
+                        reader.Position = 4;
+                        byte[] sizeBytes = new byte[4];
+                        reader.Read(sizeBytes, 0, 4);
+                        var fileSize = BitConverter.ToInt32(sizeBytes, 0);
+                        if (fileSize > largestFile)
+                        {
+                            largestFile = fileSize;
+                        }
+                    }
+                }
+            }
+            foreach (var audio in audioFiles)
+            {
+                var audioBytes = File.ReadAllBytes(audio);
+                using (var reader = new MemoryStream(audioBytes))
+                {
+                    if (reader.Length < longestAudio)
+                    {
+                        byte[] newAudio = new byte[longestAudio];
+                        reader.Read(newAudio, 0, (int)reader.Length);
+                        reader.Position = 4;
+                        byte[] sizeBytes = BitConverter.GetBytes(largestFile);
+
+                        File.WriteAllBytes(audio, newAudio);
+                    }
+                }
+            }
+        }
+
+        public async Task CreatePs2Msv(string gtrAudio, string rhythmAudio, string backingAudio, string? output = null, int sampleRate = 33075)
+        {
+            var exePath = ExeRootFolder;
+            if (output == null)
+            {
+                if (File.Exists(gtrAudio))
+                {
+                    output = Path.Combine(Path.GetDirectoryName(gtrAudio), "output.msv");
+                }
+                else if (File.Exists(rhythmAudio))
+                {
+                    output = Path.Combine(Path.GetDirectoryName(rhythmAudio), "output.msv");
+                }
+                else if (File.Exists(backingAudio))
+                {
+                    output = Path.Combine(Path.GetDirectoryName(backingAudio), "output.msv");
+                }
+                else
+                {
+                    throw new Exception("No valid audio files found.");
+                }
+            }
+
+            var outputFolder = Path.GetDirectoryName(output);
+
+            var gtrOut = Path.Combine(outputFolder, "gtr.wav");
+            var rhythmOut = Path.Combine(outputFolder, "rhythm.wav");
+            var backingOut = Path.Combine(outputFolder, "backing.wav");
+
+            Task gtrStem = ConvertToWav(gtrAudio, gtrOut, sampleRate);
+            Task rhythmStem = ConvertToWav(rhythmAudio, rhythmOut, sampleRate);
+            Task backingStem = ConvertToWav(backingAudio, backingOut, sampleRate);
+
+            var allTasks = new Task[] { gtrStem, rhythmStem, backingStem };
+            await Task.WhenAll(allTasks);
+
+            MakeAllAudioEqualLength([gtrOut, rhythmOut, backingOut]);
+
+
+            gtrStem = makePs2Audio(gtrOut);
+            rhythmStem = makePs2Audio(rhythmOut);
+            backingStem = makePs2Audio(backingOut);
+
+            allTasks = [gtrStem, rhythmStem, backingStem];
+            await Task.WhenAll(allTasks);
+
+            CombineMSVStreams(gtrOut, rhythmOut, backingOut, output);
         }
     }
 }
