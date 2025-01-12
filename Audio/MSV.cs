@@ -2,6 +2,7 @@
 using GH_Toolkit_Core.Methods;
 using System.Text;
 using static GH_Toolkit_Core.Methods.GlobalVariables;
+using System.Runtime.InteropServices;
 
 namespace GH_Toolkit_Core.Audio
 {
@@ -311,14 +312,15 @@ namespace GH_Toolkit_Core.Audio
                 pack_s_1 = di - s_0;
             }
         }
-        public void CombineMSVStreams(string gtr, string rhy, string back, string output = "")
+        public void CombineMSVStreams(string gtr, string rhy, string back, string output = "", bool coop = false)
         {
-            var gtr1 = Path.Combine(Path.GetDirectoryName(gtr), "gtr_1.msvs");
-            var gtr2 = Path.Combine(Path.GetDirectoryName(gtr), "gtr_2.msvs");
-            var rhy1 = Path.Combine(Path.GetDirectoryName(rhy), "rhythm_1.msvs");
-            var rhy2 = Path.Combine(Path.GetDirectoryName(rhy), "rhythm_2.msvs");
-            var back1 = Path.Combine(Path.GetDirectoryName(back), "backing_1.msvs");
-            var back2 = Path.Combine(Path.GetDirectoryName(back), "backing_2.msvs");
+            var coopAdd = coop ? "_coop" : "";
+            var gtr1 = Path.Combine(Path.GetDirectoryName(gtr), $"gtr{coopAdd}_1.msvs");
+            var gtr2 = Path.Combine(Path.GetDirectoryName(gtr), $"gtr{coopAdd}_2.msvs");
+            var rhy1 = Path.Combine(Path.GetDirectoryName(rhy), $"rhythm{coopAdd}_1.msvs");
+            var rhy2 = Path.Combine(Path.GetDirectoryName(rhy), $"rhythm{coopAdd}_2.msvs");
+            var back1 = Path.Combine(Path.GetDirectoryName(back), $"backing{coopAdd}_1.msvs");
+            var back2 = Path.Combine(Path.GetDirectoryName(back), $"backing{coopAdd}_2.msvs");
             CombineMSVStreams(gtr1, gtr2, rhy1, rhy2, back1, back2, output);
 
         }
@@ -334,31 +336,40 @@ namespace GH_Toolkit_Core.Audio
             }
 
             // Open all source files for reading
-            using FileStream fsGtr1 = new FileStream(gtr1, FileMode.Open, FileAccess.Read);
-            using FileStream fsGtr2 = new FileStream(gtr2, FileMode.Open, FileAccess.Read);
-            using FileStream fsRhy1 = new FileStream(rhy1, FileMode.Open, FileAccess.Read);
-            using FileStream fsRhy2 = new FileStream(rhy2, FileMode.Open, FileAccess.Read);
-            using FileStream fsBack1 = new FileStream(back1, FileMode.Open, FileAccess.Read);
-            using FileStream fsBack2 = new FileStream(back2, FileMode.Open, FileAccess.Read);
-
-            // Open the output file for writing
-            using FileStream fsOutput = new FileStream(output, FileMode.Create, FileAccess.Write);
-
-            byte[] buffer = new byte[chunkSize];
-            bool filesHaveData = true;
-
-            while (filesHaveData)
+            using (var fsGtr1 = new FileStream(gtr1, FileMode.Open, FileAccess.Read))
+            using (var fsGtr2 = new FileStream(gtr2, FileMode.Open, FileAccess.Read))
+            using (var fsRhy1 = new FileStream(rhy1, FileMode.Open, FileAccess.Read))
+            using (var fsRhy2 = new FileStream(rhy2, FileMode.Open, FileAccess.Read))
+            using (var fsBack1 = new FileStream(back1, FileMode.Open, FileAccess.Read))
+            using (var fsBack2 = new FileStream(back2, FileMode.Open, FileAccess.Read))
+            using (var fsOutput = new FileStream(output, FileMode.Create, FileAccess.Write))
             {
-                filesHaveData = false;
+                byte[] buffer = new byte[chunkSize];
+                bool filesHaveData = true;
 
-                // Interleave the files with padding if necessary
-                filesHaveData |= InterleaveMSVChunk(fsGtr1, fsOutput, buffer);
-                filesHaveData |= InterleaveMSVChunk(fsGtr2, fsOutput, buffer);
-                filesHaveData |= InterleaveMSVChunk(fsBack1, fsOutput, buffer);
-                filesHaveData |= InterleaveMSVChunk(fsBack2, fsOutput, buffer);
-                filesHaveData |= InterleaveMSVChunk(fsRhy1, fsOutput, buffer);
-                filesHaveData |= InterleaveMSVChunk(fsRhy2, fsOutput, buffer);
+                while (filesHaveData)
+                {
+                    filesHaveData = false;
+
+                    // Interleave the files with padding if necessary
+                    filesHaveData |= InterleaveMSVChunk(fsGtr1, fsOutput, buffer);
+                    filesHaveData |= InterleaveMSVChunk(fsGtr2, fsOutput, buffer);
+                    filesHaveData |= InterleaveMSVChunk(fsBack1, fsOutput, buffer);
+                    filesHaveData |= InterleaveMSVChunk(fsBack2, fsOutput, buffer);
+                    filesHaveData |= InterleaveMSVChunk(fsRhy1, fsOutput, buffer);
+                    filesHaveData |= InterleaveMSVChunk(fsRhy2, fsOutput, buffer);
+                }
             }
+
+            // Delete all input files
+            File.Delete(gtr1);
+            File.Delete(gtr2);
+            File.Delete(rhy1);
+            File.Delete(rhy2);
+            File.Delete(back1);
+            File.Delete(back2);
+
+
         }
         private bool InterleaveMSVChunk(FileStream fsInput, FileStream fsOutput, byte[] buffer)
         {
@@ -397,24 +408,33 @@ namespace GH_Toolkit_Core.Audio
 
         private void MakeAllAudioEqualLength(string[] audioFiles)
         {
-            int longestAudio = 0;
-            int largestFile = 0;
+            int longestWavSize = 0;
+            int largestFileSize = 0;
+            int largestAudioSize = 0;
             foreach (var audio in audioFiles)
             {
                 var audioBytes = File.ReadAllBytes(audio);
                 using (var reader = new MemoryStream(audioBytes))
                 {
-                    if (reader.Length > longestAudio)
+                    if (reader.Length > longestWavSize)
                     {
-                        longestAudio = (int)reader.Length;
-                        reader.Position = 4;
-                        byte[] sizeBytes = new byte[4];
-                        reader.Read(sizeBytes, 0, 4);
-                        var fileSize = BitConverter.ToInt32(sizeBytes, 0);
-                        if (fileSize > largestFile)
-                        {
-                            largestFile = fileSize;
-                        }
+                        longestWavSize = (int)reader.Length;
+                    }
+                    reader.Position = 4;
+                    byte[] sizeBytes = new byte[4];
+                    reader.Read(sizeBytes, 0, 4);
+                    var fileSize = BitConverter.ToInt32(sizeBytes, 0);
+                    if (fileSize > largestFileSize)
+                    {
+                        largestFileSize = fileSize;
+                    }
+                    reader.Position = 74;
+                    byte[] fileBytes = new byte[4];
+                    reader.Read(fileBytes, 0, 4);
+                    var audioSize = BitConverter.ToInt32(fileBytes, 0);
+                    if (audioSize > largestAudioSize)
+                    {
+                        largestAudioSize = audioSize;
                     }
                 }
             }
@@ -423,20 +443,27 @@ namespace GH_Toolkit_Core.Audio
                 var audioBytes = File.ReadAllBytes(audio);
                 using (var reader = new MemoryStream(audioBytes))
                 {
-                    if (reader.Length < longestAudio)
+                    if (reader.Length < longestWavSize)
                     {
-                        byte[] newAudio = new byte[longestAudio];
+                        byte[] newAudio = new byte[longestWavSize];
                         reader.Read(newAudio, 0, (int)reader.Length);
-                        reader.Position = 4;
-                        byte[] sizeBytes = BitConverter.GetBytes(largestFile);
-
-                        File.WriteAllBytes(audio, newAudio);
+                        using (var newAudioReader = new MemoryStream(newAudio))
+                        {
+                            newAudioReader.Position = 4;
+                            byte[] sizeBytes = BitConverter.GetBytes(largestFileSize);
+                            newAudioReader.Write(sizeBytes, 0, 4);
+                            newAudioReader.Position = 74;
+                            byte[] audioSizeBytes = BitConverter.GetBytes(largestAudioSize);
+                            newAudioReader.Write(audioSizeBytes, 0, 4);
+                            File.WriteAllBytes(audio, newAudio);
+                        }
+                        
                     }
                 }
             }
         }
 
-        public async Task CreatePs2Msv(string gtrAudio, string rhythmAudio, string backingAudio, string? output = null, int sampleRate = 33075)
+        public async Task CreatePs2Msv(string gtrAudio, string rhythmAudio, string backingAudio, string gtrCoopAudio = "", string rhythmCoopAudio = "", string backingCoopAudio = "", string? output = null, int sampleRate = 33075)
         {
             var exePath = ExeRootFolder;
             if (output == null)
@@ -470,9 +497,32 @@ namespace GH_Toolkit_Core.Audio
             Task backingStem = ConvertToWav(backingAudio, backingOut, sampleRate);
 
             var allTasks = new Task[] { gtrStem, rhythmStem, backingStem };
+            var allStems = new string[] { gtrOut, rhythmOut, backingOut };
+
+            var gtrCoopOut = Path.Combine(outputFolder, "gtr_coop.wav");
+            var rhythmCoopOut = Path.Combine(outputFolder, "rhythm_coop.wav");
+            var backingCoopOut = Path.Combine(outputFolder, "backing_coop.wav");
+            Task? gtrCoopStem = null;
+            Task? rhythmCoopStem = null;
+            Task? backingCoopStem = null;
+            var coopTracks = new string[] { gtrCoopAudio, rhythmCoopAudio, backingCoopAudio };
+            string[]? coopStems = null;
+            var coopTracksExist = AnyFileExists(coopTracks);
+
+            if (coopTracksExist)
+            {
+                gtrCoopStem = ConvertToWav(gtrCoopAudio, gtrCoopOut, sampleRate);
+                rhythmCoopStem = ConvertToWav(rhythmCoopAudio, rhythmCoopOut, sampleRate);
+                backingCoopStem = ConvertToWav(backingCoopAudio, backingCoopOut, sampleRate);
+
+                allTasks = [gtrStem, rhythmStem, backingStem, gtrCoopStem, rhythmCoopStem, backingCoopStem];
+                coopStems = [gtrCoopOut, rhythmCoopOut, backingCoopOut];
+                allStems = allStems.Concat(coopStems).ToArray();
+            }
+
             await Task.WhenAll(allTasks);
 
-            MakeAllAudioEqualLength([gtrOut, rhythmOut, backingOut]);
+            MakeAllAudioEqualLength(allStems);
 
 
             gtrStem = makePs2Audio(gtrOut);
@@ -480,9 +530,37 @@ namespace GH_Toolkit_Core.Audio
             backingStem = makePs2Audio(backingOut);
 
             allTasks = [gtrStem, rhythmStem, backingStem];
+
+            if (coopTracksExist)
+            {
+                gtrCoopStem = makePs2Audio(gtrCoopOut);
+                rhythmCoopStem = makePs2Audio(rhythmCoopOut);
+                backingCoopStem = makePs2Audio(backingCoopOut);
+
+                allTasks = [gtrStem, rhythmStem, backingStem, gtrCoopStem, rhythmCoopStem, backingCoopStem];
+            }
+
             await Task.WhenAll(allTasks);
 
-            CombineMSVStreams(gtrOut, rhythmOut, backingOut, output);
+            CombineMSVStreams(gtrOut, rhythmOut, backingOut, output, false);
+            if (coopTracksExist)
+            {
+                var coopOutput = Path.Combine(outputFolder, "output_coop.msv");
+                CombineMSVStreams(gtrCoopOut, rhythmCoopOut, backingCoopOut, coopOutput, true);
+            }
+        }
+
+
+        public static bool AnyFileExists(string[] filePaths)
+        {
+            foreach (var filePath in filePaths)
+            {
+                if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }
