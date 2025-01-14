@@ -2,6 +2,8 @@
 using FFMpegCore.Arguments;
 using FFMpegCore.Enums;
 using static GH_Toolkit_Core.Methods.GlobalVariables;
+using static GH_Toolkit_Core.Audio.FSB;
+using static GH_Toolkit_Core.Audio.AudioConstants;
 
 namespace GH_Toolkit_Core.Audio
 {
@@ -25,6 +27,12 @@ namespace GH_Toolkit_Core.Audio
             await settings.ProcessAsynchronously();
         }
 
+        public async Task MakePreviewPs2(string[] paths, string outputPath, decimal startTime = 0, decimal trimDuration = 30, decimal fadeIn = 1, decimal fadeOut = 1, decimal volume = -7, int sampleRate = 33075)
+        {
+            var fsb = new FSB();
+            string trimFilter = GetMixFilter(startTime, trimDuration, fadeIn, fadeOut, volume);
+            await fsb.MixFiles(paths, outputPath, trimFilter, "mixout", WAV, sampleRate);
+        }
 
     }
 }

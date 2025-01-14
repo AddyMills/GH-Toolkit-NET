@@ -2,6 +2,7 @@
 using GH_Toolkit_Core.Methods;
 using System.Text;
 using static GH_Toolkit_Core.Methods.GlobalVariables;
+using static GH_Toolkit_Core.Audio.AudioConstants;
 using System.Runtime.InteropServices;
 
 namespace GH_Toolkit_Core.Audio
@@ -23,6 +24,25 @@ namespace GH_Toolkit_Core.Audio
             [98.0 / 64.0, -55.0 / 64.0],
             [122.0 / 64.0, -60.0 / 64.0]
         ];
+
+        /*
+                                     { 0.0, 0.0 },
+                            {  -60.0 / 64.0, 0.0 },
+                            { -115.0 / 64.0, 52.0 / 64.0 },
+                            {  -98.0 / 64.0, 55.0 / 64.0 },
+                            { -122.0 / 64.0, 60.0 / 64.0 } 
+         
+         */
+        /* Original C# code
+            [0.0, 0.0],
+            [60.0 / 64.0, 0.0],
+            [115.0 / 64.0, -52.0 / 64.0],
+            [98.0 / 64.0, -55.0 / 64.0],
+            [122.0 / 64.0, -60.0 / 64.0]
+         
+         
+         
+         */
 
         public MSV()
         {
@@ -83,7 +103,7 @@ namespace GH_Toolkit_Core.Audio
                 // Directly write from waveProvider to MemoryStream
                 WaveFileWriter.WriteWavFileToStream(resampledStream, waveProvider);
                 //File.WriteAllBytes(Path.Combine(folderPath, $"{fileNoExt}_test.wav"), resampledStream.ToArray());
-                
+
 
                 resampledStream.Position = 0; // Reset the stream position to the beginning
                 using (var wav2 = new WaveFileReader(resampledStream))
@@ -332,7 +352,7 @@ namespace GH_Toolkit_Core.Audio
             // Set output to a default value if it's empty
             if (output == "")
             {
-                output = Path.Combine(Path.GetDirectoryName(gtr1), "combined.msvs");
+                output = Path.Combine(Path.GetDirectoryName(gtr1), "combined.msv");
             }
 
             // Open all source files for reading
@@ -371,6 +391,35 @@ namespace GH_Toolkit_Core.Audio
 
 
         }
+        public void CombinePreviewStreams(string left, string right, string output = "")
+        {
+            // Define the chunk size
+            const int chunkSize = 0x20000; // 131072 bytes
+
+            // Set output to a default value if it's empty
+            if (output == "")
+            {
+                output = Path.Combine(Path.GetDirectoryName(left), "preview.msv");
+            }
+
+            using (var fsleft = new FileStream(left, FileMode.Open, FileAccess.Read))
+            using (var fsright = new FileStream(right, FileMode.Open, FileAccess.Read))
+            using (var fsOutput = new FileStream(output, FileMode.Create, FileAccess.Write))
+            {
+                byte[] buffer = new byte[chunkSize];
+                bool filesHaveData = true;
+
+                while (filesHaveData)
+                {
+                    filesHaveData = false;
+
+                    // Interleave the files with padding if necessary
+                    filesHaveData |= InterleaveMSVChunk(fsleft, fsOutput, buffer);
+                    filesHaveData |= InterleaveMSVChunk(fsright, fsOutput, buffer);
+                }
+            }
+
+        }
         private bool InterleaveMSVChunk(FileStream fsInput, FileStream fsOutput, byte[] buffer)
         {
             int bytesRead = fsInput.Read(buffer, 0, buffer.Length);
@@ -390,7 +439,7 @@ namespace GH_Toolkit_Core.Audio
         public async Task makePs2Audio(string filePath, string songName = "") // Always assumes 16-bit PCM. The file should be sent to the check method first before this one.
         {
             string extension = Path.GetExtension(filePath);
-            string[] streams;
+            string[]? streams = null;
 
             switch (extension.ToLower())
             {
@@ -400,10 +449,21 @@ namespace GH_Toolkit_Core.Audio
                 default:
                     throw new Exception("Invalid file type.");
             }
-            makeMSV(streams[0], songName);
-            makeMSV(streams[1], songName);
-            File.Delete(streams[0]);
-            File.Delete(streams[1]);
+
+            var makeMSVs = new[]
+            {
+                Task.Run(() => makeMSV(streams[0], songName)),
+                Task.Run(() => makeMSV(streams[1], songName))
+            };
+
+            await Task.WhenAll(makeMSVs);
+
+            var deleteTasks = new[]
+            {
+                Task.Run(() => File.Delete(streams[0])),
+                Task.Run(() => File.Delete(streams[1]))
+            };
+            await Task.WhenAll(deleteTasks);
         }
 
         private void MakeAllAudioEqualLength(string[] audioFiles)
@@ -457,14 +517,16 @@ namespace GH_Toolkit_Core.Audio
                             newAudioReader.Write(audioSizeBytes, 0, 4);
                             File.WriteAllBytes(audio, newAudio);
                         }
-                        
+
                     }
                 }
             }
         }
 
-        public async Task CreatePs2Msv(string gtrAudio, string rhythmAudio, string backingAudio, string gtrCoopAudio = "", string rhythmCoopAudio = "", string backingCoopAudio = "", string? output = null, int sampleRate = 33075)
+        public async Task CreatePs2Msv(string gtrAudio, string rhythmAudio, string[] backingAudio, string gtrCoopAudio = "", string rhythmCoopAudio = "", string[]? backingCoopAudio = null, string? output = null, int sampleRate = 33075)
         {
+            backingCoopAudio ??= new string[0];
+            var fsb = new FSB();
             var exePath = ExeRootFolder;
             if (output == null)
             {
@@ -476,9 +538,9 @@ namespace GH_Toolkit_Core.Audio
                 {
                     output = Path.Combine(Path.GetDirectoryName(rhythmAudio), "output.msv");
                 }
-                else if (File.Exists(backingAudio))
+                else if (AnyFileExists(backingAudio))
                 {
-                    output = Path.Combine(Path.GetDirectoryName(backingAudio), "output.msv");
+                    output = Path.Combine(Path.GetDirectoryName(ReturnFirstThatExists(backingAudio)), "output.msv");
                 }
                 else
                 {
@@ -486,6 +548,10 @@ namespace GH_Toolkit_Core.Audio
                 }
             }
 
+            if (Directory.Exists(output))
+            {
+                output = Path.Combine(output, "output.msv");
+            }
             var outputFolder = Path.GetDirectoryName(output);
 
             var gtrOut = Path.Combine(outputFolder, "gtr.wav");
@@ -494,7 +560,7 @@ namespace GH_Toolkit_Core.Audio
 
             Task gtrStem = ConvertToWav(gtrAudio, gtrOut, sampleRate);
             Task rhythmStem = ConvertToWav(rhythmAudio, rhythmOut, sampleRate);
-            Task backingStem = ConvertToWav(backingAudio, backingOut, sampleRate);
+            Task backingStem = fsb.MixFiles(backingAudio, backingOut, convertTo:WAV, sampleRate:sampleRate);
 
             var allTasks = new Task[] { gtrStem, rhythmStem, backingStem };
             var allStems = new string[] { gtrOut, rhythmOut, backingOut };
@@ -505,7 +571,7 @@ namespace GH_Toolkit_Core.Audio
             Task? gtrCoopStem = null;
             Task? rhythmCoopStem = null;
             Task? backingCoopStem = null;
-            var coopTracks = new string[] { gtrCoopAudio, rhythmCoopAudio, backingCoopAudio };
+            var coopTracks = backingCoopAudio.Concat([gtrCoopAudio, rhythmCoopAudio]).ToArray();
             string[]? coopStems = null;
             var coopTracksExist = AnyFileExists(coopTracks);
 
@@ -513,7 +579,7 @@ namespace GH_Toolkit_Core.Audio
             {
                 gtrCoopStem = ConvertToWav(gtrCoopAudio, gtrCoopOut, sampleRate);
                 rhythmCoopStem = ConvertToWav(rhythmCoopAudio, rhythmCoopOut, sampleRate);
-                backingCoopStem = ConvertToWav(backingCoopAudio, backingCoopOut, sampleRate);
+                backingCoopStem = fsb.MixFiles(backingCoopAudio, backingCoopOut, convertTo: WAV, sampleRate: sampleRate);
 
                 allTasks = [gtrStem, rhythmStem, backingStem, gtrCoopStem, rhythmCoopStem, backingCoopStem];
                 coopStems = [gtrCoopOut, rhythmCoopOut, backingCoopOut];
@@ -523,7 +589,6 @@ namespace GH_Toolkit_Core.Audio
             await Task.WhenAll(allTasks);
 
             MakeAllAudioEqualLength(allStems);
-
 
             gtrStem = makePs2Audio(gtrOut);
             rhythmStem = makePs2Audio(rhythmOut);
@@ -542,15 +607,60 @@ namespace GH_Toolkit_Core.Audio
 
             await Task.WhenAll(allTasks);
 
-            CombineMSVStreams(gtrOut, rhythmOut, backingOut, output, false);
+
+            var combineSP = Task.Run(() => CombineMSVStreams(gtrOut, rhythmOut, backingOut, output, false));
+
+            allTasks = [combineSP];
+
             if (coopTracksExist)
             {
                 var coopOutput = Path.Combine(outputFolder, "output_coop.msv");
-                CombineMSVStreams(gtrCoopOut, rhythmCoopOut, backingCoopOut, coopOutput, true);
+                var combineMP = Task.Run(() => CombineMSVStreams(gtrCoopOut, rhythmCoopOut, backingCoopOut, coopOutput, true));
+                allTasks = [combineSP, combineMP];
             }
+
+            await Task.WhenAll(allTasks);
+
+            var deleteTasks = new[]
+            {
+                Task.Run(() => File.Delete(gtrOut)),
+                Task.Run(() => File.Delete(rhythmOut)),
+                Task.Run(() => File.Delete(backingOut))
+            };
+
+            if (coopTracksExist)
+            {
+                deleteTasks = deleteTasks.Concat(
+                [
+                    Task.Run(() => File.Delete(gtrCoopOut)),
+                    Task.Run(() => File.Delete(rhythmCoopOut)),
+                    Task.Run(() => File.Delete(backingCoopOut))
+                ]).ToArray();
+            }
+
+            await Task.WhenAll(deleteTasks);
+
         }
 
+        public async Task CreatePs2Preview(string inAudio)
+        {
+            var left = Path.Combine(Path.GetDirectoryName(inAudio), "preview_1.msvs");
+            var right = Path.Combine(Path.GetDirectoryName(inAudio), "preview_2.msvs");
+            await makePs2Audio(inAudio);
 
+            var output = Path.Combine(Path.GetDirectoryName(inAudio), "preview.msv");
+            var combineStreams = Task.Run(() => CombinePreviewStreams(left, right, output));
+
+            await combineStreams;
+
+            var deleteTasks = new[]
+            {
+                Task.Run(() =>File.Delete(left)),
+                Task.Run(() => File.Delete(right))
+            };
+            await Task.WhenAll(deleteTasks);
+        }
+           
         public static bool AnyFileExists(string[] filePaths)
         {
             foreach (var filePath in filePaths)
@@ -562,5 +672,19 @@ namespace GH_Toolkit_Core.Audio
             }
             return false;
         }
+
+        public static string ReturnFirstThatExists(string[] filePaths)
+        {
+            foreach (var filePath in filePaths)
+            {
+                if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
+                {
+                    return filePath;
+                }
+            }
+            return "";
+
+        }
     }
+
 }
