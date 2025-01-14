@@ -14,6 +14,9 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using static GH_Toolkit_Core.Methods.Exceptions;
 using static GH_Toolkit_Core.Methods.GlobalVariables;
+using static GH_Toolkit_Core.Audio.AudioConstants;
+using YamlDotNet.Core.Tokens;
+
 
 
 
@@ -72,7 +75,7 @@ namespace GH_Toolkit_Core.Audio
             }
             
         }
-        public async Task MakePreview(string[] paths, string outputPath, decimal startTime = 0, decimal trimDuration = 30, decimal fadeIn = 1, decimal fadeOut = 1, decimal volume = -7)
+        public static string GetMixFilter(decimal startTime = 0, decimal trimDuration = 30, decimal fadeIn = 1, decimal fadeOut = 1, decimal volume = -7)
         {
             CultureInfo culture = new CultureInfo("en-US");
             string startTimeStr = startTime.ToString(culture);
@@ -84,28 +87,57 @@ namespace GH_Toolkit_Core.Audio
             string volumeStr = volume.ToString(culture);
 
             string trimFilter = $"[mixout]atrim=start={startTimeStr}:duration={trimDurationStr},afade=t=in:st={startTimeStr}:d={fadeInStr},afade=t=out:st={fadeOutCalcStr}:d={fadeOutStr},volume={volumeStr}dB[final]";
+        
+            return trimFilter;
+        }
+        public async Task MakePreview(string[] paths, string outputPath, decimal startTime = 0, decimal trimDuration = 30, decimal fadeIn = 1, decimal fadeOut = 1, decimal volume = -7)
+        {
+            string trimFilter = GetMixFilter(startTime, trimDuration, fadeIn, fadeOut, volume);
             await MixFiles(paths, outputPath, trimFilter, "mixout");
         }
-        public async Task MixFiles(string[] paths, string outputPath, string customArgument = "", string customPipe = "")
+        public async Task MixFiles(string[] paths, string outputPath, string customArgument = "", string customPipe = "", string convertTo = ".mp3", int sampleRate = 48000)
         {
             if (paths.Length == 0)
             {
-                File.Copy(audioPad48k128kbps, outputPath, true);
+                if (convertTo == MP3)
+                {
+                    File.Copy(audioPad48k128kbps, outputPath, true);
+                }
             }
             else if (paths.Length == 1)
             {
-                await ConvertToMp3(paths[0], outputPath); 
+                if (convertTo == MP3)
+                {
+                    await ConvertToMp3(paths[0], outputPath);
+                }
+                else if (convertTo == WAV)
+                {
+                    var msv = new MSV();
+                    await msv.ConvertToWav(paths[0], outputPath, sampleRate);
+                }
+                else
+                {
+                    throw new NotSupportedException("The specified audio format is not supported.");
+                }
             }
             else
             {
                 List<string> files = new List<string>();
                 foreach (string path in paths)
                 {
-                    FileInfo fileInfo = new FileInfo(path);
-                    if (fileInfo.Length > 384)
+                    if (convertTo == MP3)
+                    {
+                        FileInfo fileInfo = new FileInfo(path);
+                        if (fileInfo.Length > 384)
+                        {
+                            files.Add(path);
+                        }
+                    }
+                    else if (convertTo == WAV && Path.Exists(path))
                     {
                         files.Add(path);
                     }
+                    
                 }
                 paths = files.ToArray();
                 // Build the FFmpeg arguments for mixing audio files.
@@ -142,8 +174,9 @@ namespace GH_Toolkit_Core.Audio
 
                 try
                 {
-                    // Execute the FFmpeg command
-                    await FFMpegArguments
+                    if (convertTo == MP3)
+                    {
+                        await FFMpegArguments
                         .FromFileInput(paths, true)
                         .OutputToFile(outputPath, true, options => options
                             .WithCustomArgument(ffmpegArgs)
@@ -153,6 +186,25 @@ namespace GH_Toolkit_Core.Audio
                             .WithoutMetadata() // Remove metadata
                             .WithCustomArgument("-ac 2 -write_xing 0 -id3v2_version 0") // Force 2 Channels
                             ).ProcessAsynchronously();
+                    }
+                    else if (convertTo == WAV)
+                    {
+                        var settings = FFMpegArguments
+                            .FromFileInput(paths, true)
+                            .OutputToFile(outputPath, true, options => options
+                                .WithCustomArgument(ffmpegArgs)
+                                .WithAudioCodec(AudioCodec.PcmS16le)
+                                .WithAudioSamplingRate(sampleRate) // Set the sample rate to variable
+                                .WithCustomArgument("-ac 2") // Force 2 Channels (Stereo)
+                                .WithoutMetadata()// Remove metadata
+                        );
+                        await settings.ProcessAsynchronously();
+                    }
+                    else
+                    {
+                        throw new NotSupportedException("The specified audio format is not supported.");
+                    }
+                    
 
                 }
                 catch (Exception ex)
