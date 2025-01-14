@@ -154,6 +154,7 @@
 
   <ItemGroup>
     <Folder Include="Audio\MSV C Code\" />
+    <Folder Include="RockLib\" />
   </ItemGroup>
 	<ItemGroup>
 		<ProjectReference Include="..\FFMpegCore\FFMpegCore\FFMpegCore.csproj" />
