@@ -1240,18 +1240,48 @@ namespace GH_Toolkit_Core.PAK
             if (Directory.Exists(skaPath))
             {
                 float skaMultiplier;
-                if (game == skaSource)
+                if (gameConsole == CONSOLE_PS2)
                 {
-                    skaMultiplier = 1.0f;
-                }
-                else if (game == GAME_GH3)
-                {
-                    skaMultiplier = 0.5f;
+                    switch (skaSource)
+                    {
+                        case GAME_GH3:
+                            switch (game)
+                            {
+                                case GAME_GH3:
+                                    skaMultiplier = 2.0f;
+                                    break;
+                                case GAME_GHA:
+                                    skaMultiplier = 1.0f;
+                                    break;
+                                default:
+                                    skaMultiplier = 1.0f;
+                                    break;
+                            }
+                            break;
+                        case GAME_GHA:
+                            skaMultiplier = 1.0f;
+                            break;
+                        default:
+                            skaMultiplier = 2.0f;
+                            break;
+                    }
                 }
                 else
                 {
-                    skaMultiplier = skaSource == GAME_GH3 ? 2.0f : 1.0f;
+                    if (game == skaSource)
+                    {
+                        skaMultiplier = 1.0f;
+                    }
+                    else if (game == GAME_GH3)
+                    {
+                        skaMultiplier = 0.5f;
+                    }
+                    else
+                    {
+                        skaMultiplier = skaSource == GAME_GH3 ? 2.0f : 1.0f;
+                    }
                 }
+
                 var skaFiles = Directory.GetFiles(skaPath);
                 string skaEndian = gameConsole == CONSOLE_XBOX ? "big" : "little";
                 foreach (var skaFile in skaFiles)
@@ -1299,7 +1329,7 @@ namespace GH_Toolkit_Core.PAK
                                 skaScripts = midiFile.MakePs2SkaScript();
                                 ps2SkaProcessed = true;
                             }
-                            convertedSka = skaTest.WritePs2StyleSka();
+                            convertedSka = skaTest.WritePs2StyleSka(skaMultiplier);
                             string skaFolderPs2 = Path.Combine(savePath, "PS2 SKA Files");
                             skaSave = Path.Combine(skaFolderPs2, Path.GetFileName(skaFile).Replace(DOTXEN, DOTPS2));
                             Directory.CreateDirectory(skaFolderPs2);
