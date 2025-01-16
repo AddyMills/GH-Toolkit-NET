@@ -25,12 +25,12 @@ namespace GH_Toolkit_Core.Audio
             [122.0 / 64.0, -60.0 / 64.0]
         ];
 
-        /*
-                                     { 0.0, 0.0 },
-                            {  -60.0 / 64.0, 0.0 },
-                            { -115.0 / 64.0, 52.0 / 64.0 },
-                            {  -98.0 / 64.0, 55.0 / 64.0 },
-                            { -122.0 / 64.0, 60.0 / 64.0 } 
+        /* RockLib Lookup
+                                     [ 0.0, 0.0 ],
+                            [  -60.0 / 64.0, 0.0 ],
+                            [ -115.0 / 64.0, 52.0 / 64.0 ],
+                            [  -98.0 / 64.0, 55.0 / 64.0 ],
+                            [ -122.0 / 64.0, 60.0 / 64.0 ] 
          
          */
         /* Original C# code
@@ -53,15 +53,18 @@ namespace GH_Toolkit_Core.Audio
             // This method does not check if the stream is stereo or not. It assumes it is.
             // Same with it being 16-bit PCM
 
+            long dataLength = audio.Length - audio.Position;
+            int origPosition = (int)audio.Position;
+
             byte[] bytes = audio.ToArray();
-            byte[] left = new byte[bytes.Length / 2];
-            byte[] right = new byte[bytes.Length / 2];
-            for (int i = 0; i < bytes.Length; i += 4)
+            byte[] left = new byte[dataLength / 2];
+            byte[] right = new byte[dataLength / 2];
+            for (int i = 0; i < dataLength; i += 4)
             {
-                left[i / 2] = bytes[i];
-                left[i / 2 + 1] = bytes[i + 1];
-                right[i / 2] = bytes[i + 2];
-                right[i / 2 + 1] = bytes[i + 3];
+                left[i / 2] = bytes[i + origPosition];
+                left[i / 2 + 1] = bytes[i + origPosition + 1];
+                right[i / 2] = bytes[i + origPosition + 2];
+                right[i / 2 + 1] = bytes[i + origPosition + 3];
             }
             string leftPath = toSave + "_1.wav";
             string rightPath = toSave + "_2.wav";
@@ -104,25 +107,12 @@ namespace GH_Toolkit_Core.Audio
                 WaveFileWriter.WriteWavFileToStream(resampledStream, waveProvider);
                 //File.WriteAllBytes(Path.Combine(folderPath, $"{fileNoExt}_test.wav"), resampledStream.ToArray());
 
+                int dataMod = (int)((resampledStream.Length - resampledStream.Position) % 4);
 
-                resampledStream.Position = 0; // Reset the stream position to the beginning
-                using (var wav2 = new WaveFileReader(resampledStream))
-                {
-                    var dataPosition = resampledStream.Length - wav2.Length;
-                    // Put all bytes from resampledStream starting at dataPosition until the end into a new byte array
-                    byte[] data = new byte[resampledStream.Length - dataPosition];
-                    resampledStream.Position = dataPosition;
-                    resampledStream.Read(data, 0, data.Length);
-                    // Overwrite the resampledStream with the data array
-                    resampledStream.SetLength(0);
-                    resampledStream.Write(data, 0, data.Length);
-                    resampledStream.Position = 0;
-
-                }
-                if (resampledStream.Length % 4 != 0)
+                if (dataMod != 0)
                 {
                     // Pad the stream with zeroes to ensure the stream length is a multiple of 4
-                    resampledStream.SetLength(resampledStream.Length + (4 - (resampledStream.Length % 4)));
+                    resampledStream.SetLength(resampledStream.Length + (4 - (dataMod)));
                 }
                 string[] streams = SplitStereoToMono(resampledStream, fullPath);
                 return streams;
@@ -468,57 +458,73 @@ namespace GH_Toolkit_Core.Audio
 
         private void MakeAllAudioEqualLength(string[] audioFiles)
         {
-            int longestWavSize = 0;
-            int largestFileSize = 0;
-            int largestAudioSize = 0;
+            // Find the longest file (in terms of data chunk size)
+            int longestDataChunkSize = 0;
+
             foreach (var audio in audioFiles)
             {
-                var audioBytes = File.ReadAllBytes(audio);
-                using (var reader = new MemoryStream(audioBytes))
+                using (var reader = new WaveFileReader(audio))
                 {
-                    if (reader.Length > longestWavSize)
+                    if (reader.Length > longestDataChunkSize)
                     {
-                        longestWavSize = (int)reader.Length;
-                    }
-                    reader.Position = 4;
-                    byte[] sizeBytes = new byte[4];
-                    reader.Read(sizeBytes, 0, 4);
-                    var fileSize = BitConverter.ToInt32(sizeBytes, 0);
-                    if (fileSize > largestFileSize)
-                    {
-                        largestFileSize = fileSize;
-                    }
-                    reader.Position = 74;
-                    byte[] fileBytes = new byte[4];
-                    reader.Read(fileBytes, 0, 4);
-                    var audioSize = BitConverter.ToInt32(fileBytes, 0);
-                    if (audioSize > largestAudioSize)
-                    {
-                        largestAudioSize = audioSize;
+                        longestDataChunkSize = (int)reader.Length;
                     }
                 }
             }
             foreach (var audio in audioFiles)
             {
-                var audioBytes = File.ReadAllBytes(audio);
-                using (var reader = new MemoryStream(audioBytes))
+                string newSave = Path.Combine(Path.GetDirectoryName(audio), $"{Path.GetFileNameWithoutExtension(audio)}_padded.wav");
+                using (var reader = new WaveFileReader(audio))
                 {
-                    if (reader.Length < longestWavSize)
-                    {
-                        byte[] newAudio = new byte[longestWavSize];
-                        reader.Read(newAudio, 0, (int)reader.Length);
-                        using (var newAudioReader = new MemoryStream(newAudio))
-                        {
-                            newAudioReader.Position = 4;
-                            byte[] sizeBytes = BitConverter.GetBytes(largestFileSize);
-                            newAudioReader.Write(sizeBytes, 0, 4);
-                            newAudioReader.Position = 74;
-                            byte[] audioSizeBytes = BitConverter.GetBytes(largestAudioSize);
-                            newAudioReader.Write(audioSizeBytes, 0, 4);
-                            File.WriteAllBytes(audio, newAudio);
-                        }
+                    int currentDataChunkSize = (int)reader.Length;
 
+                    if (currentDataChunkSize < longestDataChunkSize)
+                    {
+                        // Create a new memory stream for the padded file
+                        using (var outputStream = new MemoryStream())
+                        {
+                            // Write the RIFF header
+                            var writer = new BinaryWriter(outputStream);
+
+                            // Write RIFF chunk
+                            writer.Write(Encoding.ASCII.GetBytes("RIFF"));
+                            writer.Write(longestDataChunkSize + 36); // File size = data chunk size + 36 bytes for headers
+                            writer.Write(Encoding.ASCII.GetBytes("WAVE"));
+
+                            // Write fmt chunk
+                            writer.Write(Encoding.ASCII.GetBytes("fmt "));
+                            writer.Write(16); // fmt chunk size
+                            writer.Write(reader.WaveFormat.BitsPerSample == 16 ? (short)1 : (short)3); // Audio format (1 = PCM)
+                            writer.Write((short)reader.WaveFormat.Channels);
+                            writer.Write(reader.WaveFormat.SampleRate);
+                            writer.Write(reader.WaveFormat.AverageBytesPerSecond);
+                            writer.Write((short)reader.WaveFormat.BlockAlign);
+                            writer.Write((short)reader.WaveFormat.BitsPerSample);
+
+                            // Write data chunk header
+                            writer.Write(Encoding.ASCII.GetBytes("data"));
+                            writer.Write(longestDataChunkSize);
+
+                            // Write existing audio data
+                            var buffer = new byte[reader.Length];
+                            reader.Read(buffer, 0, buffer.Length);
+                            writer.Write(buffer);
+
+                            // Pad with zeros
+                            var paddingSize = longestDataChunkSize - buffer.Length;
+                            if (paddingSize > 0)
+                            {
+                                writer.Write(new byte[paddingSize]);
+                            }
+
+                            // Save to file
+                            File.WriteAllBytes(newSave, outputStream.ToArray());
+                        }
                     }
+                }
+                if (File.Exists(newSave))
+                {
+                    File.Move(newSave, audio, true);
                 }
             }
         }
@@ -639,7 +645,7 @@ namespace GH_Toolkit_Core.Audio
             }
 
             await Task.WhenAll(deleteTasks);
-
+            
         }
 
         public async Task CreatePs2Preview(string inAudio)
