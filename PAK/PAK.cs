@@ -136,7 +136,7 @@ namespace GH_Toolkit_Core.PAK
                                 FullFlagPath += DOTNGC;
                             }
                         }
-                        //AssetContext = FullFlagPath;
+                        FullName = FullFlagPath;
                         FullFlagPath = FullFlagPath.PadRight(160, '\0');
                         ByteLength += 160;
                     }
@@ -287,7 +287,6 @@ namespace GH_Toolkit_Core.PAK
             {
                 throw new Exception("Invalid File");
             }
-            bool isWii = fileName.EndsWith(".ngc", StringComparison.InvariantCultureIgnoreCase);
 
             string fileNoExt = fileName.Substring(0, fileName.ToLower().IndexOf(".pak"));
             string fileExt = Path.GetExtension(file);
@@ -316,11 +315,12 @@ namespace GH_Toolkit_Core.PAK
             {
                 test_pab = File.ReadAllBytes(pabFilePath);
             }
-
+            bool isWiiorPS2 = fileName.EndsWith(".ngc", StringComparison.InvariantCultureIgnoreCase);
             string endian;
             if (fileExt == ".ps2")
             {
                 endian = "little";
+                isWiiorPS2 = true;
             }
             else
             {
@@ -329,7 +329,7 @@ namespace GH_Toolkit_Core.PAK
             }
             try
             {
-                pakEntries = ExtractPAK(test_pak, test_pab, endian: endian, songName: songName, isWii: isWii);
+                pakEntries = ExtractPAK(test_pak, test_pab, endian: endian, songName: songName, isWiiorPS2: isWiiorPS2);
             }
             catch (Exception ex)
             {
@@ -345,7 +345,7 @@ namespace GH_Toolkit_Core.PAK
                 {
                     test_pab = Compression.DecompressData(test_pab);
                 }
-                pakEntries = ExtractPAK(test_pak, test_pab, endian: endian, songName: songName, isWii: isWii);
+                pakEntries = ExtractPAK(test_pak, test_pab, endian: endian, songName: songName, isWiiorPS2: isWiiorPS2);
             }
             return pakEntries;
         }
@@ -497,7 +497,7 @@ namespace GH_Toolkit_Core.PAK
             }
             return data;
         }
-        public static List<PakEntry> ExtractPAK(byte[] pakBytes, byte[]? pabBytes, string endian = "big", string songName = "", bool isWii = false)
+        public static List<PakEntry> ExtractPAK(byte[] pakBytes, byte[]? pabBytes, string endian = "big", string songName = "", bool isWiiorPS2 = false)
         {
             ReadWrite reader = new ReadWrite(endian);
             bool pakComp = Compression.isChnkCompressed(pakBytes);
@@ -548,13 +548,13 @@ namespace GH_Toolkit_Core.PAK
                         Array.Copy(pakBytes, 0, bytes, 0, pakBytes.Length);
                         Array.Copy(pabBytes, 0, bytes, pabStart, pabBytes.Length);
                         pakBytes = bytes;
-                        pakList = ExtractOldPak(pakBytes, endian, songName, isWii);
+                        pakList = ExtractOldPak(pakBytes, endian, songName, isWiiorPS2);
                         break;
                 }
             }
             else
             {
-                pakList = ExtractOldPak(pakBytes, endian, songName, isWii);
+                pakList = ExtractOldPak(pakBytes, endian, songName, isWiiorPS2);
             }
 
 
@@ -578,7 +578,7 @@ namespace GH_Toolkit_Core.PAK
             }
             return files;
         }
-        public static List<PakEntry> ExtractOldPak(byte[] pakBytes, string endian, string songName = "", bool isWii = false, bool skipNameFlag = false)
+        public static List<PakEntry> ExtractOldPak(byte[] pakBytes, string endian, string songName = "", bool isWiiorPS2 = false, bool skipNameFlag = false)
         {
             ReadWrite reader = new ReadWrite(endian);
             MemoryStream stream = new MemoryStream(pakBytes);
@@ -590,7 +590,7 @@ namespace GH_Toolkit_Core.PAK
             while (true)
             {
                 uint header_start = (uint)stream.Position; // To keep track of which entry since the offset in the header needs to be added to the StartOffset below
-                PakEntry? entry = GetPakEntry(stream, reader, headers, header_start, isWii, skipNameFlag);
+                PakEntry? entry = GetPakEntry(stream, reader, headers, header_start, isWiiorPS2, skipNameFlag);
                 if (entry == null)
                 {
                     break;
@@ -681,7 +681,7 @@ namespace GH_Toolkit_Core.PAK
                 }
             }
         }
-        private static PakEntry? GetPakEntry(MemoryStream stream, ReadWrite reader, Dictionary<uint, string> headers, uint header_start = 0, bool isWii = false, bool skipFlagName = false, string game = "")
+        private static PakEntry? GetPakEntry(MemoryStream stream, ReadWrite reader, Dictionary<uint, string> headers, uint header_start = 0, bool isWiiorPS2 = false, bool skipFlagName = false, string game = "")
         {
             PakEntry entry = new PakEntry(game);
             uint extension = reader.ReadUInt32(stream);
@@ -706,7 +706,7 @@ namespace GH_Toolkit_Core.PAK
             uint fullname = reader.ReadUInt32(stream);
             entry.FullName = DebugReader.DebugCheck(headers, fullname);
             uint name = reader.ReadUInt32(stream);
-            if (isWii)
+            if (isWiiorPS2)
             {
                 (entry.AssetContext, entry.FullName) = (entry.FullName, entry.AssetContext);
             }
@@ -750,8 +750,8 @@ namespace GH_Toolkit_Core.PAK
                         tempString = "p" + tempString;
                         break;
                 }
-                entry.FullName = tempString.Replace(DOTPS2, "", StringComparison.InvariantCultureIgnoreCase);
-                entry.FullName = tempString.Replace(DOTNGC, "", StringComparison.InvariantCultureIgnoreCase);
+                entry.FullName = tempString.Replace(DOTPS2, "", StringComparison.InvariantCultureIgnoreCase).Replace(DOTNGC, "", StringComparison.InvariantCultureIgnoreCase);
+
                 stream.Position = skipTo;
             }
             return entry;
@@ -775,6 +775,10 @@ namespace GH_Toolkit_Core.PAK
             else if (entry.Extension.IndexOf(DOT_NQB) != -1)
             {
                 entry.SetFullName(entry.FullName.Replace(DOT_QB, DOT_NQB));
+            }
+            else if (entry.Extension.IndexOf(DOT_STEX) != -1)
+            {
+                entry.SetFullName(entry.FullName.Replace(DOT_TEX, DOT_STEX));
             }
             else
             {
@@ -918,12 +922,17 @@ namespace GH_Toolkit_Core.PAK
                 {
                     if (File.Exists(entry))
                     {
+                        bool isQFile = Path.GetExtension(entry) == DOT_Q || Path.GetExtension(entry) == DOT_NQ;
                         byte[] fileData;
                         string relPath = GetRelPath(folderPath, entry);
                         Console.WriteLine($"Processing {relPath}");
                         string qbName;
-                        if (Path.GetExtension(entry) == DOT_Q)
+                        if (isQFile)
                         {
+                            if (Path.GetExtension(entry) == DOT_NQ)
+                            {
+                                relPath = relPath.Replace(DOT_NQ, DOT_Q);
+                            }
                             List<QBItem> qBItems;
                             try
                             {
