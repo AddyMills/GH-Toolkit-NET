@@ -75,6 +75,7 @@ namespace GH_Toolkit_Core.QB
 
         public const string DOT_Q = ".q";
         public const string DOT_QB = ".qb";
+        public const string DOT_NQ = ".nq";
         public const string DOT_NQB = ".nqb";
         public const string DOT_MQB = ".mqb";
         public const string DOT_SQB = ".sqb";
@@ -86,6 +87,9 @@ namespace GH_Toolkit_Core.QB
         public const string DOT_PAK = ".pak";
         public const string DOT_PAK_XEN = ".pak.xen";
         public const string DOT_SKA = ".ska";
+        public const string DOT_STEX = ".stex";
+        public const string DOT_TEX = ".tex";
+
 
 
         public const string _GFX = "_gfx";
