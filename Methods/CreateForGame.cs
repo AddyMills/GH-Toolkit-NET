@@ -18,6 +18,7 @@ using System.Text.RegularExpressions;
 using GH_Toolkit_Core.INI;
 using GH_Toolkit_Core.MIDI;
 using System.Globalization;
+using FFMpegCore.Builders.MetaData;
 
 namespace GH_Toolkit_Core.Methods
 {
@@ -72,6 +73,7 @@ namespace GH_Toolkit_Core.Methods
                 { 
                     return $"{Title} by {Artist}".Replace("\\L", "");
                 } }
+            private StringBuilder AnimLoadScript;
             public GhMetadata()
             {
 
@@ -398,7 +400,35 @@ namespace GH_Toolkit_Core.Methods
                 CompileWithOnyx(onyxPath, onyxArgs);
                 Directory.Delete(compilePath, true);
             }
+            public void MakePs2ScriptHeader()
+            {
+                AnimLoadScript = new StringBuilder();
+                AnimLoadScript.AppendLine($"script animload_Singer_{Singer}_{Checksum} \\{{LoadFunction = LoadAnim}}");
+                AnimLoadScript.Append("\tif ");
+            }
+            public void AddPs2ScriptEntry(string animPath)
+            {
+                if (AnimLoadScript == null)
+                {
+                    MakePs2ScriptHeader();
+                }
+                var animName = Path.GetFileNameWithoutExtension(animPath);
+                AnimLoadScript.AppendLine($"<LoadFunction> <...> Name = '{animPath}' descChecksum = {animName}");
+            }
+            public void SavePs2Script(string savePath)
+            {
+                if (AnimLoadScript == null)
+                {
+                    Console.WriteLine("No entries to save. Skipping");
+                    return;
+                }
+                AnimLoadScript.AppendLine("endif");
+                AnimLoadScript.AppendLine("endscript");
+
+                File.WriteAllText(savePath, AnimLoadScript.ToString());
+            }
         }
+        
         public static (PakEntry, Dictionary<string, QBItem>, QBArrayNode, QBStructData) GetSongListPak(Dictionary<string, PakEntry> qbPak)
         {
             var songList = qbPak[songlistRef];
