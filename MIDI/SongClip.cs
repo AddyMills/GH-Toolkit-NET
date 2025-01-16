@@ -485,7 +485,7 @@ namespace GH_Toolkit_Core.MIDI
         }
         private ClipCharacter GetCharacter(string character)
         {
-            switch (character)
+            switch (character.ToLower())
             {
                 case "guitarist":
                     return Guitarist;
