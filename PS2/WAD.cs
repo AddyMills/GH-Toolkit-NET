@@ -103,6 +103,7 @@ namespace GH_Toolkit_Core.PS2
         }
         private static List<WadEntry> LoadWadEntries(string filePath)
         {
+            Console.WriteLine($"Loading files from {filePath}. Please wait...");
             string[] entries = Directory.GetFileSystemEntries(filePath, "*", SearchOption.AllDirectories);
             List<WadEntry> hedEntries = new List<WadEntry>();
             foreach (string entry in entries)
