@@ -66,7 +66,7 @@ namespace GH_Toolkit_Core.PAK
             }
             public PakEntry(string console, string game, string? assetContext = null)
             {
-                if ((console == CONSOLE_PS2 || console == CONSOLE_WII) && game == GAME_GH3)
+                if ((console == CONSOLE_PS2 || console == CONSOLE_WII) && (game == GAME_GH3))
                 {
                     MakeLastEntry("last");
                 }
@@ -102,6 +102,10 @@ namespace GH_Toolkit_Core.PAK
                 {
                     
                 }*/
+            }
+            public void SetGame(string game)
+            {
+                Game = game;
             }
             public void SetNameNoExt(string nameNoExt)
             {
@@ -147,6 +151,10 @@ namespace GH_Toolkit_Core.PAK
                         {
                             FullName = FullFlagPath.Substring(0, FullFlagPath.IndexOf(DOT_QB));
                         }
+                    }
+                    else
+                    {
+                        FullName = FullFlagPath;
                     }
 
                 }
@@ -227,7 +235,7 @@ namespace GH_Toolkit_Core.PAK
                     FullName = FullFlagPath;
                 }
 
-                if (ConsoleType != CONSOLE_PS2 && AssetContext == null)
+                if (!isPs2orWii && AssetContext == null)
                 {
                     AssetContext = FLAGBYTE;
                 }
@@ -966,7 +974,7 @@ namespace GH_Toolkit_Core.PAK
                             fileData = File.ReadAllBytes(entry);
                         }
                         PakEntry pakEntry = new PakEntry(fileData, ConsoleType, AssetContext);
-
+                        pakEntry.SetGame(Game);
                         pakEntry.SetFullFlagPath(relPath);
                         pakEntry.SetNameNoExt(GetFileNoExt(Path.GetFileName(relPath)));
                         pakEntry.SetExtension(GetFileExt(relPath));
