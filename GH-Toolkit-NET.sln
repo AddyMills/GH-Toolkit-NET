@@ -29,7 +29,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "QBRecompiler", "..\QBRecomp
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MIDITester", "..\MIDITester\MIDITester.csproj", "{CFE35ABD-0B5B-4C85-971C-843D5FE597B4}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GH-Toolkit-GUI", "..\GH-Toolkit-GUI\GH-Toolkit-GUI.csproj", "{2519DE8E-8CCB-4988-91B4-B9357C599BBC}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Honeycomb-GUI", "..\GH-Toolkit-GUI\Honeycomb-GUI.csproj", "{2519DE8E-8CCB-4988-91B4-B9357C599BBC}"
 	ProjectSection(ProjectDependencies) = postProject
 		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
 	EndProjectSection
