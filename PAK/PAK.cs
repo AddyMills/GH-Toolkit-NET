@@ -1292,15 +1292,37 @@ namespace GH_Toolkit_Core.PAK
                 }
 
                 var skaFiles = Directory.GetFiles(skaPath);
+                var readSkaFiles = new Dictionary<string, SkaFile>();
                 string skaEndian = gameConsole == CONSOLE_XBOX ? "big" : "little";
                 foreach (var skaFile in skaFiles)
                 {
-                    var skaTest = new SkaFile(skaFile, "big");
+                    SkaFile skaTest;
+                    try
+                    {
+                        skaTest = new SkaFile(skaFile, "big");
+                        readSkaFiles.Add(skaFile, skaTest);
+                    }
+                    catch (Exception ex)
+                    {
+                        var fileSka = Path.GetFileNameWithoutExtension(skaFile);
+                        errors += $"{fileSka}: {ex.Message}\n";
+                        continue;
+                    }
 
+                    if (!string.IsNullOrEmpty(errors))
+                    {
+                        // If there are any errors, we don't want to continue processing ska files
+                        continue;
+                    }
+                }
+
+
+                foreach(var skaParsed in readSkaFiles)
+                {
                     string skaPatternGuit = @"\d+b\.ska(\.xen)?$";
                     string skaPatternSing = @"\d\.ska(\.xen)?$";
 
-                    bool isGuitarist = Regex.IsMatch(skaFile, skaPatternGuit);
+                    bool isGuitarist = Regex.IsMatch(skaParsed.Key, skaPatternGuit);
 
                     string skaType;
                     switch (game)
@@ -1329,35 +1351,64 @@ namespace GH_Toolkit_Core.PAK
 
                     byte[] convertedSka;
                     string skaSave;
-                    if (game == GAME_GH3 || game == GAME_GHA)
+
+                    try
                     {
-                        if (gameConsole == CONSOLE_PS2)
+                        if (game == GAME_GH3 || game == GAME_GHA)
                         {
-                            if (!ps2SkaProcessed)
+                            if (gameConsole == CONSOLE_PS2)
                             {
-                                skaScripts = midiFile.MakePs2SkaScript();
-                                ps2SkaProcessed = true;
+                                if (!ps2SkaProcessed)
+                                {
+                                    skaScripts = midiFile.MakePs2SkaScript();
+                                    ps2SkaProcessed = true;
+                                }
+                                convertedSka = skaParsed.Value.WritePs2StyleSka(skaMultiplier);
+                                string skaFolderPs2 = Path.Combine(savePath, "PS2 SKA Files");
+                                skaSave = Path.Combine(skaFolderPs2, Path.GetFileName(skaParsed.Key).Replace(DOTXEN, DOTPS2));
+                                Directory.CreateDirectory(skaFolderPs2);
                             }
-                            convertedSka = skaTest.WritePs2StyleSka(skaMultiplier);
-                            string skaFolderPs2 = Path.Combine(savePath, "PS2 SKA Files");
-                            skaSave = Path.Combine(skaFolderPs2, Path.GetFileName(skaFile).Replace(DOTXEN, DOTPS2));
-                            Directory.CreateDirectory(skaFolderPs2);
+                            else
+                            {
+                                convertedSka = skaParsed.Value.WriteGh3StyleSka(skaType, skaMultiplier);
+                                skaSave = Path.Combine(saveName, Path.GetFileName(skaParsed.Key));
+                            }
                         }
                         else
                         {
-                            convertedSka = skaTest.WriteGh3StyleSka(skaType, skaMultiplier);
-                            skaSave = Path.Combine(saveName, Path.GetFileName(skaFile));
+                            if (skaParsed.Value.IsSingleFrame)
+                            {
+                                if (game != GAME_GHWT)
+                                {
+                                    var fileSka = Path.GetFileNameWithoutExtension(skaParsed.Key);
+                                    errors += $"{fileSka}: Single frame SKA files not supported for {game}.\n";
+                                    continue;
+                                }
+                                convertedSka = File.ReadAllBytes(skaParsed.Key);
+                            }
+                            else
+                            {
+                                convertedSka = skaParsed.Value.WriteModernStyleSka(skaType, game, skaMultiplier);
+                            }
+                            
+                            skaSave = Path.Combine(saveName, Path.GetFileName(skaParsed.Key));
                         }
                     }
-                    else
+                    catch
                     {
-                        convertedSka = skaTest.WriteModernStyleSka(skaType, game, skaMultiplier);
-                        skaSave = Path.Combine(saveName, Path.GetFileName(skaFile));
+                        var fileSka = Path.GetFileNameWithoutExtension(skaParsed.Key);
+                        errors += $"{fileSka}: Could not convert ska file.\n";
+                        continue;
                     }
                     if (convertedSka.Length > 0)
                     {
                         File.WriteAllBytes(skaSave, convertedSka);
                     }
+                }
+
+                if (!string.IsNullOrEmpty(errors))
+                {
+                    throw new SkaFileParseException(errors);
                 }
 
                 if (skaScripts != null)
