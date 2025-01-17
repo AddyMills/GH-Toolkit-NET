@@ -9,6 +9,7 @@ namespace GH_Toolkit_Core.PS360
         private static string ExeDirectory = ExeRootFolder;
 
         private static int gh3Title = 0x415607F7;
+        private static int ghaTitle = 0x41560819;
         private static int ghwtTitle = 0x4156081A;
         private static int gh5Title = 0x41560840;
         private static int ghworTitle = 0x41560883;
@@ -16,6 +17,7 @@ namespace GH_Toolkit_Core.PS360
         private static Dictionary<string, int> gameTitles = new Dictionary<string, int>
         {
             { "GH3", gh3Title },
+            { "GHA", ghaTitle },
             { "GHWT", ghwtTitle },
             { "GH5", gh5Title },
             { "GHWoR", ghworTitle }
@@ -23,6 +25,7 @@ namespace GH_Toolkit_Core.PS360
         private static Dictionary<string, string> gameNames = new Dictionary<string, string>
         {
             { "GH3", "Guitar Hero 3" },
+            { "GHA", "Guitar Hero Aerosmith" },
             { "GHWT", "Guitar Hero World Tour" },
             { "GH5", "Guitar Hero 5" },
             { "GHWoR", "Guitar Hero : Warriors of Rock" }
