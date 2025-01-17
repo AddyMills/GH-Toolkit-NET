@@ -75,6 +75,21 @@
     <None Update="Resources\gh5-thumbnail.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="Resources\GHA\blank_songlist.q">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\GHA\blank_songlist_f.q">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\GHA\blank_songlist_g.q">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\GHA\blank_songlist_i.q">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\GHA\blank_songlist_s.q">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="Resources\ghwor-thumbnail.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -94,6 +109,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="Resources\Onyx\gh5-thumbnail.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\Onyx\gha-thumbnail.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="Resources\Onyx\ghwor-thumbnail.png">
@@ -154,7 +172,6 @@
 
   <ItemGroup>
     <Folder Include="Audio\MSV C Code\" />
-    <Folder Include="RockLib\" />
   </ItemGroup>
 	<ItemGroup>
 		<ProjectReference Include="..\FFMpegCore\FFMpegCore\FFMpegCore.csproj" />
