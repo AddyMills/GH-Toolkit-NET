@@ -27,10 +27,16 @@ namespace GH_Toolkit_Core.Methods
             public MidiCompileException(string message) : base(message) { }
         }
 
-        // Custom exception calss for Q File parsing errors
+        // Custom exception class for Q File parsing errors
         public class QFileParseException : Exception
         {
             public QFileParseException(string message) : base(message) { }
+        }
+
+        // Custom exception class for SKA File parsing errors
+        public class SkaFileParseException : Exception
+        {
+            public SkaFileParseException(string message) : base(message) { }
         }
         public class ClipNotFoundException : Exception
         {
