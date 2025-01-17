@@ -22,6 +22,7 @@ namespace GH_Toolkit_Core.SKA
         private const int COMP_FLAGS = 1 << 23; // If set, compression flags exist in the time values
         private const int BONE_POINTERS = 1 << 22; // If set, compression flags exist in the time values
         private const int PARTIAL_ANIM = 1 << 19; // If set, the ska file has a partial anim footer
+        private const int HAND_STUFF = 1 << 9;
         private const int BIG_TIME = 1 << 8; // Time goes above 2047 if set
         private const int SINGLE_FRAME = 1 << 6; // Single anim frames.
 
@@ -78,7 +79,9 @@ namespace GH_Toolkit_Core.SKA
         public Dictionary<int, int> QuatBoneSizes { get; set; } = new Dictionary<int, int>(); // Dictionary of bone sizes for quaternion frames per bone
         public Dictionary<int, int> TransBoneSizes { get; set; } = new Dictionary<int, int>(); // Dictionary of bone sizes for translation frames per bone
         public Dictionary<int, List<BoneFrameQuat>> QuatData { get; set; } = new Dictionary<int, List<BoneFrameQuat>>(); // Dictionary of quaternion data per bone
+        public List<SingleFrame> QuatSingle { get; set; } = new List<SingleFrame>();
         public Dictionary<int, List<BoneFrameTrans>> TransData { get; set; } = new Dictionary<int, List<BoneFrameTrans>>(); // Dictionary of translation data per bone
+        public List<SingleFrame> TransSingle { get; set; } = new List<SingleFrame>();
         public Dictionary<int, List<(ushort frame, int position)>> BonePointerData { get; set; } = new Dictionary<int, List<(ushort frame, int position)>>(); // Dictionary of bone pointer data per bone
         public List<CustomKey> CustomKeys { get; set; } = new List<CustomKey>(); // List of custom keys
         public List<int> AnimFlags { get; set; } = new List<int>(); // List of bones that have animation data
@@ -93,6 +96,7 @@ namespace GH_Toolkit_Core.SKA
         internal bool HasPartialAnim { get; set; }
         internal bool HasBigTime { get; set; }
         internal bool IsSingleFrame { get; set; }
+        internal bool IsHandSka { get; set; }
         internal float UnknownFloatA { get; set; }
         internal float UnknownFloatB { get; set; }
         internal float UnknownFloatC { get; set; }
@@ -136,6 +140,20 @@ namespace GH_Toolkit_Core.SKA
                 QuatX = quatX;
                 QuatY = quatY;
                 QuatZ = quatZ;
+            }
+        }
+        public class SingleFrame // For both quats and trans frames
+        {
+            public float QuatX { get; set; }
+            public float QuatY { get; set; }
+            public float QuatZ { get; set; }
+            public float QuatW { get; set; }
+            public SingleFrame(float quatX, float quatY, float quatZ, float quatW)
+            {
+                QuatX = quatX;
+                QuatY = quatY;
+                QuatZ = quatZ;
+                QuatW = quatW;
             }
         }
         [DebuggerDisplay("Frame {FrameTime}: X: {TransX} Y: {TransY} Z: {TransZ}")]
@@ -442,6 +460,24 @@ namespace GH_Toolkit_Core.SKA
         private void ReadQuatData(MemoryStream stream)
         {
             stream.Seek(OffsetQuatFrames, SeekOrigin.Begin);
+            if (IsSingleFrame)
+            {
+                ReadSingleFrame(stream, QuatSingle);
+            }
+            else
+            {
+                ReadQuatMultiFrame(stream);
+            }
+        }
+        private void ReadSingleFrame(MemoryStream stream, List<SingleFrame> list)
+        {
+            for (int i = 0; i < NumBones; i++)
+            {
+                list.Add(new SingleFrame(_rw.ReadFloat(stream), _rw.ReadFloat(stream), _rw.ReadFloat(stream), _rw.ReadFloat(stream)));
+            }
+        }
+        private void ReadQuatMultiFrame(MemoryStream stream)
+        {
             (TimeMask, LargeTime) = CalculateTimeMask();
             for (int i = 0; i < NumBones; i++)
             {
@@ -625,6 +661,18 @@ namespace GH_Toolkit_Core.SKA
         private void ReadTransData(MemoryStream stream)
         {
             stream.Seek(OffsetTransFrames, SeekOrigin.Begin);
+            if (IsSingleFrame)
+            {
+                ReadSingleFrame(stream, TransSingle);
+            }
+            else
+            {
+                ReadTransMultiFrame(stream);
+            }
+        }
+
+        private void ReadTransMultiFrame(MemoryStream stream)
+        {
             bool firstBone = true;
             for (int i = 0; i < NumBones; i++)
             {
@@ -797,6 +845,7 @@ namespace GH_Toolkit_Core.SKA
             HasPartialAnim = (Flags & PARTIAL_ANIM) != 0;
             HasBigTime = (Flags & BIG_TIME) != 0;
             IsSingleFrame = (Flags & SINGLE_FRAME) != 0;
+            IsHandSka = (Flags & HAND_STUFF) != 0;
         }
 
         static Dictionary<int, ushort> CreateBlankBoneDict(int x, int max = -1)
@@ -1591,7 +1640,19 @@ namespace GH_Toolkit_Core.SKA
 
             if (game == GAME_GHWT)
             {
-                NewFlags = (uint)(SkeletonType == SKELETON_CAMERA ? 0x06811000 : 0x068B5000);
+                if (SkeletonType == SKELETON_CAMERA)
+                {
+                    NewFlags = (uint)0x06811000;
+                }
+                else if (IsHandSka)
+                {
+                    NewFlags = 0x068B0200;
+                }
+                else
+                {
+                    NewFlags = 0x068B5000;
+                }
+                
             }
             else
             {
