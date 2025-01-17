@@ -501,7 +501,7 @@ namespace GH_Toolkit_Core.Methods
             {
                 Directory.CreateDirectory(compilePath);
             }
-            var gh3Resource = Path.Combine(resources, "GH3");
+            var gh3Resource = Path.Combine(resources, game);
 
             // Text files
             var textChecksum = $"download\\download_song{checksum}.qb";
