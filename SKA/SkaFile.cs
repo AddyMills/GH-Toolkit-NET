@@ -1410,11 +1410,50 @@ namespace GH_Toolkit_Core.SKA
                 _rw.WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes(boneFlag));
             }
         }
+        private List<BoneFrameQuat> NewPs2Compression(List<BoneFrameQuat> frames, int deleteEvery = 4)
+        {
+            var compFrames = new List<BoneFrameQuat>();
+            var compDict = new Dictionary<ushort, BoneFrameQuat>();
+            foreach (var boneFrame in frames)
+            {
+                compDict[boneFrame.FrameTime] = boneFrame;
+            }
+            for (ushort i = 0; i <= DurationFrames; i+=2)
+            {
+                if (!compDict.TryGetValue(i, out _))
+                {
+                    var prevFrame = compDict[(ushort)(i - 2)];
+                    compDict[i] = new BoneFrameQuat(i, prevFrame.QuatX, prevFrame.QuatY, prevFrame.QuatZ);
+                }
+                if (i % deleteEvery == 0)
+                {
+                    compFrames.Add(compDict[i]);
+                }
+                
+            }
+            return compFrames;
+        }
+        private void FixPS2(List<BoneFrameQuat> frames, bool clearZ = true)
+        {
+            foreach (var frame in frames)
+            {
+                frame.QuatX = 0;
+                frame.QuatY = 0;
+                if (clearZ)
+                {
+                    frame.QuatZ = 0;
+                }
+            }
+        }
+
         public byte[]? WritePs2StyleSka(float quatMultiplier = 1) // For GH3 PS2
         {
             var oldBones = ALL_DATA[SkeletonType];
             var newBones = ALL_DATA[SKELETON_GH3_SINGER_PS2];
             NewBones = 67;
+
+            int[] quatToEdit = [46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60];
+            int[] fixQuats = [43, 61];
 
             var newAnimFlags = new List<int>();
             var newQuatData = new Dictionary<int, List<BoneFrameQuat>>();
@@ -1426,12 +1465,21 @@ namespace GH_Toolkit_Core.SKA
                 try
                 {
                     newBone = newBones.bonesName[boneName];
+                    if (quatToEdit.Contains(newBone))
+                    {
+                        FixPS2(QuatData[bone]);
+                    }
+                    else if (fixQuats.Contains(newBone))
+                    {
+                        FixPS2(QuatData[bone], false);
+                    }
                 }
                 catch
                 {
                     continue;
                 }
                 newAnimFlags.Add(newBone);
+                //QuatData[bone] = NewPs2Compression(QuatData[bone]);
                 newQuatData[newBone] = WriteNewQuatData(QuatData[bone], quatMultiplier);
                 newTransData[newBone] = WriteCompressedTransDataPs2(WriteNewTransData(TransData[bone]));
             }
