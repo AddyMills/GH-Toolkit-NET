@@ -194,7 +194,11 @@ namespace GH_Toolkit_Core.Methods
                 {
                     entry.AddFlagToStruct("use_coop_notetracks", QBKEY);
                 }
-                entry.AddFloatToStruct("hammer_on_measure_scale", HopoThreshold);
+                if (HopoThreshold.ToString() != "2.95")
+                {
+                    entry.AddFloatToStruct("hammer_on_measure_scale", HopoThreshold);
+                }
+                
                 if (Bassist != "Default")
                 {
                     entry.AddVarToStruct("bassist", Bassist, QBKEY);
