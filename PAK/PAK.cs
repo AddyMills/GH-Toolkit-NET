@@ -1181,10 +1181,24 @@ namespace GH_Toolkit_Core.PAK
             bool overrideBeat = false,
             bool isSteven = false,
             bool easyOpens = false,
-            Dictionary<string, int>? diffs = null
+            Dictionary<string, int>? diffs = null,
+            string gender = "Male"
             )
         {
-            var midiFile = new SongQbFile(
+            if (gender.ToLower() == "none")
+            {
+                gender = "none";
+            }
+            else if (gender.ToLower() != "female")
+            {
+                gender = "Male";
+            }
+            var midiExt = Path.GetExtension(midiPath);
+            SongQbFile midiFile;
+            byte[] midQb;
+            if (midiExt == ".mid")
+            {
+                midiFile = new SongQbFile(
                 midiPath,
                 songName: songName,
                 game: game,
@@ -1198,6 +1212,17 @@ namespace GH_Toolkit_Core.PAK
                 hopoType: hopoType,
                 easyOpens: easyOpens,
                 skaPath: skaPath);
+                midQb = midiFile.ParseMidiToQb();
+            }
+            else if (midiExt == ".q")
+            {
+                midiFile = new SongQbFile(songName, midiPath, songScripts, game: game, console: gameConsole);
+                midQb = midiFile.MakeConsoleQb();
+            }
+            else
+            {
+                throw new Exception("Invalid file type. Must be .mid or .q");
+            }
 
             var saveName = Path.Combine(savePath, $"{songName}_{gameConsole}");
             string pakFolder = gameConsole == CONSOLE_PS2 ? "data\\songs" : "songs";
@@ -1209,7 +1234,7 @@ namespace GH_Toolkit_Core.PAK
 
             Directory.CreateDirectory(songFolder);
 
-            var midQb = midiFile.ParseMidiToQb();
+            
             // Check for song scripts override and make one if we're not compiling a PS2 song
             if (gameConsole != CONSOLE_PS2)
             {
@@ -1317,15 +1342,13 @@ namespace GH_Toolkit_Core.PAK
                         continue;
                     }
 
-                    if (!string.IsNullOrEmpty(errors))
-                    {
-                        // If there are any errors, we don't want to continue processing ska files
-                        continue;
-                    }
+                }
+                if (!string.IsNullOrEmpty(errors))
+                {
+                    throw new SkaFileParseException(errors);
                 }
 
-
-                foreach(var skaParsed in readSkaFiles)
+                foreach (var skaParsed in readSkaFiles)
                 {
                     string skaPatternGuit = @"\d+b\.ska(\.xen)?$";
                     string skaPatternSing = @"\d\.ska(\.xen)?$";
@@ -1368,7 +1391,10 @@ namespace GH_Toolkit_Core.PAK
                             {
                                 if (!ps2SkaProcessed)
                                 {
-                                    skaScripts = midiFile.MakePs2SkaScript();
+                                    if (gender.ToLower() != "none")
+                                    {
+                                        skaScripts = SongQbFile.MakePs2SkaScript(gender, songName);
+                                    }
                                     ps2SkaProcessed = true;
                                 }
                                 convertedSka = skaParsed.Value.WritePs2StyleSka(skaMultiplier);

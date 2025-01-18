@@ -153,6 +153,7 @@ namespace GH_Toolkit_Core.MIDI
         public static string? VenueSource { get; set; }
         public static bool RhythmTrack { get; set; }
         public static string? Game { get; set; }
+        private string? QfileGame { get; set; } = GAME_GHWT;
         private static string? _songName;
         public static string? SongName
         {
@@ -214,6 +215,59 @@ namespace GH_Toolkit_Core.MIDI
             Endian = endian;
             ParseQbToData(midQb, midQs, songScripts, notes, perf, perfXml);
         }
+
+        public SongQbFile(string songName,
+            string qPath,
+            string? songScripts,
+            string game = GAME_GH3,
+            string console = CONSOLE_XBOX)
+        {
+            SongName = songName;
+            Game = game;
+            GamePlatform = console;
+            var isGH5 = false;
+            var midName = Path.GetFileNameWithoutExtension(qPath);
+            var midName2 = Path.GetFileNameWithoutExtension(midName);
+            var qbList = ParseQFile(qPath);
+            if (!string.IsNullOrEmpty(midName2) && midName2 != SongName)
+            {
+                foreach (QBItem qbItem in qbList)
+                {
+                    qbItem.Name = qbItem.Name.Replace(midName2, SongName);
+                }
+            }
+            var qbDict = QbEntryDict(qbList);
+            DetermineQType(qbDict, out isGH5);
+            ParseTimeSigsAndFretbarsFromQb(qbDict);
+            ParseInstrumentsFromQb(qbDict, null);
+            ParseMarkersFromQ(qbDict);
+            ParseNonInstrumentFromQ(qbDict);
+        }
+        private void DetermineQType(Dictionary<string, QBItem> qbDict, out bool isGH5)
+        {
+            isGH5 = false;
+            if (!qbDict.ContainsKey($"{SongName}_song_easy"))
+            {
+                QfileGame = GAME_GH5;
+                isGH5 = true;
+            }
+            else if (!qbDict.ContainsKey($"{SongName}_drum_easy"))
+            {
+                if (qbDict.ContainsKey($"{SongName}_song_aux"))
+                {
+                    QfileGame = GAME_GHA;
+                }
+                else
+                {
+                    QfileGame = GAME_GH3;
+                }
+            }
+            else
+            {
+                QfileGame = GAME_GHWT;
+            }
+        }
+
         public bool HasGh6Loops()
         {
             var male = Gh6Loops["male"]["vocalist"].Count > 0 && Gh6Loops["male"]["guitarist"].Count > 0 && Gh6Loops["male"]["bassist"].Count > 0;
@@ -1044,7 +1098,6 @@ namespace GH_Toolkit_Core.MIDI
             var qbList = QbEntryDictFromBytes(midQb, Endian, SongName!);
             ParseTimeSigsAndFretbarsFromQb(qbList);
             ParseInstrumentsFromQb(qbList, midQs);
-
         }
         private string GetDebugString(uint key)
         {
@@ -1388,15 +1441,154 @@ namespace GH_Toolkit_Core.MIDI
                 }
                 else
                 {
-                    var newIns = new Instrument(instrument, SongName, qbList, this);
+                    var newIns = new Instrument(instrument, SongName, qbList, this, QfileGame);
                     // Update the class variable directly by calling the Action<Instrument>
                     instrumentLookup[instrument](newIns);
                 }
             }
         }
+        private void ParseMarkersFromQ(Dictionary<string, QBItem> qbDict)
+        {
+            Markers = new List<Marker>();
+            if (qbDict.TryGetValue($"{SongName}_markers", out QBItem markers))
+            {
+                if (markers.Info.Type != ARRAY)
+                {
+                    throw new Exception("Markers is not an array");
+                }
+                var markerArray = markers.Data as QBArrayNode;
+                if (markerArray.FirstItem.Type != STRUCT)
+                {
+                    throw new Exception("Markers entry is not an array of structs");
+                }
+                foreach (QBStructData marker in markerArray!.Items)
+                {
+                    int time;
+                    if (marker.StructDict.ContainsKey("time"))
+                    {
+                        time = (int)marker.StructDict["time"];
+                    }
+                    else
+                    {
+                        throw new Exception("Marker struct does not contain time");
+                    }
+                    string text;
+                    if (marker.StructDict.ContainsKey("marker"))
+                    {
+                        text = (string)marker.StructDict["marker"];
+                    }
+                    else
+                    {
+                        throw new Exception("Marker struct does not contain text");
+                    }
+                    Markers.Add(new Marker(time, text));
+                }
+            }
+        }
+        private void ParseNonInstrumentFromQ(Dictionary<string, QBItem> qbDict)
+        {
+            var toParse = new string[] { "anim", "scripts", "triggers", "cameras", "lightshow", "crowd", "drums", "performance"};
+            var scriptsLookup = new Dictionary<string, Action<QBArrayNode>>
+            {
+                { "anim", (val) => AnimScripts = val},
+                { "scripts", (val) => ScriptScripts = val },
+                { "triggers", (val) => TriggersScripts = val },
+                { "cameras", (val) => CamerasScripts = val },
+                { "lightshow",(val) => LightshowScripts = val  },
+                { "crowd", (val) => CrowdScripts = val },
+                { "drums", (val) => DrumsScripts = val },
+                { "performance",(val) => PerformanceScripts = val}
+            };
+            var notesLookup = new Dictionary<string, Action<List<AnimNote>?>>
+            {
+                { "anim", (val) => AnimNotes = val},
+                { "scripts", (val) => ScriptNotes = val },
+                { "triggers", (val) => TriggersNotes = val },
+                { "cameras", (val) => CamerasNotes = val },
+                { "lightshow", (val) => LightshowNotes = val },
+                { "crowd", (val) => CrowdNotes = val },
+                { "drums", (val) => DrumsNotes = val },
+                { "performance", (val) => PerformanceNotes = val }
+            };
+
+            foreach (var item in toParse)
+            {
+                var dictItem = $"{SongName}_{item}";
+                var notesVariant = $"{SongName}_{item}_notes";
+                if (qbDict.TryGetValue(dictItem, out QBItem scripts))
+                {
+                    scriptsLookup[item]((QBArrayNode)scripts.Data);
+                }
+                if (qbDict.TryGetValue(notesVariant, out QBItem notes))
+                {
+                    if (notes.Info.Type != ARRAY)
+                    {
+                        throw new Exception($"{SongName}_{item}_notes entry is not an array");
+                    }
+                    var notesData = (QBArrayNode)notes.Data;
+                    if (notesData.FirstItem.Type == ARRAY) // GH3/GHA file
+                    {
+                        List<AnimNote> animNotes = new List<AnimNote>();
+                        foreach (QBArrayNode noteArray in notesData.Items)
+                        {
+                            int time = (int)noteArray.Items[0];
+                            int note = (int)noteArray.Items[1];
+                            int length = (int)noteArray.Items[2];
+                            int velocity = 100;
+                            if (noteArray.Items.Count == 4)
+                            {
+                                velocity = (int)noteArray.Items[3];
+                            }
+                            animNotes.Add(new AnimNote(time, note, length, velocity));
+                        }
+                        if (animNotes.Count != 0)
+                        {
+                            notesLookup[item](animNotes);
+                        }
+                    }
+                    else if (notesData.FirstItem.Type == STRUCTFLAG)
+                    {
+                        // Do Nothing
+                    }
+                    else
+                    {
+                        throw new NotImplementedException("GHWT style not yet supported");
+                    }
+                }
+            }
+            if (PerformanceScripts != null && GamePlatform == CONSOLE_PS2)
+            {
+                var newPerf = new List<object>();
+                foreach (QBStructData script in PerformanceScripts.Items)
+                {
+                    try
+                    {
+                        var scrType = ((string)script["scr"]).ToLower();
+                        if (scrType == BAND_PLAYFACIALANIM)
+                        {
+                            var scrParams = (QBStructData)script["params"];
+                            if (((string)scrParams["name"]).ToLower() != "vocalist")
+                            {
+                                continue;
+                            }
+                        }
+                    }
+                    catch
+                    {
+
+                    }
+                    newPerf.Add(script);
+                }
+                PerformanceScripts.Items = newPerf;
+            }
+        }
         public byte[] ParseMidiToQb()
         {
             ParseMidi();
+            return MakeConsoleQb();
+        }
+        public byte[] MakeConsoleQb()
+        {
             var gameQb = MakeMidQb();
             string songMid;
             if (GamePlatform == CONSOLE_PS2)
@@ -1775,15 +1967,19 @@ namespace GH_Toolkit_Core.MIDI
             perfScripts.AddRange(CameraTimedScripts);
             perfScripts.AddRange(CrowdTimedScripts);
             perfScripts.Sort((x, y) => x.Item1.CompareTo(y.Item1));
+            
             return perfScripts;
         }
         public QBItem MakePerformanceScriptsQb(string songName)
         {
             var perfScripts = CombinePerformanceScripts();
-            PerformanceScripts = new QBArrayNode();
-            foreach (var script in perfScripts)
+            if (!(perfScripts.Count == 0 && PerformanceScripts != null && PerformanceScripts.Items.Count != 0))
             {
-                PerformanceScripts.AddStructToArray(script.Item2);
+                PerformanceScripts = new QBArrayNode();
+                foreach (var script in perfScripts)
+                {
+                    PerformanceScripts.AddStructToArray(script.Item2);
+                }
             }
             QBItem PerfScriptQb = new QBItem(songName, PerformanceScripts);
             return PerfScriptQb;
@@ -3005,6 +3201,7 @@ namespace GH_Toolkit_Core.MIDI
             public QBArrayNode SoloMarker { get; set; }
             public List<AnimNote> AnimNotes { get; set; } = new List<AnimNote>();
             public List<(int, QBStructData)> PerformanceScript { get; set; } = new List<(int, QBStructData)>();
+            private string Q_Game { get; set; } = GAME_GHWT;
             internal List<MidiData.Note> StarPowerPhrases { get; set; }
             internal List<MidiData.Note> BattleStarPhrases { get; set; }
             internal List<MidiData.Note> FaceOffStarPhrases { get; set; }
@@ -3014,8 +3211,9 @@ namespace GH_Toolkit_Core.MIDI
             {
                 TrackName = trackName;
             }
-            public Instrument(string trackName, string songName, Dictionary<string, QBItem> songData, SongQbFile songQb)
+            public Instrument(string trackName, string songName, Dictionary<string, QBItem> songData, SongQbFile songQb, string qGame = GAME_GHWT)
             {
+                Q_Game = qGame;
                 TrackName = trackName;
                 _songQb = songQb;
                 bool failed = false;
@@ -3066,16 +3264,16 @@ namespace GH_Toolkit_Core.MIDI
                     switch (diff)
                     {
                         case EASY:
-                            Easy = new Difficulty(EASY, instData!, starData, starBmData, tapNotes, faceOffStar);
+                            Easy = new Difficulty(EASY, instData!, starData, starBmData, tapNotes, faceOffStar, Q_Game);
                             break;
                         case MEDIUM:
-                            Medium = new Difficulty(MEDIUM, instData!, starData, starBmData, tapNotes, faceOffStar);
+                            Medium = new Difficulty(MEDIUM, instData!, starData, starBmData, tapNotes, faceOffStar, Q_Game);
                             break;
                         case HARD:
-                            Hard = new Difficulty(HARD, instData!, starData, starBmData, tapNotes, faceOffStar);
+                            Hard = new Difficulty(HARD, instData!, starData, starBmData, tapNotes, faceOffStar, Q_Game);
                             break;
                         case EXPERT:
-                            Expert = new Difficulty(EXPERT, instData!, starData, starBmData, tapNotes, faceOffStar);
+                            Expert = new Difficulty(EXPERT, instData!, starData, starBmData, tapNotes, faceOffStar, Q_Game);
                             break;
                     }
                 }
@@ -4650,12 +4848,12 @@ namespace GH_Toolkit_Core.MIDI
 
             return noteList;
         }
-        public byte[] MakePs2SkaScript(string gender = "Male")
+        public static byte[] MakePs2SkaScript(string gender = "Male", string songname = "")
         {
-            string qbName = $"data\\songs\\{SongName}_song_scripts.qb";
+            string qbName = $"data\\songs\\{songname}_song_scripts.qb";
             string skaScript = $"""
-                script {SongName}_song_startup
-                    animload_Singer_{gender}_{SongName} <...>
+                script {songname}_song_startup
+                    animload_Singer_{gender}_{songname} <...>
                 endscript
                 """;
             var skaScriptList = ParseQFile(skaScript);
@@ -4800,12 +4998,14 @@ namespace GH_Toolkit_Core.MIDI
             public List<StarPower>? BattleStarEntries { get; set; } = new List<StarPower>();
             public List<StarPower>? FaceOffStar { get; set; } = new List<StarPower>();
             public List<StarPower>? TapNotes { get; set; } = new List<StarPower>();
+            private string Q_Game { get; set; } = GAME_GHWT;
             public Difficulty(string name)
             {
                 diffName = name;
             }
-            public Difficulty(string name, QBArrayNode notes, QBArrayNode? star, QBArrayNode? starBM, QBArrayNode? tapNotes, QBArrayNode? faceoffStar)
+            public Difficulty(string name, QBArrayNode notes, QBArrayNode? star, QBArrayNode? starBM, QBArrayNode? tapNotes, QBArrayNode? faceoffStar, string qGame = GAME_GHWT)
             {
+                Q_Game = qGame;
                 diffName = name;
                 if (notes.Items.Count != 0)
                 {
@@ -4886,22 +5086,36 @@ namespace GH_Toolkit_Core.MIDI
                     throw new ArgumentException("First item in array is not an integer");
                 }
                 var noteArray = notes.Items;
-                for (int i = 0; i < noteArray.Count; i += 2)
+                if (Q_Game == GAME_GHWT)
                 {
-                    int time = (int)noteArray[i];
-                    int note = (int)noteArray[i + 1];
-                    var length = (ushort)note;
-                    note = note >> 16;
-                    var noteBits = (byte)note & 0x3F;
-                    var isHopo = (note & 0x40) != 0;
-                    note = note >> 7;
-                    var accents = (byte)note & 0x1F;
-                    var isDouble = (note & 0x40) != 0;
-                    if (isDouble)
+                    for (int i = 0; i < noteArray.Count; i += 2)
                     {
-                        noteBits |= 0x40;
+                        int time = (int)noteArray[i];
+                        int note = (int)noteArray[i + 1];
+                        var length = (ushort)note;
+                        note = note >> 16;
+                        var noteBits = (byte)note & 0x3F;
+                        var isHopo = (note & 0x40) != 0;
+                        note = note >> 7;
+                        var accents = (byte)note & 0x1F;
+                        var isDouble = (note & 0x40) != 0;
+                        if (isDouble)
+                        {
+                            noteBits |= 0x40;
+                        }
+                        noteList.Add(new PlayNote(time, noteBits, length, accents, isHopo));
                     }
-                    noteList.Add(new PlayNote(time, noteBits, length, accents, isHopo));
+                }
+                else if (Q_Game == GAME_GH3 || Q_Game == GAME_GHA)
+                {
+                    for (int i = 0; i < noteArray.Count; i += 3)
+                    {
+                        int time = (int)noteArray[i];
+                        int length = (int)noteArray[i + 1];
+                        int note = (int)noteArray[i + 2];
+                        var isForced = (note & 0b00100000) != 0;
+                        noteList.Add(new PlayNote(time, note, length, isForced));
+                    }
                 }
                 return noteList;
             }
@@ -5457,6 +5671,7 @@ namespace GH_Toolkit_Core.MIDI
             public bool ForcedOn { get; set; }
             public bool ForcedOff { get; set; }
             public bool IsHopo { get; set; } // A natural Hopo from being within a certain distance of another note
+            public bool IsForcedGh3 { get; set; } // A forced note. It flips whatever the note is currently. Should only be set if reading GH3 notes
             public string Type { get; set; }
 
             // Property to get color name
@@ -5497,6 +5712,13 @@ namespace GH_Toolkit_Core.MIDI
                 Length = length;
                 Accents = accents;
                 IsHopo = isHopo;
+            }
+            public PlayNote(int time, int note, int length, bool isForced)
+            {
+                Time = time;
+                Note = note;
+                Length = length;
+                IsForcedGh3 = isForced;
             }
         }
         public class KickNote
