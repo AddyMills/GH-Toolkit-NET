@@ -102,6 +102,7 @@ namespace GH_Toolkit_Core.SKA
         internal float UnknownFloatC { get; set; }
         internal int NewBones { get; set; }
         internal uint NewFlags { get; set; }
+        internal bool CompressForPS2 { get; set; } = false;
         internal Dictionary<int, Dictionary<ushort, int>> NewBonePointers { get; set; } = new Dictionary<int, Dictionary<ushort, int>>();
 
         public SkaFile()
@@ -210,6 +211,11 @@ namespace GH_Toolkit_Core.SKA
         private void ParseSkaFile(string filePath)
         {
             byte[] skaData = File.ReadAllBytes(filePath);
+            var skaFolder = Path.GetDirectoryName(filePath).ToLower();
+            if (skaFolder.EndsWith("compress"))
+            {
+                CompressForPS2 = true;
+            }
             using (var stream = new MemoryStream(skaData))
             {
                 ReadHeader(stream);
@@ -1410,7 +1416,7 @@ namespace GH_Toolkit_Core.SKA
                 _rw.WriteAndMaybeFlipBytes(stream, BitConverter.GetBytes(boneFlag));
             }
         }
-        private List<BoneFrameQuat> NewPs2Compression(List<BoneFrameQuat> frames, int deleteEvery = 4)
+        private List<BoneFrameQuat> NewPs2CompressionQuat(List<BoneFrameQuat> frames, int deleteEvery = 4)
         {
             var compFrames = new List<BoneFrameQuat>();
             var compDict = new Dictionary<ushort, BoneFrameQuat>();
@@ -1430,6 +1436,29 @@ namespace GH_Toolkit_Core.SKA
                     compFrames.Add(compDict[i]);
                 }
                 
+            }
+            return compFrames;
+        }
+        private List<BoneFrameTrans> NewPs2CompressionTrans(List<BoneFrameTrans> frames, int deleteEvery = 4)
+        {
+            var compFrames = new List<BoneFrameTrans>();
+            var compDict = new Dictionary<ushort, BoneFrameTrans>();
+            foreach (var boneFrame in frames)
+            {
+                compDict[boneFrame.FrameTime] = boneFrame;
+            }
+            for (ushort i = 0; i <= DurationFrames; i += 2)
+            {
+                if (!compDict.TryGetValue(i, out _))
+                {
+                    var prevFrame = compDict[(ushort)(i - 2)];
+                    compDict[i] = new BoneFrameTrans(i, prevFrame.TransX, prevFrame.TransY, prevFrame.TransZ);
+                }
+                if (i % deleteEvery == 0)
+                {
+                    compFrames.Add(compDict[i]);
+                }
+
             }
             return compFrames;
         }
@@ -1465,6 +1494,11 @@ namespace GH_Toolkit_Core.SKA
                 try
                 {
                     newBone = newBones.bonesName[boneName];
+                    if (CompressForPS2)
+                    {
+                        QuatData[bone] = NewPs2CompressionQuat(QuatData[bone]);
+                        TransData[bone] = NewPs2CompressionTrans(TransData[bone]);
+                    }
                     if (quatToEdit.Contains(newBone))
                     {
                         FixPS2(QuatData[bone]);
@@ -1479,7 +1513,7 @@ namespace GH_Toolkit_Core.SKA
                     continue;
                 }
                 newAnimFlags.Add(newBone);
-                //QuatData[bone] = NewPs2Compression(QuatData[bone]);
+                //
                 newQuatData[newBone] = WriteNewQuatData(QuatData[bone], quatMultiplier);
                 newTransData[newBone] = WriteCompressedTransDataPs2(WriteNewTransData(TransData[bone]));
             }

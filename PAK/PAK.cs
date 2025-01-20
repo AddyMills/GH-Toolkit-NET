@@ -1324,7 +1324,12 @@ namespace GH_Toolkit_Core.PAK
                     }
                 }
 
-                var skaFiles = Directory.GetFiles(skaPath);
+                var skaFiles = Directory.GetFiles(skaPath).ToList();
+                var skaFilesToCompress = Path.Combine(skaPath, "Compress");
+                if (Directory.Exists(skaFilesToCompress))
+                {
+                    skaFiles.AddRange(Directory.GetFiles(skaFilesToCompress));
+                }
                 var readSkaFiles = new Dictionary<string, SkaFile>();
                 string skaEndian = gameConsole == CONSOLE_XBOX ? "big" : "little";
                 foreach (var skaFile in skaFiles)
@@ -1396,6 +1401,15 @@ namespace GH_Toolkit_Core.PAK
                                         skaScripts = SongQbFile.MakePs2SkaScript(gender, songName);
                                     }
                                     ps2SkaProcessed = true;
+                                }
+                                var skaFileName = Path.GetFileName(skaParsed.Key);
+                                if (skaFileName.ToLower().StartsWith("0x"))
+                                {
+                                    skaFileName = skaFileName.Substring(0, skaFileName.IndexOf('.'));
+                                }
+                                if (midiFile.GtrSkaAnims.Contains(skaFileName))
+                                {
+                                    continue;
                                 }
                                 convertedSka = skaParsed.Value.WritePs2StyleSka(skaMultiplier);
                                 string skaFolderPs2 = Path.Combine(savePath, "PS2 SKA Files");
