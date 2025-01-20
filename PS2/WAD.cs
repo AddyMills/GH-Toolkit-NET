@@ -101,7 +101,7 @@ namespace GH_Toolkit_Core.PS2
             if (!Directory.Exists(filePath))
                 throw new DirectoryNotFoundException("File path specified does not exist!");
         }
-        private static List<WadEntry> LoadWadEntries(string filePath)
+        private static List<WadEntry> LoadWadEntries(string filePath, bool cliMode = true)
         {
             Console.WriteLine($"Loading files from {filePath}. Please wait...");
             string[] entries = Directory.GetFileSystemEntries(filePath, "*", SearchOption.AllDirectories);
@@ -110,6 +110,10 @@ namespace GH_Toolkit_Core.PS2
             {
                 if (File.Exists(entry))
                 {
+                    if (cliMode)
+                    {
+                        Console.WriteLine($"Loading {entry}");
+                    }
                     WadEntry wadEntry = new WadEntry(entry, filePath);
                     wadEntry.LoadFileAndPad();
                     hedEntries.Add(wadEntry);
@@ -256,7 +260,7 @@ namespace GH_Toolkit_Core.PS2
             Directory.CreateDirectory(saveFolder);
             bool flipBytes = ReadWrite.FlipCheck("little");
 
-            var hedEntries = LoadWadEntries(filePath);
+            var hedEntries = LoadWadEntries(filePath, cliMode);
             hedEntries.Sort((entry1, entry2) => string.Compare(entry1.RelPath, entry2.RelPath));
 
             Dictionary<uint, FolderEntry> folders = new Dictionary<uint, FolderEntry>();
