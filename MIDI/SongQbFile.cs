@@ -153,6 +153,7 @@ namespace GH_Toolkit_Core.MIDI
         public static string? VenueSource { get; set; }
         public static bool RhythmTrack { get; set; }
         public static string? Game { get; set; }
+        public List<string> GtrSkaAnims { get; set; } = new List<string>();
         private string? QfileGame { get; set; } = GAME_GHWT;
         private static string? _songName;
         public static string? SongName
@@ -1569,6 +1570,7 @@ namespace GH_Toolkit_Core.MIDI
                             var scrParams = (QBStructData)script["params"];
                             if (((string)scrParams["name"]).ToLower() != "vocalist")
                             {
+                                GtrSkaAnims.Add((string)scrParams["anim"]);
                                 continue;
                             }
                         }
@@ -5606,7 +5608,14 @@ namespace GH_Toolkit_Core.MIDI
                 string markerType = console == CONSOLE_PS2 ? STRING : WIDESTRING;
                 QBStructData marker = new QBStructData();
                 marker.AddIntToStruct("Time", Time);
-                marker.AddVarToStruct("Marker", Text, markerType);
+                if (Text.ToLower().StartsWith("0x"))
+                {
+                    marker.AddVarToStruct("Marker", Text, POINTER);
+                }
+                else
+                {
+                    marker.AddVarToStruct("Marker", Text, markerType);
+                }
                 return marker;
             }
             public QBStructData ToStructQs()
