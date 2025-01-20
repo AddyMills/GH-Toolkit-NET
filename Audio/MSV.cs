@@ -4,6 +4,7 @@ using System.Text;
 using static GH_Toolkit_Core.Methods.GlobalVariables;
 using static GH_Toolkit_Core.Audio.AudioConstants;
 using System.Runtime.InteropServices;
+using System.Reflection.PortableExecutable;
 
 namespace GH_Toolkit_Core.Audio
 {
@@ -55,6 +56,7 @@ namespace GH_Toolkit_Core.Audio
 
             long dataLength = audio.Length - audio.Position;
             int origPosition = (int)audio.Position;
+            var wavTarget = new WaveFormat(33075, 16, 1);
 
             byte[] bytes = audio.ToArray();
             byte[] left = new byte[dataLength / 2];
@@ -68,10 +70,25 @@ namespace GH_Toolkit_Core.Audio
             }
             string leftPath = toSave + "_1.wav";
             string rightPath = toSave + "_2.wav";
-            File.WriteAllBytes(leftPath, left);
-            File.WriteAllBytes(rightPath, right);
+
+            using (var rawLeftStream = new MemoryStream(left))
+            using (var wavLeftStream = new RawSourceWaveStream(rawLeftStream, wavTarget))
+            using (var rawRightStream = new MemoryStream(right))
+            using (var wavRightStream = new RawSourceWaveStream(rawRightStream, wavTarget))
+            {
+                CreateNewWavFile(wavLeftStream, (int)wavLeftStream.Length, leftPath);
+                CreateNewWavFile(wavRightStream, (int)wavRightStream.Length, rightPath);
+            }
 
             return [leftPath, rightPath];
+        }
+        public void GetDataFromMonoWavTest(string filePath)
+        {
+            // This method assumes it's fed a mono stream. Will cause issues if it's not.
+            // This method does not check if the stream is mono or not. It assumes it is.
+            // Same with it being 16-bit PCM
+
+            makeMSV(filePath);
         }
         public string[]? getWavStreams(string filePath, int sampleRate = 33075)
         {
@@ -134,8 +151,7 @@ namespace GH_Toolkit_Core.Audio
             string folderName = Path.GetDirectoryName(filePath);
             string fileNoExt = Path.GetFileNameWithoutExtension(filePath);
 
-            using (var rawStream = new MemoryStream(File.ReadAllBytes(filePath)))
-            using (var wavStream = new RawSourceWaveStream(rawStream, msvTarget))
+            using (var wavStream = new WaveFileReader(filePath))
             using (var msvStream = new MemoryStream())
             {
                 int bytesPerSample = wavStream.WaveFormat.BitsPerSample / 8;
@@ -147,7 +163,7 @@ namespace GH_Toolkit_Core.Audio
                     size++;
                 }
                 string wavSave = Path.Combine(folderName, $"{fileNoExt}_test.wav");
-                // wavStream.WriteToFile(wavSave);
+                //wavStream.WriteToFile(wavSave);
                 string filename = songName == "" ? fileNoExt : $"{songName}_{fileNoExt}";
                 byte[] msvArray;
                 msvStream.Write(MSVp, 0, 4); // ID ("MSVp");
@@ -186,7 +202,7 @@ namespace GH_Toolkit_Core.Audio
                         short[] wave = new short[size];
                         for (int i = 0; i < size; i++)
                         {
-                            wave[i] = _waveread.ReadInt16(rawStream);
+                            wave[i] = _waveread.ReadInt16(wavStream);
                         }
 
                         // Ensure 'wave' is large enough to include padding if necessary
@@ -205,27 +221,36 @@ namespace GH_Toolkit_Core.Audio
                             unkA++;
                         }
 
+                        
+
                         for (int i = 0; i < unkA; i++)
                         {
+                            // Create a list to store the 'd' values for debugging
+                            List<byte> dList = new List<byte>();
                             // In C#, directly access the array instead of using pointers
                             short[] ptr = new short[28];
                             Array.Copy(wave, i * 28, ptr, 0, 28);
                             FindPredict(ptr, dSamples, ref predictNr, ref shiftFactor);
                             Pack(dSamples, fourBit, predictNr, shiftFactor);
                             int d = (predictNr << 4) | shiftFactor;
-                            writer.Write((byte)d);
-                            writer.Write((byte)flags);
+                            dList.Add((byte)d);
+                            dList.Add((byte)flags);
 
                             for (int k = 0; k < 28; k += 2)
                             {
                                 d = (((fourBit[k + 1] >> 8) & 0xf0) | ((fourBit[k] >> 12) & 0xf));
-                                writer.Write((byte)d);
+                                dList.Add((byte)d);
                             }
 
                             sampleLen -= 28;
                             if (sampleLen < 28)
                                 flags = 1;
+
+                            // Write all accumulated bytes to the writer
+                            writer.Write(dList.ToArray());
                         }
+
+                        
                     }
                 }
                 msvArray = msvStream.ToArray();
@@ -440,13 +465,21 @@ namespace GH_Toolkit_Core.Audio
                     throw new Exception("Invalid file type.");
             }
 
-            var makeMSVs = new[]
+            /*var makeMSVs = new[]
             {
                 Task.Run(() => makeMSV(streams[0], songName)),
                 Task.Run(() => makeMSV(streams[1], songName))
-            };
+            };*/
 
-            await Task.WhenAll(makeMSVs);
+            makeMSV(streams[0], songName);
+            makeMSV(streams[1], songName);
+
+            /* For some reason, the above code **CANNOT** be done asynchronously. 
+             * It will cause the MSV files to be corrupted.
+             * I don't know why it does this. It's very strange.
+             */
+
+            //await Task.WhenAll(makeMSVs);
 
             var deleteTasks = new[]
             {
@@ -480,52 +513,57 @@ namespace GH_Toolkit_Core.Audio
 
                     if (currentDataChunkSize < longestDataChunkSize)
                     {
-                        // Create a new memory stream for the padded file
-                        using (var outputStream = new MemoryStream())
-                        {
-                            // Write the RIFF header
-                            var writer = new BinaryWriter(outputStream);
-
-                            // Write RIFF chunk
-                            writer.Write(Encoding.ASCII.GetBytes("RIFF"));
-                            writer.Write(longestDataChunkSize + 36); // File size = data chunk size + 36 bytes for headers
-                            writer.Write(Encoding.ASCII.GetBytes("WAVE"));
-
-                            // Write fmt chunk
-                            writer.Write(Encoding.ASCII.GetBytes("fmt "));
-                            writer.Write(16); // fmt chunk size
-                            writer.Write(reader.WaveFormat.BitsPerSample == 16 ? (short)1 : (short)3); // Audio format (1 = PCM)
-                            writer.Write((short)reader.WaveFormat.Channels);
-                            writer.Write(reader.WaveFormat.SampleRate);
-                            writer.Write(reader.WaveFormat.AverageBytesPerSecond);
-                            writer.Write((short)reader.WaveFormat.BlockAlign);
-                            writer.Write((short)reader.WaveFormat.BitsPerSample);
-
-                            // Write data chunk header
-                            writer.Write(Encoding.ASCII.GetBytes("data"));
-                            writer.Write(longestDataChunkSize);
-
-                            // Write existing audio data
-                            var buffer = new byte[reader.Length];
-                            reader.Read(buffer, 0, buffer.Length);
-                            writer.Write(buffer);
-
-                            // Pad with zeros
-                            var paddingSize = longestDataChunkSize - buffer.Length;
-                            if (paddingSize > 0)
-                            {
-                                writer.Write(new byte[paddingSize]);
-                            }
-
-                            // Save to file
-                            File.WriteAllBytes(newSave, outputStream.ToArray());
-                        }
+                        CreateNewWavFile(reader, longestDataChunkSize, newSave);
                     }
                 }
                 if (File.Exists(newSave))
                 {
                     File.Move(newSave, audio, true);
                 }
+            }
+        }
+
+        private void CreateNewWavFile(WaveStream reader, int dataSize, string saveTo)
+        {
+            // Create a new memory stream for the padded file
+            using (var outputStream = new MemoryStream())
+            {
+                // Write the RIFF header
+                var writer = new BinaryWriter(outputStream);
+
+                // Write RIFF chunk
+                writer.Write(Encoding.ASCII.GetBytes("RIFF"));
+                writer.Write(dataSize + 36); // File size = data chunk size + 36 bytes for headers
+                writer.Write(Encoding.ASCII.GetBytes("WAVE"));
+
+                // Write fmt chunk
+                writer.Write(Encoding.ASCII.GetBytes("fmt "));
+                writer.Write(16); // fmt chunk size
+                writer.Write(reader.WaveFormat.BitsPerSample == 16 ? (short)1 : (short)3); // Audio format (1 = PCM)
+                writer.Write((short)reader.WaveFormat.Channels);
+                writer.Write(reader.WaveFormat.SampleRate);
+                writer.Write(reader.WaveFormat.AverageBytesPerSecond);
+                writer.Write((short)reader.WaveFormat.BlockAlign);
+                writer.Write((short)reader.WaveFormat.BitsPerSample);
+
+                // Write data chunk header
+                writer.Write(Encoding.ASCII.GetBytes("data"));
+                writer.Write(dataSize);
+
+                // Write existing audio data
+                var buffer = new byte[reader.Length];
+                reader.Read(buffer, 0, buffer.Length);
+                writer.Write(buffer);
+
+                // Pad with zeros
+                var paddingSize = dataSize - buffer.Length;
+                if (paddingSize > 0)
+                {
+                    writer.Write(new byte[paddingSize]);
+                }
+
+                // Save to file
+                File.WriteAllBytes(saveTo, outputStream.ToArray());
             }
         }
 
@@ -565,6 +603,7 @@ namespace GH_Toolkit_Core.Audio
             var backingOut = Path.Combine(outputFolder, "backing.wav");
 
             Task gtrStem = ConvertToWav(gtrAudio, gtrOut, sampleRate);
+            await gtrStem;
             Task rhythmStem = ConvertToWav(rhythmAudio, rhythmOut, sampleRate);
             Task backingStem = fsb.MixFiles(backingAudio, backingOut, convertTo:WAV, sampleRate:sampleRate);
 
@@ -645,7 +684,7 @@ namespace GH_Toolkit_Core.Audio
             }
 
             await Task.WhenAll(deleteTasks);
-            
+
         }
 
         public async Task CreatePs2Preview(string inAudio)

@@ -4,6 +4,10 @@ using FFMpegCore.Enums;
 using static GH_Toolkit_Core.Methods.GlobalVariables;
 using static GH_Toolkit_Core.Audio.FSB;
 using static GH_Toolkit_Core.Audio.AudioConstants;
+using GH_Toolkit_Core.Audio.Audio_Effects;
+using NAudio;
+using NAudio.Wave;
+using System.IO;
 
 namespace GH_Toolkit_Core.Audio
 {
@@ -15,16 +19,29 @@ namespace GH_Toolkit_Core.Audio
             {
                 inputPath = BlankWav;
             }
-                
+
+            var outPathTemp = Path.Combine(Path.GetDirectoryName(outputPath), Path.GetFileNameWithoutExtension(outputPath) + "_temp.wav");
+
+            outPathTemp = outputPath;
+
             var settings = FFMpegArguments
                 .FromFileInput(inputPath)
-                .OutputToFile(outputPath, true, options => options
+                .OutputToFile(outPathTemp, true, options => options
                     .WithAudioCodec(AudioCodec.PcmS16le)
                     .WithAudioSamplingRate(sampleRate) // Set the sample rate to variable
-                    .WithCustomArgument("-ac 2") // Force 2 Channels (Stereo)
+                    .WithCustomArgument("-ac 2 -filter:a \"volume=0dB\"") // Force 2 Channels (Stereo)
                     .WithoutMetadata()// Remove metadata
                 );
             await settings.ProcessAsynchronously();
+            /*
+            using (var reader = new AudioFileReader(outPathTemp))
+            {
+                var limiter = new SoftLimiter(reader);
+                limiter.Boost.CurrentValue = -4.5f;
+
+                await Task.Run(() => WaveFileWriter.CreateWaveFile16(outputPath, limiter));
+            }
+            File.Delete(outPathTemp);*/
         }
 
         public async Task MakePreviewPs2(string[] paths, string outputPath, decimal startTime = 0, decimal trimDuration = 30, decimal fadeIn = 1, decimal fadeOut = 1, decimal volume = -7, int sampleRate = 33075)
