@@ -201,7 +201,7 @@ namespace GH_Toolkit_Core.Methods
                 
                 if (Bassist != "Default")
                 {
-                    entry.AddVarToStruct("bassist", Bassist, QBKEY);
+                    entry.AddVarToStruct("bassist", Bassist, pString);
                 }
                 return entry;
             }
@@ -417,6 +417,10 @@ namespace GH_Toolkit_Core.Methods
                     MakePs2ScriptHeader();
                 }
                 var animName = Path.GetFileNameWithoutExtension(animPath);
+                if (animName.ToLower().StartsWith("0x"))
+                {
+                    animName = animName.Substring(0, animName.IndexOf('.')).ToLower();
+                }
                 AnimLoadScript.AppendLine($"<LoadFunction> <...> Name = '{animPath}' descChecksum = {animName}");
             }
             public void SavePs2Script(string savePath)
