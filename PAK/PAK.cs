@@ -286,7 +286,7 @@ namespace GH_Toolkit_Core.PAK
         }
         public static List<PakEntry>? PakEntriesFromFilepath(string file)
         {
-            string fileName = Path.GetFileName(file).ToLower();
+            string fileName = Path.GetFileName(file);
             if (fileName.IndexOf(".pab", 0, fileName.Length, StringComparison.CurrentCultureIgnoreCase) != -1)
             {
                 return null;
