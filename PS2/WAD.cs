@@ -9,7 +9,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using static GH_Toolkit_Core.PS2.HED;
-using static GH_Toolkit_Core.PS2.WAD;
+using static GH_Toolkit_Core.PAK.PAK;
+using YamlDotNet.Core;
 
 /*
  * * This file is intended to be a collection of custom methods to read and create WAD files
@@ -252,10 +253,31 @@ namespace GH_Toolkit_Core.PS2
             }
 
         }
+        private static void RecompileQbInWad(string filePath, string game = "GH3")
+        {
+            string qbPath = Path.Combine(filePath, "pak", "qb");
+            if (Directory.Exists(qbPath))
+            {
+                var pakCompiler = new PakCompiler(game, "PS2", null, true, true);
+                var (pak, pab) = pakCompiler.CompilePAK(qbPath, "PS2");
+                string fullPakName = qbPath + ".pak.ps2";
+                string fullPabName = qbPath + ".pab.ps2";
 
-        public static void CompileWADFile(string filePath, bool cliMode = true)
+                using (FileStream pakFile = new FileStream(fullPakName, FileMode.Create, FileAccess.Write))
+                using (FileStream pabFile = new FileStream(fullPabName, FileMode.Create, FileAccess.Write))
+                {
+                    pakFile.Write(pak);
+                    pabFile.Write(pab);
+                }
+            }
+        }
+        public static void CompileWADFile(string filePath, bool cliMode = true, bool recompileQb = false)
         {
             ValidateFilePath(filePath);
+            if (recompileQb)
+            {
+                RecompileQbInWad(filePath);
+            }
             string parentFolder = Path.GetDirectoryName(filePath);
             string saveFolder = Path.Combine(parentFolder, "WAD Compile");
             Directory.CreateDirectory(saveFolder);
