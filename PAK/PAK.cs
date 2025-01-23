@@ -152,7 +152,7 @@ namespace GH_Toolkit_Core.PAK
                             FullName = FullFlagPath.Substring(0, FullFlagPath.IndexOf(DOT_QB));
                         }
                     }
-                    else
+                    else if (!(FullFlagPath.EndsWith(DOTPS2) || FullFlagPath.EndsWith(DOTNGC)))
                     {
                         FullName = FullFlagPath;
                     }
