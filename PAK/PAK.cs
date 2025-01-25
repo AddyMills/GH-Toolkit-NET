@@ -1358,7 +1358,13 @@ namespace GH_Toolkit_Core.PAK
                     string skaPatternGuit = @"\d+b\.ska(\.xen)?$";
                     string skaPatternSing = @"\d\.ska(\.xen)?$";
 
-                    bool isGuitarist = Regex.IsMatch(skaParsed.Key, skaPatternGuit);
+                    var skaFileName = Path.GetFileName(skaParsed.Key);
+                    if (skaFileName.ToLower().StartsWith("0x"))
+                    {
+                        skaFileName = skaFileName.Substring(0, skaFileName.IndexOf('.'));
+                    }
+
+                    bool isGuitarist = Regex.IsMatch(skaParsed.Key, skaPatternGuit) || midiFile.GtrSkaAnims.Contains(skaFileName);
 
                     string skaType;
                     switch (game)
@@ -1402,11 +1408,7 @@ namespace GH_Toolkit_Core.PAK
                                     }
                                     ps2SkaProcessed = true;
                                 }
-                                var skaFileName = Path.GetFileName(skaParsed.Key);
-                                if (skaFileName.ToLower().StartsWith("0x"))
-                                {
-                                    skaFileName = skaFileName.Substring(0, skaFileName.IndexOf('.'));
-                                }
+                                
                                 if (midiFile.GtrSkaAnims.Contains(skaFileName))
                                 {
                                     continue;
