@@ -303,8 +303,6 @@ namespace GH_Toolkit_Core.PS2
             MemoryStream pf_files = new MemoryStream();
             PopulateFolderStreams(pd_folders, pd_files, folders, folderChecks, flipBytes);
 
-
-
             hedEntries.Sort((entry1, entry2) => entry1.fileQbKey.CompareTo(entry2.fileQbKey));
             PopulateFileStreams(pf_files, hedEntries);
 
