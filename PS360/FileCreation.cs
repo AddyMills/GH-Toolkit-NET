@@ -13,6 +13,7 @@ namespace GH_Toolkit_Core.PS360
         private static Dictionary<string, string> KeyLookup = new Dictionary<string, string>
         {
             {"GH3", "UP0002-BLUS30074_00" },
+            {"GHA", "UP0002-BLUS30133_00" },
             {"GH5", "UP0002-BLUS30292_00" },
             {"GHWT", "UP0002-BLUS30164_00" },
             {"GHWoR", "UP0002-BLUS30487_00" }
