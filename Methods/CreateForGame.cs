@@ -73,6 +73,7 @@ namespace GH_Toolkit_Core.Methods
                 { 
                     return $"{Title} by {Artist}".Replace("\\L", "");
                 } }
+            public bool Gh3Convert { get; set; } = false;
             private StringBuilder AnimLoadScript;
             public GhMetadata()
             {
@@ -202,6 +203,10 @@ namespace GH_Toolkit_Core.Methods
                 if (Bassist != "Default")
                 {
                     entry.AddVarToStruct("bassist", Bassist, pString);
+                }
+                if (Gh3Convert)
+                {
+                    entry.AddFlagToStruct("gh3_convert", QBKEY);
                 }
                 return entry;
             }
