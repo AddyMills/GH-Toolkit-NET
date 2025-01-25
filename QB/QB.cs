@@ -34,6 +34,7 @@ namespace GH_Toolkit_Core.QB
         private static string FloatPattern = @"^[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?$";
         public static Regex QbKeyRegex = new Regex(QbKeyPattern, RegexOptions.IgnoreCase);
         private static bool WideStringSwap = false;
+        private static CultureInfo enUs = new CultureInfo("en-US");
         public List<QBItem> Children { get; set; }
         public QB()
         {
@@ -541,7 +542,7 @@ namespace GH_Toolkit_Core.QB
                 float itemFloat = Convert.ToSingle(itemData);
                 string format = itemFloat % 1 == 0 ? "0.0" : "G";
 
-                itemString = itemFloat.ToString(format);
+                itemString = itemFloat.ToString(format, enUs);
                 //string 
 
                 //return f.ToString(format);
@@ -621,7 +622,7 @@ namespace GH_Toolkit_Core.QB
         {
             var formattedFloats = floats.Select(f => {
                 string format = f % 1 == 0 ? "0.0" : "G";
-                return f.ToString(format);
+                return f.ToString(format, enUs);
             });
             string floatString = string.Join(", ", formattedFloats);
             return $"({floatString})";
