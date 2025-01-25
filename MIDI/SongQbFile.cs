@@ -36,6 +36,7 @@ using System.Collections;
 using System.Security.Cryptography.X509Certificates;
 using static GH_Toolkit_Core.PAK.PAK;
 using Microsoft.VisualBasic.FileIO;
+using static System.Net.Mime.MediaTypeNames;
 
 
 /*
@@ -113,6 +114,7 @@ namespace GH_Toolkit_Core.MIDI
         public Dictionary<string, SongClip> SongClips { get; set; } = new Dictionary<string, SongClip>();
         public Dictionary<string, AnimStruct> AnimStructs { get; set; } = new Dictionary<string, AnimStruct>();
         public List<QBItem> SongScripts { get; set; } = new List<QBItem>(); // Actual scripts found in songs. Very rare.
+        private Dictionary<string, QBItem>? SongSections { get; set; }
         public List<(int, QBStructData)> ScriptTimedEvents { get; set; } = new List<(int, QBStructData)>();
         public Dictionary<string, Dictionary<string, List<string>>> Gh6Loops { get; set; } = new Dictionary<string, Dictionary<string, List<string>>>()
         {
@@ -154,6 +156,9 @@ namespace GH_Toolkit_Core.MIDI
         public static bool RhythmTrack { get; set; }
         public static string? Game { get; set; }
         public List<string> GtrSkaAnims { get; set; } = new List<string>();
+        public List<string> BassSkaAnims { get; set; } = new List<string>();
+        public List<string> VoxSkaAnims { get; set; } = new List<string>();
+        public List<string> DrumSkaAnims { get; set; } = new List<string>();
         private string? QfileGame { get; set; } = GAME_GHWT;
         private static string? _songName;
         public static string? SongName
@@ -226,6 +231,7 @@ namespace GH_Toolkit_Core.MIDI
             SongName = songName;
             Game = game;
             GamePlatform = console;
+            GetSongSections();
             var isGH5 = false;
             var midName = Path.GetFileNameWithoutExtension(qPath);
             var midName2 = Path.GetFileNameWithoutExtension(midName);
@@ -243,6 +249,16 @@ namespace GH_Toolkit_Core.MIDI
             ParseInstrumentsFromQb(qbDict, null);
             ParseMarkersFromQ(qbDict);
             ParseNonInstrumentFromQ(qbDict);
+        }
+        private void GetSongSections()
+        {
+            var exeLocation = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            var songSections = Path.Combine(exeLocation, "Resources", "Sections", "all_sections.q");
+            if (File.Exists(songSections))
+            {
+                var tempSections = ParseQFile(songSections); 
+                SongSections = QbEntryDict(tempSections);
+            }
         }
         private void DetermineQType(Dictionary<string, QBItem> qbDict, out bool isGH5)
         {
@@ -603,6 +619,7 @@ namespace GH_Toolkit_Core.MIDI
                 {
                     throw new NotSupportedException("GH3 customs require a guitar track!");
                 }
+
                 gameQb.AddRange(Guitar.ProcessQbEntriesGH3(SongName, false));
                 /*if (Game == GAME_GHA)
                 { 
@@ -1059,24 +1076,48 @@ namespace GH_Toolkit_Core.MIDI
         private void FakeAux()
         {
             Instrument newAux;
+            List<AnimNote> newAuxAnim;
             int animMod;
-            if (RhythmCoop.AnimNotes.Count != 0)
+            byte comp1 = 0;
+            byte comp2 = 0;
+
+            if (RhythmCoop.Expert.PlayNotes.Count != 0)
             {
-                newAux = Rhythm.AnimNotes.Count != 0 ? Rhythm : RhythmCoop;
+                newAux = Rhythm.Expert.PlayNotes.Count != 0 ? Rhythm : RhythmCoop;
                 animMod = 1;
+                comp1 = 101;
+                comp2 = 110;
             }
             else
             {
                 newAux = Guitar;
                 animMod = 2;
+                comp1 = 118;
+                comp2 = 127;
             }
             List<AnimNote> newAuxNotes = new List<AnimNote>();
-            foreach (AnimNote note in newAux.AnimNotes)
+            if (newAux.AnimNotes.Count == 0 && AnimNotes.Count != 0) // Implying this is a q file convert
             {
-                newAuxNotes.Add(new AnimNote(note.Time, note.Note - (animMod * 17), note.Length, note.Velocity));
+                foreach (AnimNote note in AnimNotes)
+                {
+                    if (note.Note >= comp1 && note.Note <= comp2)
+                    {
+                        newAuxNotes.Add(new AnimNote(note.Time, note.Note - (animMod * 17), note.Length, note.Velocity));
+                    }
+                }
+                AnimNotes.AddRange(newAuxNotes);
             }
-            Aux.AnimNotes = newAuxNotes;
+            else
+            {
+                foreach (AnimNote note in newAux.AnimNotes)
+                {
+                    newAuxNotes.Add(new AnimNote(note.Time, note.Note - (animMod * 17), note.Length, note.Velocity));
+                }
+                Aux.AnimNotes = newAuxNotes;
+            }
+  
             Aux.Expert = newAux.Expert;
+
         }
         public void ParseQbToData(byte[]? midQb,
             Dictionary<uint, string>? midQs,
@@ -1557,7 +1598,7 @@ namespace GH_Toolkit_Core.MIDI
                     }
                 }
             }
-            if (PerformanceScripts != null && GamePlatform == CONSOLE_PS2)
+            if (PerformanceScripts != null)
             {
                 var newPerf = new List<object>();
                 foreach (QBStructData script in PerformanceScripts.Items)
@@ -1568,10 +1609,20 @@ namespace GH_Toolkit_Core.MIDI
                         if (scrType == BAND_PLAYFACIALANIM)
                         {
                             var scrParams = (QBStructData)script["params"];
-                            if (((string)scrParams["name"]).ToLower() != "vocalist")
+                            switch (((string)scrParams["name"]).ToLower())
                             {
-                                GtrSkaAnims.Add((string)scrParams["anim"]);
-                                continue;
+                                case "vocalist":
+                                    VoxSkaAnims.Add((string)scrParams["anim"]);
+                                    break;
+                                case "guitarist":
+                                    GtrSkaAnims.Add((string)scrParams["anim"]);
+                                    break;
+                                case "bassist":
+                                    BassSkaAnims.Add((string)scrParams["anim"]);
+                                    break;
+                                case "drummer":
+                                    DrumSkaAnims.Add((string)scrParams["anim"]);
+                                    break;
                             }
                         }
                     }
@@ -1761,6 +1812,13 @@ namespace GH_Toolkit_Core.MIDI
                 }
                 else
                 {
+                    if (marker.Text.ToLower().StartsWith("0x"))
+                    {
+                        if (SongSections.TryGetValue(marker.Text, out var newMarker))
+                        {
+                            marker.Text = (string)newMarker.Data;
+                        }
+                    }
                     markerEntry = marker.ToStruct(GamePlatform);
                 }
 
@@ -5610,7 +5668,8 @@ namespace GH_Toolkit_Core.MIDI
                 marker.AddIntToStruct("Time", Time);
                 if (Text.ToLower().StartsWith("0x"))
                 {
-                    marker.AddVarToStruct("Marker", Text, POINTER);
+                    throw new ArgumentException("Text cannot start with 0x");
+                    //marker.AddVarToStruct("Marker", Text, POINTER);
                 }
                 else
                 {
