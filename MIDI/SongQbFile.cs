@@ -1901,7 +1901,9 @@ namespace GH_Toolkit_Core.MIDI
 
             var (game, venue) = NormalizeGameAndVenueSource(Game, VenueSource);
 
-            if (game != venue)
+            bool skipConvertCams = game == GAME_GHA && venue == GAME_GH3 && (GamePlatform != CONSOLE_PC && GamePlatform != CONSOLE_PS2);
+
+            if (game != venue && !skipConvertCams)
             {
                 Dictionary<int, int> cameraMap;
                 try
