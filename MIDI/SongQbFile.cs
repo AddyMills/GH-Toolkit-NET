@@ -307,11 +307,11 @@ namespace GH_Toolkit_Core.MIDI
         }
         public string GetErrorListAsString()
         {
-            return string.Join("\n", ErrorList);
+            return string.Join("\r\n", ErrorList);
         }
         public string GetWarningListAsString()
         {
-            return string.Join("\n", WarningList);
+            return string.Join("\r\n", WarningList);
         }
         public void AddTimedError(string error, string part, long ticks)
         {
@@ -894,7 +894,7 @@ namespace GH_Toolkit_Core.MIDI
             }
             else
             {
-                AddToErrorList($"Loop {ska} not found in anim_loops");
+                AddToErrorList($"Loop '{ska}' does not exist in Warriors of Rock.");
             }
             var cameras = AnimLoopsCache.AnimLoopsCams.Where(loop => loop.Contains($"{ska.ToLower()}_c")).ToList();
             if (cameras.Count > 0)
@@ -906,7 +906,7 @@ namespace GH_Toolkit_Core.MIDI
             }
             else
             {
-                AddToErrorList($"No cameras found for {ska}");
+                AddToErrorList($"No cameras found for '{ska}'.");
             }
         }
         private byte[] Gh5AnimBytes(AnimStruct animStruct)
