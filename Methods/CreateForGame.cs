@@ -325,7 +325,7 @@ namespace GH_Toolkit_Core.Methods
                 var packageHash = PackageNameHashFormat(packageName);
                 if (platform == CONSOLE_PS3)
                 {
-                    
+                    packageHash = packageHash.ToUpper();
                     fileType = "PKG";
                     Console.WriteLine("Compiling PKG file using Onyx CLI");
                     toCopyTo = Path.Combine(compilePath, "PS3");
@@ -367,7 +367,7 @@ namespace GH_Toolkit_Core.Methods
                     {
                         File.Copy(file, Path.Combine(toCopyTo, Path.GetFileName(file)), true);
                     }
-                    string pkgSave = Path.Combine(CompileFolder, $"{packageHash}.pkg".ToUpper());
+                    string pkgSave = Path.Combine(CompileFolder, $"{packageHash.ToUpper()}.pkg");
                     string contentPart2 = $"{Checksum}{packageHash}".ToUpper().Replace("_", "").Replace("\\L","").PadLeft(27, '0')[..27];
                     string contentID = FileCreation.GetPs3Key(game) + $"-{contentPart2}";
                     onyxArgs = ["pkg", contentID, toCopyTo, "--to", pkgSave];
