@@ -15,6 +15,7 @@ namespace GH_Toolkit_Core.Debug
 {
     public class DebugReader
     {
+        public static readonly object ChecksumDbgLock = new object();
         public static Dictionary<uint, string> ChecksumDbg { get; private set; }
         public static Dictionary<string, uint> Ps2PakDbg { get; private set; }
 
