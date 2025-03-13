@@ -194,14 +194,8 @@ namespace GH_Toolkit_Core.MIDI
             EasyOpens = easyOpens;
             SkaPath = skaPath;
             SetSkaQbKeys();
-            if (Game == GAME_GH3 || Game == GAME_GHA)
-            {
-                HopoMethod = HopoType.MoonScraper;
-            }
-            else
-            {
                 HopoMethod = (HopoType)hopoType;
-            }
+
             SetMidiInfo(midiPath);
         }
         public SongQbFile(string songName,
