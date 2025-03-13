@@ -168,7 +168,7 @@ namespace GH_Toolkit_Core.INI
                         songData.HopoType = key.Value;
                         break;
                     case "venue_source":
-                        songData.VenueSource = key.Value;
+                        songData.VenueSource = key.Value.ToUpper();
                         break;
                     case "wtde_game_icon":
                         songData.WtdeGameIcon = key.Value;
@@ -209,7 +209,7 @@ namespace GH_Toolkit_Core.INI
             {
                 string fileNoExt = Path.GetFileNameWithoutExtension(file).ToLower();
                 string fileExt = Path.GetExtension(file).ToLower();
-                string audioRegex = ".*\\.(mp3|ogg|flac|wav)$";
+                string audioRegex = ".*\\.(mp3|ogg|flac|wav|opus)$";
                 string midiRegex = ".*\\.(mid|midi)$";
 
                 if (Regex.IsMatch(fileExt, audioRegex))
@@ -360,15 +360,16 @@ namespace GH_Toolkit_Core.INI
                 {
                     assignment.MidiFile = file;
                 }
-                else if (fileNoExt == "perf_override" && Directory.Exists(file))
+                else if (fileNoExt == "perf_override" && fileExt == ".q" && File.Exists(file))
                 {
                     Console.WriteLine("Found perf_override folder.");
                     assignment.PerfOverride = file;
                 }
-                else if (fileNoExt == "song_scripts" && Directory.Exists(file))
+                else if (fileNoExt == "song_scripts" && fileExt == ".q" && File.Exists(file))
                 {
                     Console.WriteLine("Found song_scripts folder.");
                     assignment.SongScripts = file;
+
                 }
                 else if (fileNoExt == "lipsync" && Directory.Exists(file))
                 {

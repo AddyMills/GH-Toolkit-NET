@@ -52,11 +52,11 @@ namespace GH_Toolkit_Core.INI
         }
         private bool VerifyPerf()
         {
-            return PerfOverride != null && Directory.Exists(PerfOverride);
+            return PerfOverride != null && File.Exists(PerfOverride);
         }
         private bool VerifySongScripts()
         {
-            return SongScripts != null && Directory.Exists(SongScripts);
+            return SongScripts != null && File.Exists(SongScripts);
         }
         private bool VerifyLipsync()
         {
