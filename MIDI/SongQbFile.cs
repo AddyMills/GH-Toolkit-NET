@@ -1913,6 +1913,11 @@ namespace GH_Toolkit_Core.MIDI
 
             bool skipConvertCams = game == GAME_GHA && venue == GAME_GH3 && (GamePlatform != CONSOLE_PC && GamePlatform != CONSOLE_PS2);
 
+            if (skipConvertCams && venue == GAME_GH3)
+            {
+                minCamera = MinCameraGh3 - 4;
+            }
+
             if (game != venue && !skipConvertCams)
             {
                 Dictionary<int, int> cameraMap;
@@ -3372,6 +3377,10 @@ namespace GH_Toolkit_Core.MIDI
                             break;
                     }
                 }
+            }
+            public void SetTrackName(string trackName)
+            {
+                TrackName = trackName;
             }
             private QBArrayNode? CheckAndRetrieveNode(Dictionary<string, QBItem> songData, string lookupKey, Action<string>? logAction, ref bool failed, bool failIfNull = false)
             {
