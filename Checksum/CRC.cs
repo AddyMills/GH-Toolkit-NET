@@ -1,4 +1,5 @@
-﻿using System;
+﻿using GH_Toolkit_Core.Debug;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -18,6 +19,7 @@ namespace GH_Toolkit_Core.Checksum
 {
     public class CRC
     {
+        public static Dictionary<uint, string> NewKeys { get; private set; } = new Dictionary<uint, string>();
         private static readonly uint[] CRC32Table = {
             0x00000000, 0x77073096, 0xee0e612c, 0x990951ba,
             0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3,
@@ -93,7 +95,7 @@ namespace GH_Toolkit_Core.Checksum
             }
             byte[] textBytes = Encoding.Unicode.GetBytes(text);
 
-            return GenQBKey(textBytes);
+            return GenQBKey(textBytes, out _);
         }
         private static byte[] QBKeyBytes(string text)
         {
@@ -108,22 +110,24 @@ namespace GH_Toolkit_Core.Checksum
             }
             byte[] textBytes = QBKeyBytes(text);
 
-            return GenQBKey(textBytes);
-        }
+            string hexString = GenQBKey(textBytes, out uint checksumInt);
 
-        public static string GenQBKey(byte[] textBytes)
-        {
-            /*uint crc = 0xffffffff;
-
-            foreach (var b in textBytes)
+            // Use a lock to ensure thread safety when accessing the dictionary
+            lock (DebugReader.ChecksumDbgLock) // Add a static object in DebugReader for locking
             {
-                uint numA = (crc ^ b) & 0xFF;
-                crc = CRC32Table[numA] ^ crc >> 8 & 0x00ffffff;
+                if (!DebugReader.ChecksumDbg.ContainsKey(checksumInt))
+                {
+                    DebugReader.ChecksumDbg.Add(checksumInt, text);
+                }
             }
 
-            uint finalCRC = ~crc;
-            long value = -finalCRC - 1;*/
-            string result = (GenQBKeyUInt(textBytes)).ToString("x8");
+            return hexString;
+        }
+
+        public static string GenQBKey(byte[] textBytes, out uint checksumInt)
+        {
+            checksumInt = GenQBKeyUInt(textBytes);
+            string result = checksumInt.ToString("x8");
 
             // Pad to 8 characters
             result = result.PadLeft(8, '0');
