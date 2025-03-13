@@ -880,6 +880,14 @@ namespace GH_Toolkit_Core.MIDI
         }
         private void AddLoopsToStream(MemoryStream stream, string ska)
         {
+            if (ska.StartsWith("0x"))
+            {
+                uint skaInt = QBKeyUInt(ska);
+                if (NewKeys.TryGetValue(skaInt, out string? newKey))
+                {
+                    ska = newKey;
+                }
+            }
             if (AnimLoopsCache.AnimLoops.Contains(ska.ToLower()))
             {
                 _readWriteGh5.WriteUInt32(stream, QBKeyUInt(ska));
