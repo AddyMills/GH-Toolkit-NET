@@ -942,7 +942,20 @@ namespace GH_Toolkit_Core.QB
                     while (stream.Position < randEnd)
                     {
                         AddToList(stream, entry.Actions, ref nextGlobal, ref nextArg);
-                        object newItemCheck = entry.Actions.Last();
+                        object? newItemCheck = null;
+                        try
+                        {
+                            newItemCheck = entry.Actions.Last();
+                        }
+                        catch (InvalidOperationException ex)
+                        {
+                            continue;
+                        }
+                        catch (Exception ex)
+                        {
+                            throw;
+                        }
+                        
                         if (newItemCheck is string newItem && currItem is string currString)
                         {
                             if (newItem == currString && newItem == NEWLINE)
