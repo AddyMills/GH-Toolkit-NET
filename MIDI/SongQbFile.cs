@@ -352,6 +352,8 @@ namespace GH_Toolkit_Core.MIDI
         }
         public void ParseMidi()
         {
+            bool hasBass = false;
+            bool hasRhythm = false;
             // Getting the tempo map to convert ticks to time
             SongTempoMap = SongMidiFile.GetTempoMap();
             var trackChunks = SongMidiFile.GetTrackChunks();
@@ -378,6 +380,7 @@ namespace GH_Toolkit_Core.MIDI
                     case PARTBASS:
                         WriteUsedTrack(trackName);
                         Rhythm.MakeInstrument(trackChunk, this);
+                        hasBass = true;
                         break;
                     case PARTGUITAR:
                         WriteUsedTrack(trackName);
@@ -390,6 +393,7 @@ namespace GH_Toolkit_Core.MIDI
                     case PARTRHYTHM:
                         WriteUsedTrack(trackName);
                         RhythmCoop.MakeInstrument(trackChunk, this);
+                        hasRhythm = true;
                         break;
                     case PARTAUX:
                         WriteUsedTrack(trackName);
@@ -441,6 +445,10 @@ namespace GH_Toolkit_Core.MIDI
                         SkipTrack(trackName);
                         break;
                 }
+            }
+            if (!hasBass && hasRhythm)
+            {
+                
             }
             if (drumAnimOverride != null)
             {
