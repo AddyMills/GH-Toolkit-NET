@@ -281,8 +281,8 @@ namespace GH_Toolkit_Core.MIDI
 
         public bool HasGh6Loops()
         {
-            var male = Gh6Loops["male"]["vocalist"].Count > 0 && Gh6Loops["male"]["guitarist"].Count > 0 && Gh6Loops["male"]["bassist"].Count > 0;
-            var female = Gh6Loops["female"]["vocalist"].Count > 0 && Gh6Loops["female"]["guitarist"].Count > 0 && Gh6Loops["female"]["bassist"].Count > 0;
+            var male = Gh6Loops["male"]["vocalist"].Count > 0 || Gh6Loops["male"]["guitarist"].Count > 0 || Gh6Loops["male"]["bassist"].Count > 0;
+            var female = Gh6Loops["female"]["vocalist"].Count > 0 || Gh6Loops["female"]["guitarist"].Count > 0 || Gh6Loops["female"]["bassist"].Count > 0;
             return male && female;
         }
         public string GetGame()
