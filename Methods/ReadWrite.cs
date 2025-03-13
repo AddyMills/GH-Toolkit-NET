@@ -571,7 +571,7 @@ namespace GH_Toolkit_Core.Methods
         }
         private void WriteCrc(MemoryStream stream, byte[] noCrcStreamArray)
         {
-            string scriptCrc = CRC.GenQBKey(noCrcStreamArray);
+            string scriptCrc = CRC.GenQBKey(noCrcStreamArray, out _);
             stream.Write(ValueHex(scriptCrc), 0, 4);
         }
 
