@@ -194,7 +194,7 @@ namespace GH_Toolkit_Core.MIDI
             EasyOpens = easyOpens;
             SkaPath = skaPath;
             SetSkaQbKeys();
-                HopoMethod = (HopoType)hopoType;
+            HopoMethod = (HopoType)hopoType;
 
             SetMidiInfo(midiPath);
         }
