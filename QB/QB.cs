@@ -374,7 +374,7 @@ namespace GH_Toolkit_Core.QB
             var list = new List<float>();
             foreach (string floatVal in floats)
             {
-                if (float.TryParse(floatVal, out float val))
+                if (float.TryParse(floatVal, enUs, out float val))
                 {
                     list.Add(val);
                 }
@@ -605,7 +605,7 @@ namespace GH_Toolkit_Core.QB
             {
                 return DebugReader.DebugCheck(toFormat);
             }
-            else if (float.TryParse(toFormat, out _))
+            else if (float.TryParse(toFormat, enUs, out _))
             {
                 return $"`{toFormat}`";
             }
@@ -1119,7 +1119,7 @@ namespace GH_Toolkit_Core.QB
                                     {
                                         tmpValue += c;
                                     }
-                                    else if (float.TryParse(tmpValue, out float val))
+                                    else if (float.TryParse(tmpValue, enUs, out float val))
                                     {
                                         tmpValue += c;
                                     }
