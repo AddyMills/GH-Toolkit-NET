@@ -13,16 +13,37 @@ using static GH_Toolkit_Core.Methods.GlobalVariables;
 
 namespace GH_Toolkit_Core.Debug
 {
-    public class DebugReader
+    public class DebugReader : IDisposable
     {
         public static readonly object ChecksumDbgLock = new object();
+        public static readonly object QsDbgLock = new object();
         public static Dictionary<uint, string> ChecksumDbg { get; private set; }
+        public static Dictionary<uint, string> QsDbg { get; private set; }
         public static Dictionary<string, uint> Ps2PakDbg { get; private set; }
+
+        private static StreamWriter _qbUserWriter;
+        private static StreamWriter _qsUserWriter;
 
         static DebugReader()
         {
             ChecksumDbg = ReadQBDebug();
+            QsDbg = ReadQSDebug();
             Ps2PakDbg = ReadPs2PakDbg();
+            InitializeWriters();
+        }
+
+        private static void InitializeWriters()
+        {
+            var rootFolder = ExeRootFolder;
+            var qbDebugFolder = Path.Combine(rootFolder, "QBDebug");
+            Directory.CreateDirectory(qbDebugFolder); // Ensures directory exists
+
+            var userDbgPath = Path.Combine(qbDebugFolder, "keys_user.txt");
+            var qsUserDbgPath = Path.Combine(qbDebugFolder, "keys_qs_user.txt");
+
+            // Initialize StreamWriters with append mode and AutoFlush
+            _qbUserWriter = new StreamWriter(userDbgPath, true, Encoding.UTF8) { AutoFlush = true };
+            _qsUserWriter = new StreamWriter(qsUserDbgPath, true, Encoding.UTF8) { AutoFlush = true };
         }
         static Dictionary<string, uint> ReadPs2PakDbg()
         {
@@ -74,6 +95,7 @@ namespace GH_Toolkit_Core.Debug
 
             var compressedPath = Path.Combine(rootFolder, "QBDebug", "keys.dbg");
             var dbgPath = Path.Combine(rootFolder, "QBDebug", "keys.txt");
+            var userDbgPath = Path.Combine(rootFolder, "QBDebug", "keys_user.txt");
             if (Path.Exists(compressedPath))
             {
                 DecompressToFile(compressedPath, dbgPath);
@@ -82,6 +104,81 @@ namespace GH_Toolkit_Core.Debug
             try
             {
                 var textLines = File.ReadAllLines(dbgPath);
+                if (Path.Exists(userDbgPath))
+                {
+                    var userTextLines = File.ReadAllLines(userDbgPath);
+                    textLines = textLines.Concat(userTextLines).ToArray();
+                }
+                foreach (var line in textLines)
+                {
+                    var newLine = line.TrimEnd('\n').Split(new[] { '\t' }, 2);
+
+                    if (newLine.Length != 2) continue;
+
+                    try
+                    {
+                        var key = Convert.ToUInt32(newLine[0], 16);
+                        var value = newLine[1];//.Replace("\"", "");
+                        funcDict[key] = value;
+                    }
+                    catch
+                    {
+                        // If an exception occurs, ignore and continue processing the next line.
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error reading or processing the file: {ex.Message}");
+            }
+            if (Path.Exists(dbgPath))
+            {
+                File.Delete(dbgPath);
+            }
+            return funcDict;
+        }
+        static void AddQbKeyToUser(string key, string value)
+        {
+            lock (ChecksumDbgLock)
+            {
+                _qbUserWriter.WriteLine($"{key}\t{value}");
+            }
+        }
+        public static void AddQbKeyToUser(uint key, string value)
+        {
+            AddQbKeyToUser(key.ToString("x8"), value);
+        }
+        static void AddQsKeyToUser(string key, string value)
+        {
+            lock (QsDbgLock)
+            {
+                _qsUserWriter.WriteLine($"{key}\t{value}");
+            }
+        }
+        public static void AddQsKeyToUser(uint key, string value)
+        {
+            AddQsKeyToUser(key.ToString("x8"), value);
+        }
+        static Dictionary<uint, string> ReadQSDebug()
+        {
+            var funcDict = new Dictionary<uint, string>();
+            var rootFolder = ExeRootFolder;
+
+            var compressedPath = Path.Combine(rootFolder, "QBDebug", "keys_qs.dbg");
+            var dbgPath = Path.Combine(rootFolder, "QBDebug", "keys_qs.txt");
+            var userDbgPath = Path.Combine(rootFolder, "QBDebug", "keys_qs_user.txt");
+            if (Path.Exists(compressedPath))
+            {
+                DecompressToFile(compressedPath, dbgPath);
+            }
+            try
+            {
+                var textLines = File.ReadAllLines(dbgPath);
+                if (Path.Exists(userDbgPath))
+                {
+                    var userTextLines = File.ReadAllLines(userDbgPath);
+                    textLines = textLines.Concat(userTextLines).ToArray();
+                }
 
                 foreach (var line in textLines)
                 {
@@ -123,6 +220,17 @@ namespace GH_Toolkit_Core.Debug
         public static string DbgString(uint toCheck)
         {
             if (ChecksumDbg.TryGetValue(toCheck, out var checksum))
+            {
+                return checksum;
+            }
+            else
+            {
+                return "0x" + toCheck.ToString("x8");
+            }
+        }
+        public static string QsDbgString(uint toCheck)
+        {
+            if (QsDbg.TryGetValue(toCheck, out var checksum))
             {
                 return checksum;
             }
@@ -218,6 +326,18 @@ namespace GH_Toolkit_Core.Debug
                 headers = DebugHeaders.CreateDlcDict(name);
             }
             return headers;
+        }
+        // Dispose pattern to clean up resources
+        public static void Dispose()
+        {
+            _qbUserWriter?.Dispose();
+            _qsUserWriter?.Dispose();
+        }
+
+        void IDisposable.Dispose()
+        {
+            Dispose();
+            GC.SuppressFinalize(this);
         }
     }
 }
