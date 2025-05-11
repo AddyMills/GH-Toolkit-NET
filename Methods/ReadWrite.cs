@@ -319,13 +319,13 @@ namespace GH_Toolkit_Core.Methods
             stream.Write(padding, 0, (int)paddingNeeded); // Write the padding bytes
         }
 
-        public byte[] ValueHex(string text) // For Qb Keys, Qs Keys, and Pointers
+        public byte[] ValueHex(string text, bool addToDict = true) // For Qb Keys, Qs Keys, and Pointers
         {
             if (text == null)
             {
                 text = "0x0";
             }
-            var qbKey = CRC.QBKey(text);
+            var qbKey = CRC.QBKey(text, addToDict);
             var qbKeyInt = Convert.ToInt32(qbKey, 16);
             var bytes = BitConverter.GetBytes(qbKeyInt);
             return ProcessBytes(bytes);
