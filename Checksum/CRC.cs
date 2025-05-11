@@ -87,7 +87,7 @@ namespace GH_Toolkit_Core.Checksum
             0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
         };
 
-        public static string QBKeyQs(string text)
+        public static string QBKeyQs(string text, bool addToDict = true)
         {
             if (text.StartsWith("0x") && text.Length <= 10)
             {
@@ -95,14 +95,26 @@ namespace GH_Toolkit_Core.Checksum
             }
             byte[] textBytes = Encoding.Unicode.GetBytes(text);
 
-            return GenQBKey(textBytes, out _);
+            string hexString = GenQBKey(textBytes, out uint checksumInt);
+            
+            // Use a lock to ensure thread safety when accessing the dictionary
+            lock (DebugReader.QsDbgLock) // Add a static object in DebugReader for locking
+            {
+                if (addToDict && !DebugReader.QsDbg.ContainsKey(checksumInt))
+                {
+                    DebugReader.QsDbg.Add(checksumInt, text);
+                    DebugReader.AddQsKeyToUser(checksumInt, text);
+                }
+            }
+
+            return hexString;
         }
         private static byte[] QBKeyBytes(string text)
         {
             text = text.ToLower().Replace("/", "\\");
             return Encoding.UTF8.GetBytes(text);
         }
-        public static string QBKey(string text)
+        public static string QBKey(string text, bool addToDict = true)
         {
             if (text.StartsWith("0x") && text.Length <= 10)
             {
@@ -112,12 +124,14 @@ namespace GH_Toolkit_Core.Checksum
 
             string hexString = GenQBKey(textBytes, out uint checksumInt);
 
+            
             // Use a lock to ensure thread safety when accessing the dictionary
             lock (DebugReader.ChecksumDbgLock) // Add a static object in DebugReader for locking
             {
-                if (!DebugReader.ChecksumDbg.ContainsKey(checksumInt))
+                if (addToDict && !DebugReader.ChecksumDbg.ContainsKey(checksumInt))
                 {
                     DebugReader.ChecksumDbg.Add(checksumInt, text);
+                    DebugReader.AddQbKeyToUser(checksumInt, text);
                 }
             }
 
