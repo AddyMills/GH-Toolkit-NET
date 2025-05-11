@@ -7,11 +7,13 @@ using System.Text.RegularExpressions;
 using GH_Toolkit_Core.Methods;
 using IniParser;
 using IniParser.Model;
+using System.Globalization;
 
 namespace GH_Toolkit_Core.INI
 {
     public class iniParser
     {
+        public static CultureInfo enUs = new CultureInfo("en-US");
         public static IniData ReadIniFromPath(string path)
         {
             var parser = new IniParser.Parser.IniDataParser();
@@ -387,7 +389,7 @@ namespace GH_Toolkit_Core.INI
         }
         public static int ChDiffToGh(string chDiff)
         {
-            float chParsed = float.Parse(chDiff) + 1;
+            float chParsed = float.Parse(chDiff, enUs) + 1;
             if (chParsed <= 0)
             {
                 return 0;
