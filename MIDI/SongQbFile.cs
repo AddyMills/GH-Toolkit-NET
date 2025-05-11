@@ -229,7 +229,7 @@ namespace GH_Toolkit_Core.MIDI
             var isGH5 = false;
             var midName = Path.GetFileNameWithoutExtension(qPath);
             var midName2 = Path.GetFileNameWithoutExtension(midName);
-            var qbList = ParseQFile(qPath);
+            var (qbList, _) = ParseQFile(qPath);
             if (!string.IsNullOrEmpty(midName2) && midName2 != SongName)
             {
                 foreach (QBItem qbItem in qbList)
@@ -250,7 +250,7 @@ namespace GH_Toolkit_Core.MIDI
             var songSections = Path.Combine(exeLocation, "Resources", "Sections", "all_sections.q");
             if (File.Exists(songSections))
             {
-                var tempSections = ParseQFile(songSections); 
+                var (tempSections, _) = ParseQFile(songSections); 
                 SongSections = QbEntryDict(tempSections);
             }
         }
@@ -2073,7 +2073,7 @@ namespace GH_Toolkit_Core.MIDI
                 return null;
             }
             perfText = CleanPerfOverride(perfText);
-            var qb = ParseQFile(perfText);
+            var (qb, _) = ParseQFile(perfText);
             var perfScripts = new List<(int, QBStructData)>();
             List<string> SkaErrors = new List<string>();
 
@@ -4937,7 +4937,7 @@ namespace GH_Toolkit_Core.MIDI
                     animload_Singer_{gender}_{songname} <...>
                 endscript
                 """;
-            var skaScriptList = ParseQFile(skaScript);
+            var (skaScriptList, _) = ParseQFile(skaScript);
             var scriptCompiled = CompileQbFile(skaScriptList, qbName, game: GAME_GH3, console: CONSOLE_PS2);
             return scriptCompiled;
         }
@@ -4948,7 +4948,7 @@ namespace GH_Toolkit_Core.MIDI
                 return;
             }
             var songScripts = CleanOldScripts(SongScriptOverride);
-            var songScriptsQb = ParseQFile(songScripts);
+            var (songScriptsQb, _) = ParseQFile(songScripts);
             foreach (var item in songScriptsQb)
             {
                 if (item.Name.ToLower().StartsWith("car_"))

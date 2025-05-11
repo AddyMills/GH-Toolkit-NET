@@ -527,7 +527,7 @@ namespace GH_Toolkit_Core.Methods
             foreach (string locale in locales)
             {
                 string songlistPath = Path.Combine(gh3Resource, $"blank_songlist{locale}.q");
-                var songlist = ParseQFromFile(songlistPath);
+                var (songlist, _) = ParseQFromFile(songlistPath);
                 FileCreation.AddToSonglistGh3(songlist, songListEntry);
                 string localeDirectory = Path.Combine(compilePath, $"dl{checksum}_text{locale}");
                 string qbFile = Path.Combine(localeDirectory, textChecksum);
