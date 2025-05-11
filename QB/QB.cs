@@ -35,6 +35,7 @@ namespace GH_Toolkit_Core.QB
         public static Regex QbKeyRegex = new Regex(QbKeyPattern, RegexOptions.IgnoreCase);
         private static bool WideStringSwap = false;
         private static CultureInfo enUs = new CultureInfo("en-US");
+        public Dictionary<uint, string> QsList { get; set; } = new Dictionary<uint, string>();
         public List<QBItem> Children { get; set; }
         public QB()
         {
@@ -43,6 +44,18 @@ namespace GH_Toolkit_Core.QB
         private void AddQbChild(QBItem item)
         {
             Children.Add(item);
+        }
+        /// <summary>
+        /// Add item to a QS List
+        /// </summary>
+        public void AddToQsList(string item, bool forceString = false)
+        {
+            var qsString = CRC.QSKeyUInt(item);
+
+            if (!QsList.ContainsKey(qsString))
+            {
+                QsList.Add(qsString, item);
+            }
         }
         [DebuggerDisplay("{Info, nq}: {Name, nq} - {Data}")]
         public class QBItem
@@ -307,6 +320,10 @@ namespace GH_Toolkit_Core.QB
         {
             return DebugReader.DebugCheck(SongHeaders, Reader.ReadUInt32(stream));
         }
+        public static string ReadQsKey(MemoryStream stream)
+        {
+            return DebugReader.QsDbgString(Reader.ReadUInt32(stream));
+        }
 
         private static uint ReadQBHeader(MemoryStream stream)
         {
@@ -321,9 +338,10 @@ namespace GH_Toolkit_Core.QB
                 case INTEGER:
                     return Reader.ReadInt32(stream);
                 case QBKEY:
-                case QSKEY:
                 case POINTER:
                     return ReadQBKey(stream);
+                case QSKEY:
+                    return ReadQsKey(stream);
                 default:
                     return Reader.ReadUInt32(stream);
             }
@@ -664,6 +682,44 @@ namespace GH_Toolkit_Core.QB
                 }
             }
         }
+        public static string QbToTextString(List<QBItem> qbList)
+        {
+            StringBuilder sb = new StringBuilder();
+            using (StringWriter writer = new StringWriter(sb))
+            {
+                foreach (QBItem item in qbList)
+                {
+                    if (item.Data is QBArrayNode arrayNode)
+                    {
+                        writer.WriteLine($"{item.Name} = [");
+                        arrayNode.ArrayToText(writer, 1);
+                        writer.WriteLine("]");
+                    }
+                    else if (item.Data is QBStructData structNode)
+                    {
+                        writer.WriteLine($"{item.Name} = {{");
+                        structNode.StructToText(writer, 1);
+                        writer.WriteLine("}");
+                    }
+                    else if (item.Data is List<float> floats)
+                    {
+                        writer.WriteLine($"{item.Name} = {FloatsToText(floats)}");
+                    }
+                    else if (item.Data is QBScriptData scriptData)
+                    {
+                        writer.WriteLine();
+                        writer.Write($"script {item.Name} ");
+                        writer.Write(scriptData.ScriptToText(scriptData.ScriptParsed, 1));
+                        writer.WriteLine();
+                    }
+                    else
+                    {
+                        writer.WriteLine($"{item.Name} = {QbItemText(item.Info.Type, item.Data.ToString())}");
+                    }
+                }
+            }
+            return sb.ToString();
+        }
         enum ParseState
         {
             whitespace,
@@ -746,9 +802,9 @@ namespace GH_Toolkit_Core.QB
             switch (type)
             {
                 case INTEGER:
-                    return int.Parse(data);
+                    return int.Parse(data, enUs);
                 case FLOAT:
-                    return float.Parse(data);
+                    return float.Parse(data, enUs);
                 case MULTIFLOAT:
                 case PAIR:
                 case VECTOR:
@@ -810,7 +866,7 @@ namespace GH_Toolkit_Core.QB
             tmpKey = "";
             tmpValue = "";
         }
-        public static List<QBItem> ParseQFromFile(string data)
+        public static (List<QBItem>, Dictionary<uint, string>) ParseQFromFile(string data)
         {
             if (File.Exists(data))
             {
@@ -822,7 +878,7 @@ namespace GH_Toolkit_Core.QB
             }
             return ParseQFile(data);
         }
-        public static List<QBItem> ParseQFile(string data, string console = CONSOLE_XBOX)
+        public static (List<QBItem>, Dictionary<uint,string>) ParseQFile(string data, string console = CONSOLE_XBOX)
         {
             WideStringSwap = console == CONSOLE_PS2 || console == CONSOLE_WII;
             if (File.Exists(data))
@@ -848,8 +904,9 @@ namespace GH_Toolkit_Core.QB
             string tmpType;
             int lineNumber = 1; // Start from line 1
             bool lastCharWasCarriageReturn = false;
-
             bool lastForwardSlash = false;
+            bool insideStringQs = false;
+            char currentQuoteChar = '\0';
             try
             {
                 for (int i = 0; i < data.Length; i++)
@@ -1428,21 +1485,63 @@ namespace GH_Toolkit_Core.QB
                             {
                                 case '"':
                                 case '`':
-                                    if (tmpValue == "#")
+                                    if (insideStringQs)
+                                    {
+                                        if (c == currentQuoteChar)
+                                        {
+                                            // Closing quote, exit string
+                                            insideStringQs = false;
+                                        }
+                                        else
+                                        {
+                                            // Different quote type inside string, treat as literal
+                                            tmpValue += c;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        if (tmpValue == "#")
+                                        {
+                                            // Qualifier detected, clear tmpValue
+                                            tmpValue = "";
+                                        }
+                                        else
+                                        {
+                                            // Opening quote, enter string
+                                            insideStringQs = true;
+                                            currentQuoteChar = c;
+                                        }
+                                    }
+                                    /*if (tmpValue == "#")
                                     {
                                         tmpValue = "";
                                     }
                                     else
                                     {
                                         continue;
-                                    }
+                                    }*/
                                     break;
                                 case ')':
-                                    AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QSKEY);
-                                    StateSwitch(currLevel);
+                                    if (insideStringQs)
+                                    {
+                                        // Treat as part of the string
+                                        tmpValue += c;
+                                    }
+                                    else
+                                    {
+                                        // End of QSKEY
+                                        AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, QSKEY);
+                                        StateSwitch(currLevel);
+                                        // Reset string tracking variables
+                                        insideStringQs = false;
+                                        currentQuoteChar = '\0';
+                                    }
                                     break;
                                 default:
-                                    tmpValue += c;
+                                    if (insideStringQs || !char.IsWhiteSpace(c)) // Adjust based on whether whitespace is allowed outside strings
+                                    {
+                                        tmpValue += c;
+                                    }
                                     break;
                             }
                             break;
@@ -1487,7 +1586,7 @@ namespace GH_Toolkit_Core.QB
                 Console.WriteLine($"Error in script {GetRootItem(currLevel)}");
                 throw new QFileParseException($"Line {lineNumber} - {ex.Message}");
             }
-            return qbFile.Children;
+            return (qbFile.Children, qbFile.QsList);
         }
         private static string GetRootItem(ParseLevel currLevel)
         {
@@ -1544,6 +1643,10 @@ namespace GH_Toolkit_Core.QB
             if (WideStringSwap && itemType == WIDESTRING)
             {
                 itemType = STRING; // Make it a string if it's a wide string on PS2 and Wii
+            }
+            else if (itemType == WIDESTRING)
+            {
+                qbFile.AddToQsList(tmpValue);
             }
             switch (currLevel.LevelType)
             {
