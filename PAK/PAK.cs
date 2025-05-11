@@ -8,6 +8,7 @@ using static GH_Toolkit_Core.PAK.PAK;
 using static GH_Toolkit_Core.QB.QB;
 using static GH_Toolkit_Core.QB.QBConstants;
 using static GH_Toolkit_Core.Checksum.CRC;
+using static GH_Toolkit_Core.PAK.PAKVariables;
 using static System.Net.Mime.MediaTypeNames;
 using System.Reflection.PortableExecutable;
 using GH_Toolkit_Core.MIDI;
@@ -17,6 +18,8 @@ using System.Security.Policy;
 using System.Xml;
 using System.Text;
 using static GH_Toolkit_Core.Methods.Exceptions;
+using GH_Toolkit_Core.QB;
+using GH_Toolkit_Core.Checksum;
 
 /*
  * * This file is intended to be a collection of custom methods to read and create PAK files
@@ -273,6 +276,18 @@ namespace GH_Toolkit_Core.PAK
                 EntryData = data;
                 FileSize = (uint)EntryData.Length;
             }
+            public string GetFullName()
+            {
+                if (FullName.StartsWith(HEXSTART))
+                {
+                    var nameSplit = FullName.Split(".");
+                    return $"{nameSplit[0]}";
+                }
+                else
+                {
+                    return FullName;
+                }
+            }
         }
         public static Dictionary<string, PakEntry> PakEntryDictFromFile(string file)
         {
@@ -281,6 +296,16 @@ namespace GH_Toolkit_Core.PAK
             foreach (var entry in pakEntries)
             {
                 pakDict.Add(entry.FullName, entry);
+            }
+            return pakDict;
+        }
+        public static Dictionary<string, PakEntry> PakEntryQbDictFromFile(string file)
+        {
+            var pakEntries = PakEntriesFromFilepath(file);
+            Dictionary<string, PakEntry> pakDict = new Dictionary<string, PakEntry>();
+            foreach (var entry in pakEntries)
+            {
+                pakDict.Add(QBKey(entry.FullName), entry);
             }
             return pakDict;
         }
@@ -297,10 +322,17 @@ namespace GH_Toolkit_Core.PAK
             }
 
             string fileNoExt = fileName.Substring(0, fileName.ToLower().IndexOf(".pak"));
-            string fileExt = Path.GetExtension(file);
+            string vramFile = fileNoExt + "_vram.pak.ps3".ToUpper();
+            string fileExt = Path.GetExtension(file).ToLower();
             Console.WriteLine($"Processing {fileNoExt}");
             string folderPath = Path.GetDirectoryName(file);
             string NewFolderPath = Path.Combine(folderPath, fileNoExt);
+            string vramPath = Path.Combine(folderPath, vramFile);
+            byte[]? vramBytes = null;
+            if (File.Exists(vramPath) && fileExt == DOTPS3)
+            {
+                vramBytes = File.ReadAllBytes(vramPath);
+            }
             string songCheck = "_song";
             string songCheck2 = "_s";
             string songName = "";
@@ -316,7 +348,7 @@ namespace GH_Toolkit_Core.PAK
 
             byte[] test_pak = File.ReadAllBytes(file);
             byte[] test_pab = null;
-
+            
             // Check for a corresponding .pab file
             string pabFilePath = Path.Combine(folderPath, fileNoExt + $".pab{fileExt}");
             if (File.Exists(pabFilePath))
@@ -337,7 +369,7 @@ namespace GH_Toolkit_Core.PAK
             }
             try
             {
-                pakEntries = ExtractPAK(test_pak, test_pab, endian: endian, songName: songName, isWiiorPS2: isWiiorPS2);
+                pakEntries = ExtractPAK(test_pak, test_pab, endian: endian, songName: songName, isWiiorPS2: isWiiorPS2, vramBytes: vramBytes);
             }
             catch (Exception ex)
             {
@@ -353,7 +385,7 @@ namespace GH_Toolkit_Core.PAK
                 {
                     test_pab = Compression.DecompressData(test_pab);
                 }
-                pakEntries = ExtractPAK(test_pak, test_pab, endian: endian, songName: songName, isWiiorPS2: isWiiorPS2);
+                pakEntries = ExtractPAK(test_pak, test_pab, endian: endian, songName: songName, isWiiorPS2: isWiiorPS2, vramBytes: vramBytes);
             }
             return pakEntries;
         }
@@ -381,9 +413,16 @@ namespace GH_Toolkit_Core.PAK
             string masterFilePath = Path.Combine(NewFolderPath, "master.txt");
 
             var pakEntries = PakEntriesFromFilepath(file);
+            var parents = new Dictionary<string, string>();
 
             foreach (PakEntry entry in pakEntries)
             {
+                if (entry.Parent != 0)
+                {
+                    var fullName = entry.GetFullName();
+                    var parentString = DebugReader.DbgString(entry.Parent);
+                    parents.Add(fullName, parentString);
+                }
                 string pakFileName = entry.FullName;
                 bool convToQ = ((entry.Extension == DOT_QB || entry.Extension == DOT_NQB) && convertQ) ? true : false;
 
@@ -462,6 +501,17 @@ namespace GH_Toolkit_Core.PAK
                     File.Delete(saveName);
                 }
             }
+            if (parents.Count > 0)
+            {
+                var parentFile = Path.Combine(NewFolderPath, "parents.config");
+                using (StreamWriter masterFileWriter = File.CreateText(parentFile))
+                {
+                    foreach (var entry in parents)
+                    {
+                        masterFileWriter.WriteLine($"{entry.Key} {entry.Value}");
+                    }
+                }
+            }
             Console.WriteLine("Success!");
         }
         private static uint CheckPabType(byte[] pakBytes, string endian = "big")
@@ -505,16 +555,21 @@ namespace GH_Toolkit_Core.PAK
             }
             return data;
         }
-        public static List<PakEntry> ExtractPAK(byte[] pakBytes, byte[]? pabBytes, string endian = "big", string songName = "", bool isWiiorPS2 = false)
+        public static List<PakEntry> ExtractPAK(byte[] pakBytes, byte[]? pabBytes, string endian = "big", string songName = "", bool isWiiorPS2 = false, byte[]? vramBytes = null)
         {
             ReadWrite reader = new ReadWrite(endian);
             bool pakComp = Compression.isChnkCompressed(pakBytes);
             if (pakComp)
             {
                 pakBytes = Compression.DecompressWTPak(pakBytes);
+                if (vramBytes != null && vramBytes.Length > 0)
+                {
+                    vramBytes = Compression.DecompressWTPak(pakBytes);
+                }
             }
 
             List<PakEntry> pakList = new List<PakEntry>();
+            List<PakEntry> vramList = new List<PakEntry>();
             if (pabBytes != null)
             {
                 bool pabComp = Compression.isChnkCompressed(pabBytes);
@@ -552,19 +607,57 @@ namespace GH_Toolkit_Core.PAK
                         //pakList = ExtractNewPak(pakBytes, pabBytes, endian, songName);
                         break;
                     case uint size when size >= pakBytes.Length:
-                        byte[] bytes = new byte[pabStart + pabBytes.Length];
-                        Array.Copy(pakBytes, 0, bytes, 0, pakBytes.Length);
-                        Array.Copy(pabBytes, 0, bytes, pabStart, pabBytes.Length);
-                        pakBytes = bytes;
-                        pakList = ExtractOldPak(pakBytes, endian, songName, isWiiorPS2);
+                        try
+                        {
+                            byte[] bytes = new byte[pabStart + pabBytes.Length];
+                            Array.Copy(pakBytes, 0, bytes, 0, pakBytes.Length);
+                            Array.Copy(pabBytes, 0, bytes, pabStart, pabBytes.Length);
+                            pakList = ExtractOldPak(bytes, endian, songName, isWiiorPS2);
+                            if (vramBytes != null && !isWiiorPS2)
+                            {
+                                vramList = ExtractOldPak(vramBytes, endian, songName, isWiiorPS2, vram: true);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            var lzss = new Lzss();
+                            // For lzss-compressed files (GH3 and GHA on PS3 only)
+                            var pakEntries = GetNewPakEntries(pakBytes, endian, songName);
+                            if (pakEntries == null)
+                            {
+                                // PAK file is lzss compressed also
+                                pakBytes = lzss.Decompress(pakBytes);
+                            }
+                            pabBytes = lzss.Decompress(pabBytes);
+                            pabStart = CheckPabType(pakBytes, endian);
+                            byte[] bytes = new byte[pabStart + pabBytes.Length];
+                            Array.Copy(pakBytes, 0, bytes, 0, pakBytes.Length);
+                            Array.Copy(pabBytes, 0, bytes, pabStart, pabBytes.Length);
+                            pakList = ExtractOldPak(bytes, endian, songName, isWiiorPS2);
+                            if (vramBytes != null && !isWiiorPS2)
+                            {
+                                vramBytes = lzss.Decompress(vramBytes);
+                                vramList = ExtractOldPak(vramBytes, endian, songName, isWiiorPS2, vram: true);
+                            }
+                        }
                         break;
                 }
             }
             else
             {
                 pakList = ExtractOldPak(pakBytes, endian, songName, isWiiorPS2);
+                if (vramBytes != null && !isWiiorPS2)
+                {
+                    vramList = ExtractOldPak(vramBytes, endian, songName, isWiiorPS2, vram: true);
+                }
             }
-
+            if (vramList.Count > 0)
+            {
+                foreach (var entry in vramList)
+                {
+                    pakList.Add(entry);
+                }
+            }
 
             return pakList;
         }
@@ -586,7 +679,7 @@ namespace GH_Toolkit_Core.PAK
             }
             return files;
         }
-        public static List<PakEntry> ExtractOldPak(byte[] pakBytes, string endian, string songName = "", bool isWiiorPS2 = false, bool skipNameFlag = false)
+        public static List<PakEntry> ExtractOldPak(byte[] pakBytes, string endian, string songName = "", bool isWiiorPS2 = false, bool skipNameFlag = false, bool vram = false)
         {
             ReadWrite reader = new ReadWrite(endian);
             MemoryStream stream = new MemoryStream(pakBytes);
@@ -594,6 +687,7 @@ namespace GH_Toolkit_Core.PAK
             Dictionary<uint, string> headers = DebugReader.MakeDictFromName(songName);
 
             bool TryGH3 = false;
+            bool TryLzss = false;
 
             while (true)
             {
@@ -605,6 +699,10 @@ namespace GH_Toolkit_Core.PAK
                 }
                 try
                 {
+                    if (vramExts.Contains(entry.Extension) && !vram)
+                    {
+                        continue;
+                    }
                     entry.EntryData = new byte[entry.FileSize];
                     Array.Copy(pakBytes, entry.StartOffset, entry.EntryData, 0, entry.FileSize);
                     if (entry.FullName == "0x00000000.0x00000000")
@@ -644,23 +742,29 @@ namespace GH_Toolkit_Core.PAK
             stream.Close();
             return PakList;
         }
-        public static List<PakEntry> GetNewPakEntries(byte[] pakBytes, string endian, string songName = "")
+        public static List<PakEntry>? GetNewPakEntries(byte[] pakBytes, string endian, string songName = "")
         {
             ReadWrite reader = new ReadWrite(endian);
-            MemoryStream stream = new MemoryStream(pakBytes);
+            
             List<PakEntry> PakList = new List<PakEntry>();
             Dictionary<uint, string> headers = DebugReader.MakeDictFromName(songName);
 
-            while (true)
+            using (MemoryStream stream = new MemoryStream(pakBytes))
             {
-                PakEntry? entry = GetPakEntry(stream, reader, headers, 0, game: GAME_GHWOR);
-                if (entry == null)
+                while (true)
                 {
-                    break;
+                    PakEntry? entry = GetPakEntry(stream, reader, headers, 0, game: GAME_GHWOR);
+                    if (entry == null)
+                    {
+                        break;
+                    }
+                    if (stream.Position >= pakBytes.Length)
+                    {
+                        return null;
+                    }
+                    PakList.Add(entry);
                 }
-                PakList.Add(entry);
             }
-            stream.Close();
             return PakList;
         }
         public static void GetPakDataNew(List<PakEntry> entries, byte[] pabBytes)
@@ -924,7 +1028,7 @@ namespace GH_Toolkit_Core.PAK
                 bool isPs2orWii = (ConsoleType == CONSOLE_PS2 || ConsoleType == CONSOLE_WII);
                 List<PakEntry> PakEntries = new List<PakEntry>();
                 List<string> fileNames = new List<string>();
-
+                var qsMaster = new Dictionary<uint, string>();
 
                 foreach (string entry in entries)
                 {
@@ -942,10 +1046,20 @@ namespace GH_Toolkit_Core.PAK
                                 relPath = relPath.Replace(DOT_NQ, DOT_Q);
                             }
                             List<QBItem> qBItems;
+                            Dictionary<uint, string> qsItems;
                             try
                             {
-                                qBItems = ParseQFile(entry, ConsoleType);
-
+                                (qBItems, qsItems) = ParseQFile(entry, ConsoleType);
+                                if (qsItems != null)
+                                {
+                                    foreach (var item in qsItems)
+                                    {
+                                        if (!qsMaster.ContainsKey(item.Key))
+                                        {
+                                            qsMaster.Add(item.Key, item.Value);
+                                        }
+                                    }
+                                }
                             }
                             catch (QFileParseException ex)
                             {
@@ -1028,20 +1142,20 @@ namespace GH_Toolkit_Core.PAK
                     foreach (PakEntry entry in PakEntries)
                     {
                         entry.StartOffset = (uint)(pakSize - bytesPassed + pab.Position);
-                        pak.Write(Writer.ValueHex(entry.Extension), 0, 4);
+                        pak.Write(Writer.ValueHex(entry.Extension, false), 0, 4);
                         pak.Write(Writer.ValueHex(entry.StartOffset), 0, 4);
                         pak.Write(Writer.ValueHex(entry.FileSize), 0, 4);
                         if (ConsoleType == CONSOLE_WII || ConsoleType == CONSOLE_PS2)
                         {
-                            pak.Write(Writer.ValueHex(entry.FullName), 0, 4);
-                            pak.Write(Writer.ValueHex(entry.AssetContext), 0, 4);
+                            pak.Write(Writer.ValueHex(entry.FullName, false), 0, 4);
+                            pak.Write(Writer.ValueHex(entry.AssetContext, false), 0, 4);
                         }
                         else
                         {
-                            pak.Write(Writer.ValueHex(entry.AssetContext), 0, 4);
-                            pak.Write(Writer.ValueHex(entry.FullName), 0, 4);
+                            pak.Write(Writer.ValueHex(entry.AssetContext, false), 0, 4);
+                            pak.Write(Writer.ValueHex(entry.FullName, false), 0, 4);
                         }
-                        pak.Write(Writer.ValueHex(entry.NameNoExt), 0, 4);
+                        pak.Write(Writer.ValueHex(entry.NameNoExt, false), 0, 4);
                         pak.Write(Writer.ValueHex(entry.Parent), 0, 4);
                         pak.Write(Writer.ValueHex(entry.Flags), 0, 4);
                         if ((entry.Flags & 0x20) != 0)
@@ -1541,6 +1655,14 @@ namespace GH_Toolkit_Core.PAK
             Directory.Delete(saveName, true);
 
             return (pakSave, doubleKick);
+        }
+
+        public static byte[] lzssDecompTest(string filePath)
+        {
+            byte[] fileBytes = File.ReadAllBytes(filePath);
+            var lzss = new Lzss();
+            byte[] decomp = lzss.Decompress(fileBytes);
+            return decomp;
         }
     }
 }
