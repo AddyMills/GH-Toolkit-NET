@@ -3818,6 +3818,28 @@ namespace GH_Toolkit_Core.MIDI
                 }
 
             }
+            public void CheckForOverlaps()
+            {
+                List<string> overlaps = new List<string>();
+
+                foreach (var diff in new Difficulty[] { Easy, Medium, Hard, Expert })
+                {
+                    if (diff.PlayNotes == null)
+                    {
+                        continue;
+                    }
+                    var notes = diff.PlayNotes;
+                    for (int i = 0; i < notes.Count - 1; i++)
+                    {
+                        var note = notes[i];
+                        var nextNote = notes[i + 1];
+                        if (note.Time + note.Length > nextNote.Time && note.Note > nextNote.Note)
+                        {
+                            Console.WriteLine($"{diff.diffName}, {note.Time}, {note.Length}");
+                        }
+                    }
+                }
+            }
             public List<QBItem> ProcessQbEntriesGH3(string name, bool blankBM = true)
             {
                 var list = new List<QBItem>();
