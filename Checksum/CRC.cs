@@ -166,6 +166,10 @@ namespace GH_Toolkit_Core.Checksum
 
         public static uint QBKeyUInt(string textBytes)
         {
+            if (textBytes.StartsWith("0x") && textBytes.Length <= 10)
+            {
+                return ConvertHexToUInt(textBytes);
+            }
             return GenQBKeyUInt(QBKeyBytes(textBytes));
         }
         public static uint QSKeyUInt(string textBytes)
