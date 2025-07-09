@@ -12,6 +12,7 @@ using Ude;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using static GH_Toolkit_Core.QB.QBConstants;
 using static GH_Toolkit_Core.QB.QBScript;
+using static GH_Toolkit_Core.Debug.DebugReader;
 
 /*
  * * ReadWrite
@@ -988,6 +989,45 @@ namespace GH_Toolkit_Core.Methods
                     CopyDirectory(subDir.FullName, newDestinationDir, true);
                 }
             }
+        }
+        public static void WriteQsFileFromDict(string qsSave, Dictionary<uint, string> qsList)
+        {
+            if (!Directory.Exists(Path.GetDirectoryName(qsSave)))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(qsSave));
+            }
+
+            var sortedKeys = qsList.OrderBy(entry => entry.Value)
+                                               .Select(entry => entry.Key)
+                                               .ToList();
+            // Creating a StreamWriter to write to the file with UTF-16 encoding
+            using (StreamWriter writer = new StreamWriter(qsSave, false, Encoding.Unicode))
+            {
+                // Setting the newline character to only '\n'
+                writer.NewLine = "\n";
+
+                foreach (var key in sortedKeys)
+                {
+                    // Formatting the key as specified
+                    string modifiedKey = key.ToString("x8").PadLeft(8, '0');
+
+                    // Building the line with the modified key and its value
+                    string line = $"{modifiedKey} \"{qsList[key]}\"";
+
+
+                    // Writing the line to the file
+                    writer.WriteLine(line);
+                }
+
+                // These are needed otherwise the game will crash.
+                writer.WriteLine();
+                writer.WriteLine();
+            }
+        }
+        public static void TranslateAndWriteQsFile(string qsSave, Dictionary<uint, string> qsList, QsDict dictMod)
+        {
+            var newDict = TranslateDictionary(qsList, dictMod);
+            WriteQsFileFromDict(qsSave, newDict);
         }
         public static byte[] RemoveBom(byte[] data)
         {
