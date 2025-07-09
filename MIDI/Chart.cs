@@ -17,6 +17,7 @@ namespace GH_Toolkit_Core.MIDI
         private string MidiFilepath => Path.ChangeExtension(ChartFilePath, ".mid");
         private int? Resolution { get; set; }
         private bool HasResolution => Resolution.HasValue && Resolution.Value > 0;
+        private int MinLength { get; set; } // Default minimum length for notes
         private DrumParseMode DrumMode { get; set; } = DrumParseMode.Neither; // Default to neither RB nor GH drum mode
         private MidiFile MidiFile { get; set; } = new MidiFile();
         private List<string> Song { get; set; } = new List<string>();
@@ -127,6 +128,7 @@ namespace GH_Toolkit_Core.MIDI
                     if (int.TryParse(match.Groups[1].Value, out int resolution))
                     {
                         Resolution = resolution;
+                        MinLength = Math.Max(2, 10 * resolution/480); // Default minimum length for notes, at least 2 ticks
                         Console.WriteLine($"Resolution set to {Resolution}.");
                         return;
                     }
@@ -248,6 +250,10 @@ namespace GH_Toolkit_Core.MIDI
                 foreach (var diff in DiffBaseNote.Keys)
                 {
                     var baseNote = DiffBaseNote[diff];
+                    bool tapRange = false;
+                    int notesSinceTap = 0;
+                    long lastNoteTime = 0;
+                    long lastTapTime = 0;
                     foreach (var note in inst[diff])
                     {
                         var split = note.Split('=', StringSplitOptions.TrimEntries);
@@ -263,10 +269,23 @@ namespace GH_Toolkit_Core.MIDI
                                 length = int.Parse(valueSplit[2]);
                                 if (length == 0)
                                 {
-                                    length = 10;
+                                    length = MinLength;
                                 }
                                 if (NoteModifier.ContainsKey(chartNote))
                                 {
+                                    if (tapRange && lastNoteTime != time)
+                                    {
+                                        notesSinceTap += 1;
+                                        lastNoteTime = time;
+                                    }
+                                    if (notesSinceTap > 1 && tapRange)
+                                    {
+                                        tapRange = false;
+                                        var sysexEnd = CreateSysexEvent(diff, SYSTAP, false);
+                                        var sysexEndEvent = new NormalSysExEvent(sysexEnd);
+                                        var timedEnd = new TimedEvent(sysexEndEvent, lastTapTime);
+                                        manager.Objects.Add(timedEnd);
+                                    }
                                     int noteMod = NoteModifier[chartNote];
                                     midiNote = (SevenBitNumber)(baseNote + noteMod);
                                     var noteEvent = new MidiData.Note(midiNote, length, time);
@@ -274,17 +293,26 @@ namespace GH_Toolkit_Core.MIDI
                                 }
                                 else if (chartNote == TAPNOTE)
                                 {
-                                    
-                                    var sysexStart = CreateSysexEvent(diff, SYSTAP, true);
+                                    if (!tapRange)
+                                    {
+                                        tapRange = true;
+                                        var sysexStart = CreateSysexEvent(diff, SYSTAP, true);
+                                        var sysexStartEvent = new NormalSysExEvent(sysexStart);
+                                        var timedStart = new TimedEvent(sysexStartEvent, time);
+                                        manager.Objects.Add(timedStart);
+                                    }
+                                    notesSinceTap = 0; // Reset tap count for a new tap note
+                                    lastTapTime = time + length;
+                                    /*
                                     var sysexEnd = CreateSysexEvent(diff, SYSTAP, false);
 
-                                    var sysexStartEvent = new NormalSysExEvent(sysexStart);
+                                    
                                     var sysexEndEvent = new NormalSysExEvent(sysexEnd);
 
-                                    var timedStart = new TimedEvent(sysexStartEvent, time);
+                                    
                                     var timedEnd = new TimedEvent(sysexEndEvent, time + length);
-                                    manager.Objects.Add(timedStart);
-                                    manager.Objects.Add(timedEnd);
+                                    
+                                    manager.Objects.Add(timedEnd);*/
                                 }
                                 break;
                             case "S":
@@ -317,6 +345,14 @@ namespace GH_Toolkit_Core.MIDI
                                 manager.Objects.Add(specialNoteEvent);
                                 break;
                         }
+                    }
+                    if (tapRange)
+                    {
+                        // If we ended a tap range, add the end event
+                        var sysexEnd = CreateSysexEvent(diff, SYSTAP, false);
+                        var sysexEndEvent = new NormalSysExEvent(sysexEnd);
+                        var timedEnd = new TimedEvent(sysexEndEvent, lastTapTime);
+                        manager.Objects.Add(timedEnd);
                     }
                 }
             }

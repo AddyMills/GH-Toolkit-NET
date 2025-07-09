@@ -186,7 +186,7 @@ namespace GH_Toolkit_Core.MIDI
         private bool Gh3Plus = false;
         private bool MidiParsed = false;
         private bool WtExpertPlusPak = false;
-        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "", string venueSource = "", bool rhythmTrack = false, bool overrideBeat = false, int hopoType = 0, bool easyOpens = false, string skaPath = "", bool gh3Plus = false)
+        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "", string venueSource = "", bool rhythmTrack = false, bool overrideBeat = false, HopoType hopoType = 0, bool easyOpens = false, string skaPath = "", bool gh3Plus = false)
         {
             Game = game;
             SongName = songName;
@@ -200,7 +200,7 @@ namespace GH_Toolkit_Core.MIDI
             EasyOpens = easyOpens;
             SkaPath = skaPath;
             SetSkaQbKeys();
-            HopoMethod = (HopoType)hopoType;
+            HopoMethod = hopoType;
             Gh3Plus = gh3Plus;
 
             if (Gh3Plus)
@@ -5467,54 +5467,68 @@ namespace GH_Toolkit_Core.MIDI
                 TapNotes = ProcessTapNotes(allNotes, chords, songQb);
                 if (TapNotes.Count == 0 && sysexTaps != null)
                 {
+                    var wtdeTaps = songQb.GetConsole() == CONSOLE_PC && songQb.GetGame() == GAME_GHWT;
+                    var gh3PlusTaps = songQb.GetGame() == GAME_GH3 && songQb.Gh3Plus;
+                    bool filterChords = !(wtdeTaps || gh3PlusTaps);
                     var sysTapsTemp = new List<StarPower>();
                     foreach (var taps in sysexTaps)
                     {
-                        var tapUnder = chords.Where(x => x.Time >= taps.Time && x.Time < taps.Length).ToList();
-                        if (tapUnder.Count == 0)
+                        if (filterChords)
                         {
-                            // If there are no chords under the tap note, skip it
-                            continue;
-                        }
-                        var noteList = new List<List<MidiData.Chord>>();
-                        var tempList = new List<MidiData.Chord>();
-                        foreach (var chord in tapUnder)
-                        {
-                            if (chord.Notes.Count > 1)
+                            var tapUnder = chords.Where(x => x.Time >= taps.Time && x.Time < taps.Length).ToList();
+                            if (tapUnder.Count == 0)
                             {
-                                if (tempList.Count == 0)
-                                {
-                                    continue;
-                                }
-                                noteList.Add(tempList);
-                                tempList = new List<MidiData.Chord>();
+                                // If there are no chords under the tap note, skip it
                                 continue;
                             }
-                            tempList.Add(chord);
-                        }
-                        if (tempList.Count == 0 && noteList.Count == 0)
-                        {
-                            continue;
-                        }
-                        if (tempList.Count != 0)
-                        {
-                            noteList.Add(tempList);
-                        }
-                        foreach (var tapList in noteList)
-                        {
-                            var lastNote = chords.IndexOf(tapList[tapList.Count - 1]);
-                            var nextNote = chords.ElementAtOrDefault(lastNote + 1);
-                            var startTime = songQb.GameMilliseconds(tapList[0].Time);
-                            int endTime;
-                            if (nextNote != null)
+                            var noteList = new List<List<MidiData.Chord>>();
+                            var tempList = new List<MidiData.Chord>();
+                            foreach (var chord in tapUnder)
                             {
-                                endTime = songQb.GameMilliseconds(nextNote.Time);
+                                if (chord.Notes.Count > 1)
+                                {
+                                    if (tempList.Count == 0)
+                                    {
+                                        continue;
+                                    }
+                                    noteList.Add(tempList);
+                                    tempList = new List<MidiData.Chord>();
+                                    continue;
+                                }
+                                tempList.Add(chord);
                             }
-                            else
+                            if (tempList.Count == 0 && noteList.Count == 0)
                             {
-                                // If there are no more notes, set the end time to the last sysex event + 1/4 note
-                                endTime = songQb.GameMilliseconds(tapList[tapList.Count - 1].EndTime + songQb.TPB);
+                                continue;
                             }
+                            if (tempList.Count != 0)
+                            {
+                                noteList.Add(tempList);
+                            }
+                            foreach (var tapList in noteList)
+                            {
+                                var lastNote = chords.IndexOf(tapList[tapList.Count - 1]);
+                                var nextNote = chords.ElementAtOrDefault(lastNote + 1);
+                                var startTime = songQb.GameMilliseconds(tapList[0].Time);
+                                int endTime;
+                                if (nextNote != null)
+                                {
+                                    endTime = songQb.GameMilliseconds(nextNote.Time);
+                                }
+                                else
+                                {
+                                    // If there are no more notes, set the end time to the last sysex event + 1/4 note
+                                    endTime = songQb.GameMilliseconds(tapList[tapList.Count - 1].EndTime + songQb.TPB);
+                                }
+                                var length = endTime - startTime;
+                                TapNotes.Add(new StarPower(startTime, length, 1));
+                            }
+                        }
+                        else
+                        {
+                            // If not filtering chords, just add the tap note as is with converted times
+                            var startTime = songQb.GameMilliseconds(taps.Time);
+                            var endTime = songQb.GameMilliseconds(taps.Length);
                             var length = endTime - startTime;
                             TapNotes.Add(new StarPower(startTime, length, 1));
                         }
@@ -5544,8 +5558,10 @@ namespace GH_Toolkit_Core.MIDI
             public List<StarPower> ProcessTapNotes(List<MidiData.Note> allNotes, List<MidiData.Chord> chords, SongQbFile songQb)
             {
                 List<StarPower> allTaps = new List<StarPower>();
-                bool filterChords = songQb.GetConsole() != CONSOLE_PC && songQb.GetGame() == GAME_GHWT;
-                // Extract Tap Notes
+                var wtdeTaps = songQb.GetConsole() == CONSOLE_PC && songQb.GetGame() == GAME_GHWT;
+                var gh3PlusTaps = songQb.GetGame() == GAME_GH3 && songQb.Gh3Plus;
+                bool filterChords = !(wtdeTaps || gh3PlusTaps);
+                // Extract Tap Notes 
                 var tapNotes = allNotes.Where(x => x.NoteNumber == TapNote).ToList();
                 foreach (var note in tapNotes)
                 {
