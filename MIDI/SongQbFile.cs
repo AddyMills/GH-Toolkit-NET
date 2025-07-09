@@ -5473,17 +5473,18 @@ namespace GH_Toolkit_Core.MIDI
                     var sysTapsTemp = new List<StarPower>();
                     foreach (var taps in sysexTaps)
                     {
-                        if (filterChords)
+                        var tapUnder = chords.Where(x => x.Time >= taps.Time && x.Time < taps.Length).ToList();
+                        if (tapUnder.Count == 0)
                         {
-                            var tapUnder = chords.Where(x => x.Time >= taps.Time && x.Time < taps.Length).ToList();
-                            if (tapUnder.Count == 0)
-                            {
-                                // If there are no chords under the tap note, skip it
-                                continue;
-                            }
-                            var noteList = new List<List<MidiData.Chord>>();
-                            var tempList = new List<MidiData.Chord>();
-                            foreach (var chord in tapUnder)
+                            // If there are no chords under the tap note, skip it
+                            continue;
+                        }
+                        var noteList = new List<List<MidiData.Chord>>();
+                        var tempList = new List<MidiData.Chord>();
+
+                        foreach (var chord in tapUnder)
+                        {
+                            if (filterChords)
                             {
                                 if (chord.Notes.Count > 1)
                                 {
@@ -5495,44 +5496,38 @@ namespace GH_Toolkit_Core.MIDI
                                     tempList = new List<MidiData.Chord>();
                                     continue;
                                 }
+                            }
+                            else
+                            {
                                 tempList.Add(chord);
                             }
-                            if (tempList.Count == 0 && noteList.Count == 0)
-                            {
-                                continue;
-                            }
-                            if (tempList.Count != 0)
-                            {
-                                noteList.Add(tempList);
-                            }
-                            foreach (var tapList in noteList)
-                            {
-                                var lastNote = chords.IndexOf(tapList[tapList.Count - 1]);
-                                var nextNote = chords.ElementAtOrDefault(lastNote + 1);
-                                var startTime = songQb.GameMilliseconds(tapList[0].Time);
-                                int endTime;
-                                if (nextNote != null)
-                                {
-                                    endTime = songQb.GameMilliseconds(nextNote.Time);
-                                }
-                                else
-                                {
-                                    // If there are no more notes, set the end time to the last sysex event + 1/4 note
-                                    endTime = songQb.GameMilliseconds(tapList[tapList.Count - 1].EndTime + songQb.TPB);
-                                }
-                                var length = endTime - startTime;
-                                TapNotes.Add(new StarPower(startTime, length, 1));
-                            }
                         }
-                        else
+                        if (tempList.Count == 0 && noteList.Count == 0)
                         {
-                            // If not filtering chords, just add the tap note as is with converted times
-                            var startTime = songQb.GameMilliseconds(taps.Time);
-                            var endTime = songQb.GameMilliseconds(taps.Length);
+                            continue;
+                        }
+                        if (tempList.Count != 0)
+                        {
+                            noteList.Add(tempList);
+                        }
+                        foreach (var tapList in noteList)
+                        {
+                            var lastNote = chords.IndexOf(tapList[tapList.Count - 1]);
+                            var nextNote = chords.ElementAtOrDefault(lastNote + 1);
+                            var startTime = songQb.GameMilliseconds(tapList[0].Time);
+                            int endTime;
+                            if (nextNote != null)
+                            {
+                                endTime = songQb.GameMilliseconds(nextNote.Time);
+                            }
+                            else
+                            {
+                                // If there are no more notes, set the end time to the last sysex event + 1/4 note
+                                endTime = songQb.GameMilliseconds(tapList[tapList.Count - 1].EndTime + songQb.TPB);
+                            }
                             var length = endTime - startTime;
                             TapNotes.Add(new StarPower(startTime, length, 1));
                         }
-
                     }
                 }
                 if (Game == GAME_GH3 && songQb.Gh3Plus)
@@ -6701,6 +6696,10 @@ namespace GH_Toolkit_Core.MIDI
                     {
                         // Convert ticks to time and store in milliseconds
                         timeInMilliseconds = midiEvent.TimeAs<MetricTimeSpan>(SongTempoMap).TotalMilliseconds;
+                        if (timeInMilliseconds > 0 && TimeSigs.Count == 0)
+                        {
+                            TimeSigs.Add(new TimeSig(0, 4, 4)); // Default to 4/4 time signature if none present
+                        }
                         TimeSigs.Add(new TimeSig((int)Math.Round(timeInMilliseconds), timeSignatureEvent.Numerator, timeSignatureEvent.Denominator));
                     }
                 }
