@@ -42,6 +42,9 @@
     <None Update="Other\wtdeclips.txt">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
+    <None Update="QBDebug\a_README custom keys.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="QBDebug\debug.txt">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
