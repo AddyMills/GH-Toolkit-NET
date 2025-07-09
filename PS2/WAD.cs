@@ -259,7 +259,7 @@ namespace GH_Toolkit_Core.PS2
             if (Directory.Exists(qbPath))
             {
                 var pakCompiler = new PakCompiler(game, "PS2", null, true, true);
-                var (pak, pab) = pakCompiler.CompilePAK(qbPath, "PS2");
+                var (pak, pab, _) = pakCompiler.CompilePAK(qbPath, "PS2");
                 string fullPakName = qbPath + ".pak.ps2";
                 string fullPabName = qbPath + ".pab.ps2";
 
