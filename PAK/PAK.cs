@@ -1981,6 +1981,7 @@ namespace GH_Toolkit_Core.PAK
             bool gh3Plus = false
             )
         {
+            var midiHopoType = (MidiDefs.HopoType)hopoType;
             if (gender.ToLower() == "none")
             {
                 gender = "none";
@@ -2004,6 +2005,7 @@ namespace GH_Toolkit_Core.PAK
                     midiPath = chart.GetMidiPath();
                     chart.WriteMidToFile();
                     hopoThreshold = chart.GetHopoResolution();
+                    midiHopoType = MidiDefs.HopoType.GH3;
                 }
                 midiFile = new SongQbFile(
                 midiPath,
@@ -2016,7 +2018,7 @@ namespace GH_Toolkit_Core.PAK
                 venueSource: venueSource,
                 rhythmTrack: rhythmTrack,
                 overrideBeat: overrideBeat,
-                hopoType: hopoType,
+                hopoType: midiHopoType,
                 easyOpens: easyOpens,
                 skaPath: skaPath,
                 gh3Plus: gh3Plus);
