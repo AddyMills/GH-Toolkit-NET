@@ -37,6 +37,8 @@ using System.Security.Cryptography.X509Certificates;
 using static GH_Toolkit_Core.PAK.PAK;
 using Microsoft.VisualBasic.FileIO;
 using static System.Net.Mime.MediaTypeNames;
+using System.Globalization;
+using static System.Formats.Asn1.AsnWriter;
 
 
 /*
@@ -82,6 +84,7 @@ namespace GH_Toolkit_Core.MIDI
 
         public List<int> Fretbars = new List<int>();
         public List<TimeSig> TimeSigs = new List<TimeSig>();
+        public List<(int Measure, int Beat)> Measures = new List<(int, int)>();
         public Instrument Guitar { get; set; } = new Instrument(GUITAR_NAME);
         public Instrument Rhythm { get; set; } = new Instrument(RHYTHM_NAME);
         public Instrument Drums { get; set; } = new Instrument(DRUMS_NAME);
@@ -161,7 +164,7 @@ namespace GH_Toolkit_Core.MIDI
         public List<string> DrumSkaAnims { get; set; } = new List<string>();
         private string? QfileGame { get; set; } = GAME_GHWT;
         private static string? _songName;
-        public static string? SongName
+        public string? SongName
         {
             get
             {
@@ -180,7 +183,10 @@ namespace GH_Toolkit_Core.MIDI
         private List<string> ErrorList { get; set; } = new List<string>();
         private List<string> WarningList { get; set; } = new List<string>();
         public static ReadWrite _readWriteGh5 = new ReadWrite("big");
-        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "", string venueSource = "", bool rhythmTrack = false, bool overrideBeat = false, int hopoType = 0, bool easyOpens = false, string skaPath = "")
+        private bool Gh3Plus = false;
+        private bool MidiParsed = false;
+        private bool WtExpertPlusPak = false;
+        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "", string venueSource = "", bool rhythmTrack = false, bool overrideBeat = false, int hopoType = 0, bool easyOpens = false, string skaPath = "", bool gh3Plus = false)
         {
             Game = game;
             SongName = songName;
@@ -195,6 +201,12 @@ namespace GH_Toolkit_Core.MIDI
             SkaPath = skaPath;
             SetSkaQbKeys();
             HopoMethod = (HopoType)hopoType;
+            Gh3Plus = gh3Plus;
+
+            if (Gh3Plus)
+            {
+                Console.WriteLine("Using GH3+ parsing method");
+            }
 
             SetMidiInfo(midiPath);
         }
@@ -262,7 +274,7 @@ namespace GH_Toolkit_Core.MIDI
                 QfileGame = GAME_GH5;
                 isGH5 = true;
             }
-            else if (!qbDict.ContainsKey($"{SongName}_drum_easy"))
+            else if (!qbDict.ContainsKey($"{SongName}_song_drum_easy"))
             {
                 if (qbDict.ContainsKey($"{SongName}_song_aux"))
                 {
@@ -313,21 +325,55 @@ namespace GH_Toolkit_Core.MIDI
         {
             return string.Join("\r\n", WarningList);
         }
+        private string GetMeasureBeatTick(double errorMs)
+        {
+            var fretbarTime = GetClosestIntFromList((int)Math.Round(errorMs), Fretbars);
+            var fretbarIndex = Fretbars.IndexOf(fretbarTime);
+            if (fretbarTime > errorMs)
+            {
+                fretbarIndex--;
+                fretbarTime = Fretbars[fretbarIndex]; // Always approach from below the error time.
+            }
+            var nextFretbarTime = fretbarIndex + 1 < Fretbars.Count ? Fretbars[fretbarIndex + 1] : fretbarTime + 1000; // If no next fretbar, assume 1 second after current.
+            var measureInSong = Measures[fretbarIndex];
+            var timeFromBeatInTicks = ((errorMs - fretbarTime) / (nextFretbarTime - fretbarTime)) * 100;
+            return $"{measureInSong.Measure}.{measureInSong.Beat}.{(int)Math.Round(timeFromBeatInTicks)}";
+        }
+        private string GetMeasureBeatTick(int errorMs)
+        {
+            var fretbarTime = GetClosestIntFromList(errorMs, Fretbars);
+            var fretbarIndex = Fretbars.IndexOf(fretbarTime);
+            if (fretbarTime > errorMs)
+            {
+                fretbarIndex--;
+                fretbarTime = Fretbars[fretbarIndex]; // Always approach from below the error time.
+            }
+            var nextFretbarTime = fretbarIndex + 1 < Fretbars.Count ? Fretbars[fretbarIndex + 1] : fretbarTime + 1000; // If no next fretbar, assume 1 second after current.
+            var measureInSong = Measures[fretbarIndex];
+            var timeFromBeatInTicks = ((errorMs - fretbarTime) / (nextFretbarTime - fretbarTime)) * 100.0;
+            return $"{measureInSong.Measure}.{measureInSong.Beat}.{(int)Math.Round(timeFromBeatInTicks)}";
+        }
         public void AddTimedError(string error, string part, long ticks)
         {
-            AddToErrorList($"{part}: {error} found at {TicksToMilliseconds(ticks) / 1000f}s");
+            var errorMs = TicksToMilliseconds(ticks);
+            var mbt = GetMeasureBeatTick(errorMs);
+            AddToErrorList($"{part}: {error} found at MBT {mbt} ({Math.Round(errorMs / 1000f, 3)}s)");
         }
         public void AddTimedError(string error, string part, int eventTime)
         {
-            AddToErrorList($"{part}: {error} found at {eventTime / 1000f}s");
+            var mbt = GetMeasureBeatTick(eventTime);
+            AddToErrorList($"{part}: {error} found at MBT {mbt} ({Math.Round(eventTime / 1000f, 3)}s)");
         }
         public void AddTimedWarning(string warning, string part, long ticks)
         {
-            AddToWarningList($"{part}: {warning} found at {TicksToMilliseconds(ticks) / 1000f}s");
+            var errorMs = TicksToMilliseconds(ticks);
+            var mbt = GetMeasureBeatTick(errorMs);
+            AddToWarningList($"{part}: {warning} found at MBT {mbt} ({Math.Round(errorMs / 1000f, 3) / 1000f}s)");
         }
         public void AddTimedWarning(string warning, string part, int eventTime)
         {
-            AddToWarningList($"{part}: {warning} found at {eventTime / 1000f}s");
+            var mbt = GetMeasureBeatTick(eventTime);
+            AddToWarningList($"{part}: {warning} found at MBT {mbt} ({Math.Round(eventTime / 1000f, 3) / 1000f}s)");
         }
         private void WriteUsedTrack(string trackName)
         {
@@ -484,6 +530,7 @@ namespace GH_Toolkit_Core.MIDI
                 Console.WriteLine("No band moments found, generating band moments");
                 BandMoments = GenerateBandMoments();
             }
+            MidiParsed = true;
         }
         private List<int> GenerateBandMoments()
         {
@@ -565,6 +612,13 @@ namespace GH_Toolkit_Core.MIDI
             }
 
             return bandMoments;
+        }
+        public string CalculateBaseScore()
+        {
+            var guitar = Guitar.GetBaseScore(Fretbars);
+            //var rhythm = Rhythm.GetBaseScore();
+
+            return "";
         }
         public static void GetFurthestIntegers(List<int> numbers, int numMoments)
         {
@@ -689,7 +743,10 @@ namespace GH_Toolkit_Core.MIDI
                 gameQb.Add(MakePerformanceScriptsQb($"{SongName}_performance"));
                 var (voxQb, QsDict) = Vocals.AddVoxToQb(SongName);
                 // Merge QsDict with QsList
-                QsList = QsList.Concat(QsDict).ToDictionary(x => x.Key, x => x.Value);
+                if (!WtExpertPlusPak)
+                {
+                    QsList = QsList.Concat(QsDict).ToDictionary(x => x.Key, x => x.Value);
+                }
                 gameQb.AddRange(voxQb);
             }
             else if (Game == GAME_GHWOR || Game == GAME_GH5)
@@ -1147,9 +1204,10 @@ namespace GH_Toolkit_Core.MIDI
         }
         private void ParseMidQb(byte[] midQb, Dictionary<uint, string>? midQs)
         {
-            var qbList = QbEntryDictFromBytes(midQb, Endian, SongName!);
-            ParseTimeSigsAndFretbarsFromQb(qbList);
-            ParseInstrumentsFromQb(qbList, midQs);
+            var qbDict = QbEntryDictFromBytes(midQb, Endian, SongName!);
+            DetermineQType(qbDict, out _);
+            ParseTimeSigsAndFretbarsFromQb(qbDict);
+            ParseInstrumentsFromQb(qbDict, midQs);
         }
         private string GetDebugString(uint key)
         {
@@ -1645,10 +1703,29 @@ namespace GH_Toolkit_Core.MIDI
                 PerformanceScripts.Items = newPerf;
             }
         }
-        public byte[] ParseMidiToQb()
+        public byte[] ParseMidiToQb(bool expertPlus = false)
         {
-            ParseMidi();
-            return MakeConsoleQb();
+            WtExpertPlusPak = expertPlus && Game == GAME_GHWT;
+            string origSongName = SongName;
+            var origExpertChart = Drums.Expert.PlayNotes;
+            
+            if (WtExpertPlusPak)
+            {
+                SongName = origSongName + "_expertplus"; // GHWT Expert Plus PAKs have a different name
+                Drums.Expert.PlayNotes = Drums.Expert.ExPlusNotes; // Use the Expert Plus notes for GHWT;
+            }
+            if (!MidiParsed)
+            {
+                ParseMidi();
+            }
+            var gameQb = MakeConsoleQb();
+            if (WtExpertPlusPak)
+            {
+                SongName = origSongName; // Reset song name
+                Drums.Expert.PlayNotes = origExpertChart; // Reset the Expert notes
+            }
+            WtExpertPlusPak = false; // Reset the flag after making the console QB
+            return gameQb;
         }
         public byte[] MakeConsoleQb()
         {
@@ -1877,9 +1954,26 @@ namespace GH_Toolkit_Core.MIDI
             int MinCameraGha = 3;
             int MaxCameraGha = 91;
             int MinCameraWt = 3;
-            int MaxCameraWt = 127;
+            int MaxCameraWt = 127;            
+            int MinCamera5 = 3;
+            int MaxCamera5 = 99;
             int MinCameraWor = 3;
             int MaxCameraWor = 99;
+
+            var gh5NoteFilter = new Dictionary<int, int> 
+            {
+                {40, 74},
+                {41, 74},
+                {59, 31},
+                {62, 14},
+                {63, 9},
+                {64, 24},
+                {65, 18},
+                {66, 61},
+                {67, 60},
+                {68, 26},
+                {69, 8}
+            };
 
             int minCamera;
             int maxCamera;
@@ -1896,6 +1990,10 @@ namespace GH_Toolkit_Core.MIDI
                 case GAME_GHWT:
                     minCamera = MinCameraWt;
                     maxCamera = MaxCameraWt;
+                    break;
+                case GAME_GH5:
+                    minCamera = MinCamera5;
+                    maxCamera = MaxCamera5;
                     break;
                 case GAME_GHWOR:
                     minCamera = MinCameraWor;
@@ -1962,6 +2060,10 @@ namespace GH_Toolkit_Core.MIDI
                     length = RoundCamLen(RoundTimeMills(cameraNotes[i + 1].Time) - startTime);
                 }
                 int noteVal = note.NoteNumber;
+                if (Game == GAME_GH5 && gh5NoteFilter.ContainsKey(noteVal))
+                {
+                    noteVal = gh5NoteFilter[noteVal];
+                }
                 int velocity = note.Velocity;
                 cameraAnimNotes.Add(new AnimNote(startTime, noteVal, length, velocity));
             }
@@ -2009,11 +2111,11 @@ namespace GH_Toolkit_Core.MIDI
         {
             // The following checks are to normalize the game and venue source names
             // Since GHWT and GHWoR are the same in terms of cameras
-            if (venue == GAME_GHWOR)
+            if (venue == GAME_GH5 || venue == GAME_GHWOR)
             {
                 venue = GAME_GHWT;
             }
-            if (game == GAME_GHWOR)
+            if (game == GAME_GH5 || game == GAME_GHWOR)
             {
                 game = GAME_GHWT;
             }
@@ -2185,7 +2287,7 @@ namespace GH_Toolkit_Core.MIDI
                                             clipParams.AddIntToStruct("endframe", currClip.EndFrame);
                                         }
                                     }
-                                    if (Game == GAME_GHWOR)
+                                    if (Game == GAME_GH5 || Game == GAME_GHWOR)
                                     {
                                         switch (scriptType)
                                         {
@@ -2214,6 +2316,19 @@ namespace GH_Toolkit_Core.MIDI
                                                         {
                                                         }
                                                     }
+                                                }
+                                                else
+                                                {
+                                                    var newParams = new QBStructData();
+                                                    var parameters = (QBStructData)perfEntry["params"];
+                                                    foreach (var item in parameters.StructDict)
+                                                    {
+                                                        if (item.Key == "name")
+                                                        {
+                                                            newParams.AddQbKeyToStruct(item.Key, (string)item.Value);
+                                                        }
+                                                    }
+                                                    perfEntry["params"] = newParams;
                                                 }
                                                 goto default;
                                             default:
@@ -2419,7 +2534,7 @@ namespace GH_Toolkit_Core.MIDI
             // Since GHWT and GHWoR are the same in terms of lights
             // As are GH3 and GHA
             var venue = VenueSource;
-            if (venue == GAME_GHWOR)
+            if (venue == GAME_GH5 || venue == GAME_GHWOR)
             {
                 venue = GAME_GHWT;
             }
@@ -2429,7 +2544,7 @@ namespace GH_Toolkit_Core.MIDI
             }
 
             var game = Game;
-            if (game == GAME_GHWOR)
+            if (game == GAME_GH5 || game == GAME_GHWOR)
             {
                 game = GAME_GHWT;
             }
@@ -2887,7 +3002,7 @@ namespace GH_Toolkit_Core.MIDI
         public static string MakeMarkerNameFromVariable(string inputString)
         {
             string formattedString = inputString.Replace("_", " ");
-            formattedString = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(formattedString.ToLower());
+            formattedString = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(formattedString.ToLower());
             return formattedString;
         }
 
@@ -3284,6 +3399,11 @@ namespace GH_Toolkit_Core.MIDI
             internal List<MidiData.Note> FaceOffStarPhrases { get; set; }
             internal string TrackName { get; set; }
             internal SongQbFile _songQb { get; set; }
+            public bool HasExpertPlus { get
+                {
+                    return Expert.HasExpertPlus;
+                }
+            }
             public Instrument(string trackName) // Default empty instrument
             {
                 TrackName = trackName;
@@ -3423,6 +3543,11 @@ namespace GH_Toolkit_Core.MIDI
                 if (openNotes == 0)
                 {
                     easyOpens = 0;
+                    if (Game == GAME_GH3 && songQb.Gh3Plus)
+                    {
+                        openNotes = 1; // GH3+ has open notes, so we set it to 1
+                        sysExEvents = timedEvents.Where(e => e.Event is NormalSysExEvent).ToList();
+                    }
                 }
                 else
                 {
@@ -3547,6 +3672,20 @@ namespace GH_Toolkit_Core.MIDI
                     Medium.ProcessDifficultyDrums(allNotes, MediumNoteMin, MediumNoteMax + 1, noteDict, 0, songQb, StarPowerPhrases, BattleStarPhrases);
                     Hard.ProcessDifficultyDrums(allNotes, HardNoteMin, HardNoteMax + 1, noteDict, 0, songQb, StarPowerPhrases, BattleStarPhrases);
                     Expert.ProcessDifficultyDrums(allNotes, ExpertNoteMin, ExpertNoteMax + 1, noteDict, openNotes, songQb, StarPowerPhrases, BattleStarPhrases);
+                }
+
+
+                if (Hard.PlayNotes.Count == 0)
+                {
+                    Hard.PlayNotes = Expert.PlayNotes; // If Hard has no notes, use Expert's notes
+                }
+                if (Medium.PlayNotes.Count == 0)
+                {
+                    Medium.PlayNotes = Hard.PlayNotes; // If Medium has no notes, use Hard's notes
+                }
+                if (Easy.PlayNotes.Count == 0)
+                {
+                    Easy.PlayNotes = Medium.PlayNotes; // If Easy has no notes, use Medium's notes
                 }
 
                 if (Game == GAME_GHWT && GamePlatform == CONSOLE_PC)
@@ -3746,6 +3885,7 @@ namespace GH_Toolkit_Core.MIDI
                             throw new NotImplementedException("Unknown note value found");
                         }
                     case GAME_GHWT:
+                    case GAME_GH5:
                         return (true, noteVal - 13);
                     case GAME_GHWOR:
                         if (noteVal < LeftHandWor)
@@ -3840,6 +3980,15 @@ namespace GH_Toolkit_Core.MIDI
                     }
                 }
             }
+
+            public ((int baseScore, int simScore) easy, (int baseScore, int simScore) medium, (int baseScore, int simScore) hard, (int baseScore, int simScore) expert) GetBaseScore(List<int> fretbars)
+            {
+                var (x_base_score, x_sim_score) = Expert.GetSongScores(fretbars);
+                var (h_base_score, h_sim_score) = Hard.GetSongScores(fretbars);
+                var (m_base_score, m_sim_score) = Medium.GetSongScores(fretbars);
+                var (e_base_score, e_sim_score) = Easy.GetSongScores(fretbars);
+                return ((e_base_score, e_sim_score), (m_base_score, m_sim_score), (h_base_score, h_sim_score), (x_base_score, x_sim_score));
+            }
             public List<QBItem> ProcessQbEntriesGH3(string name, bool blankBM = true)
             {
                 var list = new List<QBItem>();
@@ -3886,7 +4035,7 @@ namespace GH_Toolkit_Core.MIDI
                 list.Add(Hard.CreateWhammyController(starName));
                 list.Add(Expert.CreateWhammyController(starName));
                 list.Add(Easy.CreateFaceOffStar(starName));
-                list.AddRange(MakeFaceOffQb(SongName));
+                list.AddRange(MakeFaceOffQb(name));
                 if (console == CONSOLE_PC)
                 {
                     list.AddRange(CreateSoloMarker(starName));
@@ -4398,7 +4547,7 @@ namespace GH_Toolkit_Core.MIDI
                     var lyrics = new Dictionary<long, string>();
                     foreach (var textData in textEvents)
                     {
-                        string eventText = textData.Event switch
+                        string? eventText = textData.Event switch
                         {
                             TextEvent textEvent => textEvent.Text,
                             LyricEvent lyricEvent => lyricEvent.Text,
@@ -4482,6 +4631,11 @@ namespace GH_Toolkit_Core.MIDI
                                             {
                                                 _songQb.AddTimedError("Slide lyric found without (or misaligned) previous note", "PART VOCALS", note.Time);
                                             }
+                                            /*
+                                            catch (ArgumentException e) // Duplicate key exception, as well as slide without gap exception
+                                            {
+                                                _songQb.AddTimedError("Slide without gap found or lyric found with duplicate note", "PART VOCALS", note.Time);
+                                            }*/
                                             catch (Exception e)
                                             {
                                                 throw e;
@@ -4500,7 +4654,15 @@ namespace GH_Toolkit_Core.MIDI
                                             allLyrics.Add((string)lyric);
                                             break;
                                     }
-                                    singNotes.Add(note.Time, note);
+                                    try
+                                    {
+                                        singNotes.Add(note.Time, note);
+                                    }
+                                    catch
+                                    {
+                                        singNotes[note.Time] = note; // Not having this causes a bug in the error reporting system and I don't know why.
+                                        songQb.AddTimedError("Duplicate vocal note or slide without gap found", "PART VOCALS", note.Time);
+                                    }
                                 }
                                 else
                                 {
@@ -4857,6 +5019,7 @@ namespace GH_Toolkit_Core.MIDI
         public List<PlayNote> MakeDrums(List<MidiData.Chord> chords, Dictionary<MidiTheory.NoteName, int> noteDict)
         {
             List<PlayNote> noteList = new List<PlayNote>();
+
             long prevTime = 0;
             for (int i = 0; i < chords.Count; i++)
             {
@@ -5007,7 +5170,7 @@ namespace GH_Toolkit_Core.MIDI
             {
                 try
                 {
-                    SongClips[QBKey(item.Name)] = new SongClip(item.Name, item.Data as QBStructData);
+                    SongClips[QBKey(item.Name)] = new SongClip(item.Name, Game, item.Data as QBStructData);
                 }
                 catch (Exception e)
                 {
@@ -5097,11 +5260,24 @@ namespace GH_Toolkit_Core.MIDI
             public string diffName { get; set; }
             public string PartName { get; set; }
             public List<PlayNote>? PlayNotes { get; set; } = new List<PlayNote>();
+            public List<PlayNote>? ExPlusNotes { get; set; } = null; // Only used for WT to make 2 paks
             public List<StarPower>? StarEntries { get; set; } = new List<StarPower>();
             public List<StarPower>? BattleStarEntries { get; set; } = new List<StarPower>();
             public List<StarPower>? FaceOffStar { get; set; } = new List<StarPower>();
             public List<StarPower>? TapNotes { get; set; } = new List<StarPower>();
             private string Q_Game { get; set; } = GAME_GHWT;
+            private bool ExpertPlus { get; set; }
+            public string nameProper { get
+                {
+                    return CultureInfo.CurrentCulture.TextInfo.ToTitleCase(diffName);
+                }
+            }
+            public bool HasExpertPlus {
+                get
+                {
+                    return ExpertPlus;
+                }
+            }
             public Difficulty(string name)
             {
                 diffName = name;
@@ -5345,6 +5521,17 @@ namespace GH_Toolkit_Core.MIDI
 
                     }
                 }
+                if (Game == GAME_GH3 && songQb.Gh3Plus)
+                {
+                    foreach (var tapMarker in TapNotes)
+                    {
+                        var toMod = PlayNotes.Where(n => n.Time >= tapMarker.Time && n.Time < tapMarker.Time + tapMarker.Length).ToList();
+                        foreach (var note in toMod)
+                        {
+                            note.Note += 0x40; // Tap note in GH3_Plus
+                        }
+                    }
+                }
                 StarEntries = CalculateStarPowerNotes(chords, StarPowerPhrases, songQb);
                 BattleStarEntries = CalculateStarPowerNotes(chords, BattleStarPhrases, songQb);
                 if (FaceOffStarPhrases != null && diffName == EASY)
@@ -5416,13 +5603,27 @@ namespace GH_Toolkit_Core.MIDI
                 }
                 else if (currGame == GAME_GHWT)
                 {
-                    openNotes = 0;
+                    //openNotes = 0;
                 }
 
                 var notes = allNotes.Where(n => n.NoteNumber >= (minNote - openNotes) && n.NoteNumber <= maxNote);
 
                 //var chords = notes.GetChords().ToList();
                 var chords = GroupNotes(notes, DefaultTickThreshold * DefaultTPB / songQb.TPB).ToList();
+                if (maxNote == ExpertNoteMax + 1)
+                {
+                    (chords, ExpertPlus) = NormalizeExpertPlus(chords);
+                    if (currGame == GAME_GHWT)
+                    {
+                        var (expert, expertPlus) = SplitWTDrums(chords);
+                        chords = expert;
+                        if (ExpertPlus)
+                        {
+                            Console.WriteLine("Splitting WT drums into Expert and Expert Plus versions.");
+                            ExPlusNotes = songQb.MakeDrums(expertPlus, noteDict);
+                        }
+                    }
+                }
 
                 PlayNotes = songQb.MakeDrums(chords, noteDict);
                 StarEntries = CalculateStarPowerNotes(chords, StarPowerPhrases, songQb);
@@ -5432,6 +5633,82 @@ namespace GH_Toolkit_Core.MIDI
                     // Should only activate on the easy difficulty and nowhere else
                     FaceOffStar = CalculateStarPowerNotes(chords, FaceOffStarPhrases, songQb);
                 }
+            }
+            private (List<MidiData.Chord>, bool) NormalizeExpertPlus(List<MidiData.Chord> chords)
+            {
+                bool isExpertPlus = false;
+                var newNotes = new List<MidiData.Chord>();
+                foreach (var chord in chords)
+                {
+                    bool hasNormalExpert = false;
+                    bool hasExpertPlus = false;
+                    MidiData.Note? xPlusNote = null;
+                    var newChord = new List<MidiData.Note>();
+                    foreach (var note in chord.Notes)
+                    {
+                        newChord.Add(note);
+                        if (note.NoteName == NoteName.C)
+                        {
+                            hasNormalExpert = true;
+                            xPlusNote = (MidiData.Note)note.Clone();
+                            xPlusNote.NoteNumber -= (SevenBitNumber)1; // Make it a B note
+                        }
+                        else if (note.NoteName == NoteName.B)
+                        {
+                            hasExpertPlus = true;
+                            isExpertPlus = true;
+                        }
+                    }
+                    if (hasNormalExpert && !hasExpertPlus)
+                    {
+                        newChord.Add(xPlusNote);
+                    }
+                    newNotes.Add(new MidiData.Chord(newChord));
+                }
+                if (isExpertPlus)
+                {
+                    // If there are Expert Plus notes, return the new list
+                    return (newNotes, isExpertPlus);
+                }
+                // Otherwise, return the original list
+                return (chords, isExpertPlus);
+            }
+            private (List<MidiData.Chord> expert, List<MidiData.Chord> expertPlus) SplitWTDrums(List<MidiData.Chord> chords)
+            {
+                var expertNotes = new List<MidiData.Chord>();
+                var expertPlusNotes = new List<MidiData.Chord>();
+
+                foreach (var chord in chords)
+                {
+                    var expertChord = new List<MidiData.Note>();
+                    var expertPlusChord = new List<MidiData.Note>();
+                    foreach (var note in chord.Notes)
+                    {
+                        if (note.NoteName == NoteName.C)
+                        {
+                            expertChord.Add(note);
+                        }
+                        else if (note.NoteName == NoteName.B)
+                        {
+                            note.NoteNumber += (SevenBitNumber)1;
+                            expertPlusChord.Add(note);
+                        }
+                        else
+                        {
+                            expertChord.Add(note);
+                            expertPlusChord.Add(note);
+                        }
+                    }
+                    if (expertChord.Count > 0)
+                    {
+                        expertNotes.Add(new MidiData.Chord(expertChord));
+                    }
+                    if (expertPlusChord.Count > 0)
+                    {
+                        expertPlusNotes.Add(new MidiData.Chord(expertPlusChord));
+                    }
+                }
+                return (expertNotes, expertPlusNotes);
             }
             private List<StarPower> CalculateStarPowerNotes(List<MidiData.Chord> playNotes, List<MidiData.Note> starNotes, SongQbFile songQb)
             {
@@ -5679,6 +5956,433 @@ namespace GH_Toolkit_Core.MIDI
                 }
                 return starData;
             }
+            private static int countSetBits(int n, bool oldGame = true)
+            {
+                if (oldGame)
+                {
+                    n &= 31;
+                }
+                int count = 0;
+                while (n > 0)
+                {
+                    n &= (n - 1);
+                    count++;
+                }
+                return count;
+            }
+            private static int GetMultiplier(int noteCount)
+            {
+                if (noteCount < 10)
+                {
+                    return 1;
+                }
+                else if (noteCount < 20)
+                {
+                    return 2;
+                }
+                else if (noteCount < 30)
+                {
+                    return 3;
+                }
+                else 
+                {
+                    return 4;
+                }
+            }
+            /*
+            public int GetBaseScore(List<int> fretbars)
+            {
+
+                var debugMeasures = new Dictionary<int, float>();
+                if (PlayNotes.Count == 0)
+                {
+                    return 0;
+                }
+                var score = 0f;
+                var baseScore = 0f;
+                var multiplier = 1;
+                var beat_time = fretbars[1] - fretbars[0];
+                var orig_beat_time = beat_time;
+                var origSustainCheck = orig_beat_time / 2.0;
+                
+                var fIndex = 0;
+                var nIndex = 0;
+                var sim_bot_note_count = 0;
+                while (nIndex < PlayNotes.Count - 1)
+                {
+                    var note = PlayNotes[nIndex];
+                    //note.Time += (66 + 66 + 14 + 33);
+                    sim_bot_note_count++;
+                    multiplier = GetMultiplier(sim_bot_note_count);
+                    while (fretbars[fIndex + 1] <= note.Time)
+                    {
+                        beat_time = fretbars[fIndex+1] - fretbars[fIndex];
+                        fIndex++;
+                    }
+                    int currMeasure = fIndex / 4;
+                    if (!debugMeasures.ContainsKey(currMeasure))
+                    {
+                        debugMeasures[currMeasure] = 0;
+                    }
+
+                    beat_time = fretbars[fIndex + 1] - fretbars[fIndex];
+                    var currSustainCheck = beat_time / 2.0f;
+                    var currBeatLine = fretbars[fIndex];
+                    var nextBeatLine = fretbars[fIndex + 1];
+                    var length = note.Length;
+                    var notesInChord = countSetBits(note.Note);
+                    var baseNoteScore = notesInChord * BASENOTE;
+                    baseScore += baseNoteScore;
+                    score += baseNoteScore * multiplier;
+                    debugMeasures[currMeasure] += baseNoteScore;
+                    var toShorten = (WHAMMYSHORTENGH3 * beat_time);
+                    var lengthEdit = length - toShorten;
+
+                    if (lengthEdit > currSustainCheck)
+                    {
+                        var sustainPoints = 0f;
+                        int totalNoteLength = length;
+                        var sustainValueBeat = totalNoteLength;
+                        var finished = false;
+                        var sustainFretBarCount = fIndex;
+                        var noteStart = true;
+                        bool altPath = false;
+                        
+                        while (!finished)
+                        {
+                            var currSustainFret = fretbars[sustainFretBarCount];
+                            var nextSustainFret = fretbars[sustainFretBarCount + 1];
+                            var segmentDuration = nextSustainFret - currSustainFret;
+                            var noteLength = segmentDuration;
+                            if (currSustainFret <= note.Time)
+                            {
+                                var timeFromBeatLine = nextSustainFret - note.Time;
+                                noteLength = timeFromBeatLine;
+                            }
+                            if (totalNoteLength <= noteLength)
+                            {
+                                finished = true;
+                                noteLength = totalNoteLength;
+                            }
+                            else
+                            {
+                                totalNoteLength -= noteLength;
+                            }
+
+                            var additionalScore = POINTSPERBEAT;
+                            additionalScore *= noteLength;
+                            additionalScore /= segmentDuration;
+                            sustainPoints += additionalScore;
+
+                            int currSustainMeasure = sustainFretBarCount / 4;
+
+                            if (debugMeasures.ContainsKey(currSustainMeasure))
+                            {
+                                debugMeasures[currSustainMeasure] += additionalScore;
+                            }
+                            else
+                            {
+                                debugMeasures[currSustainMeasure] = additionalScore;
+                            }
+
+                            sustainFretBarCount++;
+
+                        }
+                        var roundedWhammy = (int)(sustainPoints + 0.5f); // Round like the original
+                        baseScore += roundedWhammy;
+                        score += roundedWhammy * multiplier; // Apply streak multiplier
+
+                    }
+                    nIndex++;
+                }
+
+                return 0;
+            }*/
+            /// <summary>
+            /// Calculates the base score and No-SP score for a song based on played notes and fretbar positions.
+            /// </summary>
+            /// <param name="fretbars">List of fretbar positions (in milliseconds) that define the beat structure</param>
+            /// <returns>Tuple containing (baseScore, multipliedScore) where:
+            ///     baseScore - The raw score without streak multipliers
+            ///     multipliedScore - The score with streak multipliers applied</returns>
+            public (int, int) GetSongScores(List<int> fretbars)
+            {
+                // Early exit if no notes were played
+                if (PlayNotes.Count == 0)
+                {
+                    return (0, 0);
+                }
+
+                // Score tracking variables
+                var score = 0f;          // Score with streak multipliers applied
+                var baseScore = 0f;      // Raw score without multipliers
+                var multiplier = 1;      // Current streak multiplier
+                var lastMultiplier = 1;  // Previous streak multiplier (for detecting changes)
+
+                // Timing variables
+                var beat_time = fretbars[1] - fretbars[0];  // Duration of current beat
+                var origSustainCheck = beat_time / 2.0f;    // Threshold for sustain notes (half beat)
+
+                // Sustain tracking variables
+                var activeSustainTime = 0;    // Start time of active sustain
+                var activeSustainLength = 0;  // Length of active sustain
+
+                // Position tracking variables
+                var fIndex = 0;              // Current position in fretbars list
+                var sim_bot_note_count = 0;  // Count of consecutive notes hit (for streak multiplier)
+
+                // Process each played note
+                foreach (var note in PlayNotes)
+                {
+                    // Update streak multiplier
+                    sim_bot_note_count++;
+                    multiplier = GetMultiplier(sim_bot_note_count);
+                    bool multiplierChanged = multiplier != lastMultiplier;
+                    lastMultiplier = multiplier;
+
+                    // Advance fretbar index to current note's timing
+                    UpdateFretIndex(ref fIndex, fretbars, note.Time);
+                    beat_time = fretbars[fIndex + 1] - fretbars[fIndex];
+
+                    // Calculate base score for this note (based on number of notes in chord)
+                    var notesInChord = countSetBits(note.Note);
+                    var baseNoteScore = notesInChord * BASENOTE;
+
+                    // Add to both base and multiplied scores
+                    baseScore += baseNoteScore;
+                    score += baseNoteScore * multiplier;
+
+                    // Check if this note qualifies for sustain points
+                    var length = note.Length;
+                    var timePlusLengthCurrent = note.Time + length;
+                    var timePlusLengthCheck = activeSustainTime + activeSustainLength;
+                    bool skipLengthCalc = timePlusLengthCurrent <= timePlusLengthCheck;
+                    bool sustainCalcCheck = length > origSustainCheck;
+
+                    if (sustainCalcCheck && (!skipLengthCalc))
+                    {
+                        if (note.Time < timePlusLengthCheck && timePlusLengthCurrent > timePlusLengthCheck)
+                        {
+                            note.Time = timePlusLengthCheck;
+                            length = timePlusLengthCurrent - timePlusLengthCheck;
+                            while (fretbars[fIndex + 1] <= note.Time)
+                            {
+                                beat_time = fretbars[fIndex + 1] - fretbars[fIndex];
+                                fIndex++;
+                            }
+                        }
+                        activeSustainTime = note.Time;
+                        activeSustainLength = length;
+
+
+                        var sustainPoints = CalculateSustainPoints(note.Time, length, fIndex, fretbars, multiplier);
+                        var roundedSustain = (int)(sustainPoints + 0.5f); // Round like the original
+
+                        baseScore += roundedSustain;
+                        score += roundedSustain * multiplier; // Apply streak multiplier
+                        
+
+                    }
+                    else if (multiplierChanged && sustainCalcCheck)
+                    {
+                        multiplier = 1; // This is if the multiplier changes on an extended sustain. You need to reset the multiplier to 1 to add the portion of the sustain that has an additional multiplier.
+
+                        var sustainPoints = CalculateSustainPoints(note.Time, length, fIndex, fretbars, multiplier);
+
+                        var roundedSustain = (int)(sustainPoints + 0.5f); // Round like the original
+                        score += roundedSustain * multiplier; // Apply streak multiplier
+                    }
+                    multiplierChanged = false;
+                }
+                Console.WriteLine($"{nameProper} Base Score: {baseScore}, {nameProper} No SP Score: {score}");
+                return ((int)baseScore, (int)score);
+            }
+            /// <summary>
+            /// Updates the fretbar index to the current note's timing position
+            /// </summary>
+            /// <param name="fIndex">Current fretbar index (will be updated)</param>
+            /// <param name="fretbars">List of fretbar positions</param>
+            /// <param name="noteTime">Current note's time position</param>
+            private void UpdateFretIndex(ref int fIndex, List<int> fretbars, int noteTime)
+            {
+                // Advance through fretbars until we find the one containing this note
+                while (fIndex + 1 < fretbars.Count && fretbars[fIndex + 1] <= noteTime)
+                {
+                    fIndex++;
+                }
+            }
+
+            /// <summary>
+            /// Calculates additional score points for sustain notes
+            /// </summary>
+            /// <param name="noteTime">Start time of the note</param>
+            /// <param name="length">Duration of the note</param>
+            /// <param name="startFIndex">Starting fretbar index</param>
+            /// <param name="fretbars">List of fretbar positions</param>
+            /// <param name="scoreMultiplier">Multiplier to apply to sustain points</param>
+            /// <returns>Calculated sustain points</returns>
+            private float CalculateSustainPoints(
+                int noteTime,
+                int length,
+                int startFIndex,
+                List<int> fretbars,
+                int scoreMultiplier)
+            {
+                var sustainPoints = 0f;
+                int totalNoteLength = length;
+                var sustainValueBeat = totalNoteLength;
+
+                var finished = false;
+                var sustainFretBarCount = startFIndex;
+
+                while (!finished)
+                {
+                    var currSustainFret = fretbars[sustainFretBarCount];
+                    var nextSustainFret = fretbars[sustainFretBarCount + 1];
+                    var segmentDuration = nextSustainFret - currSustainFret;
+                    var noteLength = segmentDuration;
+                    if (currSustainFret <= noteTime)
+                    {
+                        var timeFromBeatLine = nextSustainFret - noteTime;
+                        noteLength = timeFromBeatLine;
+                    }
+                    if (totalNoteLength <= noteLength)
+                    {
+                        finished = true;
+                        noteLength = totalNoteLength;
+                    }
+                    else
+                    {
+                        totalNoteLength -= noteLength;
+                    }
+
+
+                    var additionalScore = POINTSPERBEAT;
+                    additionalScore *= noteLength;
+                    additionalScore /= segmentDuration;
+                    sustainPoints += additionalScore;
+
+                    sustainFretBarCount++;
+
+                }
+
+                return sustainPoints;
+            }
+
+            /* Base score calculation that works
+             public (int, int) GetSongScores(List<int> fretbars)
+            {
+                var debugMeasures = new Dictionary<int, (float simScore, float otherScore)>();
+                if (PlayNotes.Count == 0)
+                {
+                    return (0, 0);
+                }
+                var score = 0f;
+                var baseScore = 0f;
+                var multiplier = 1;
+                var beat_time = fretbars[1] - fretbars[0];
+                var orig_beat_time = beat_time;
+                var origSustainCheck = orig_beat_time / 2.0;
+
+                var fIndex = 0;
+                var nIndex = 0;
+                var sim_bot_note_count = 0;
+                while (nIndex < PlayNotes.Count)
+                {
+                    var note = PlayNotes[nIndex];
+                    //note.Time += (66 + 66 + 14 + 33);
+                    sim_bot_note_count++;
+                    multiplier = GetMultiplier(sim_bot_note_count);
+                    while (fretbars[fIndex + 1] <= note.Time)
+                    {
+                        beat_time = fretbars[fIndex + 1] - fretbars[fIndex];
+                        fIndex++;
+                    }
+                    int currMeasure = fIndex / 4;
+                    if (!debugMeasures.ContainsKey(currMeasure+1))
+                    {
+                        debugMeasures[currMeasure+1] = (0, 0);
+                    }
+                    beat_time = fretbars[fIndex + 1] - fretbars[fIndex];
+                    var currSustainCheck = beat_time / 2.0f;
+                    var currBeatLine = fretbars[fIndex];
+                    var nextBeatLine = fretbars[fIndex + 1];
+                    var length = note.Length;
+                    var notesInChord = countSetBits(note.Note);
+                    var baseNoteScore = notesInChord * BASENOTE;
+                    baseScore += baseNoteScore;
+                    score += baseNoteScore * multiplier;
+                    
+                    debugMeasures[currMeasure+1] = (score, debugMeasures[currMeasure + 1].otherScore + baseNoteScore);
+                    if (length > origSustainCheck)
+                    {
+                        var sustainPoints = 0f;
+                        int totalNoteLength = length;
+                        var sustainValueBeat = totalNoteLength;
+                        var finished = false;
+                        var sustainFretBarCount = fIndex;
+                        var noteStart = true;
+                        bool altPath = false;
+                        int currSustainMeasure = sustainFretBarCount / 4;
+
+                        while (!finished)
+                        {
+                            var currSustainFret = fretbars[sustainFretBarCount];
+                            var nextSustainFret = fretbars[sustainFretBarCount + 1];
+                            var segmentDuration = nextSustainFret - currSustainFret;
+                            var noteLength = segmentDuration;
+                            if (currSustainFret <= note.Time)
+                            {
+                                var timeFromBeatLine = nextSustainFret - note.Time;
+                                noteLength = timeFromBeatLine;
+                            }
+                            if (totalNoteLength <= noteLength)
+                            {
+                                finished = true;
+                                noteLength = totalNoteLength;
+                            }
+                            else
+                            {
+                                totalNoteLength -= noteLength;
+                            }
+                           
+
+                            var additionalScore = POINTSPERBEAT;
+                            additionalScore *= noteLength;
+                            additionalScore /= segmentDuration;
+                            sustainPoints += additionalScore;
+
+                            currSustainMeasure = sustainFretBarCount / 4;
+
+                            if (debugMeasures.ContainsKey(currSustainMeasure+1))
+                            {
+                                var simScore = debugMeasures[currSustainMeasure+1].simScore;
+                                var otherScore = debugMeasures[currSustainMeasure+1].otherScore;
+                                debugMeasures[currSustainMeasure+1] = (simScore + (additionalScore * multiplier), otherScore + additionalScore);
+                            }
+                            else
+                            {
+                                // If the measure doesn't exist, create it with the current score
+                                var prevScore = debugMeasures[currSustainMeasure];
+                                debugMeasures[currSustainMeasure+1] = (prevScore.simScore + (additionalScore * multiplier), additionalScore); ;
+                            }
+
+                            sustainFretBarCount++;
+
+                        }
+                        var roundedWhammy = (int)(sustainPoints + 0.5f); // Round like the original
+
+                        baseScore += roundedWhammy;
+                        score += roundedWhammy * multiplier; // Apply streak multiplier
+                        debugMeasures[currSustainMeasure+1] = (score, debugMeasures[currSustainMeasure + 1].otherScore);
+
+                    }
+                    nIndex++;
+                }
+                Console.WriteLine($"{nameProper} Base Score: {baseScore}, {nameProper} No SP Score: {score}");
+                return ((int)baseScore, (int)score);
+            }
+             */
         }
         [DebuggerDisplay("{Time} - {Text}")]
         public class Marker
@@ -5989,6 +6693,11 @@ namespace GH_Toolkit_Core.MIDI
             {
                 throw new NotSupportedException("Conductor track not found.");
             }
+            if (TimeSigs.Count == 0)
+            {
+                // If no time signatures were found, add a default one
+                TimeSigs.Add(new TimeSig(0, 4, 4)); // Default to 4/4 time signature
+            }
         }
         private void CalculateFretbars()
         {
@@ -6039,7 +6748,74 @@ namespace GH_Toolkit_Core.MIDI
                     tick += beatLengthInTicks;
                 }
             }
+            // Add the last fret bar for padding
+            var fretCount = Fretbars.Count;
+            var lastFretbar = Fretbars[fretCount - 1];
+            var secondLastFretbar = Fretbars[fretCount - 2];
+            var lastDiff = lastFretbar - secondLastFretbar;
+            for (int i = 1; i < 5; i++)
+            {
+                var newFret = lastFretbar + (lastDiff * i);
+                Fretbars.Add(newFret);
+            }
+            SetMeasuresForDebugging();
 
+        }
+        private void SetMeasuresForDebugging()
+        {
+            if (Fretbars.Count == 0)
+            {
+                throw new InvalidOperationException("Fretbars have not been calculated. Call CalculateFretbars() first.");
+            }
+            var fretbarIndex = 0;
+            TimeSig currTs;
+            TimeSig nextTs;
+            bool lastTs;
+            var currBeat = 0;
+            var currMeasure = 0;
+            (currTs, nextTs, lastTs) = GetNextTs(fretbarIndex);
+            for (int i = 0; i < Fretbars.Count; i++)
+            {
+                var currFret = Fretbars[i];
+                if (currFret >= nextTs.Time && !lastTs)
+                {
+                    if (currFret != nextTs.Time)
+                    {
+                        Console.WriteLine($"Fretbar {currFret} does not match next time signature {nextTs.Time}. This may cause issues in the song."); 
+                    }
+                    // Move to the next time signature
+                    fretbarIndex++;
+                    (currTs, nextTs, lastTs) = GetNextTs(fretbarIndex);
+                    currBeat = 0; // Reset the beat count for the new time signature
+                }
+                var beatInMeasure = currBeat % currTs.Numerator;
+                if (beatInMeasure == 0)
+                {
+                    currMeasure++;
+                }
+                Measures.Add((currMeasure, beatInMeasure + 1)); // Add the index of the measure
+                currBeat++;
+            }
+            if (Fretbars.Count != Measures.Count)
+            {
+                Console.WriteLine($"Warning: Fretbars count ({Fretbars.Count}) does not match Measures count ({Measures.Count}). This may indicate a problem with the time signature calculations.");
+            }
+        }
+        private (TimeSig, TimeSig, bool) GetNextTs(int tsIndex)
+        {
+            TimeSig currTs = TimeSigs[tsIndex];
+            bool lastTs = false;
+            TimeSig nextTs;
+            try
+            {
+                nextTs = TimeSigs[tsIndex + 1];
+            }
+            catch
+            {
+                nextTs = currTs; // If there's no next time signature, use the current one
+                lastTs = true;
+            }
+            return (currTs, nextTs, lastTs);
         }
         private void SetMidiInfo(string midiPath)
         {
@@ -6104,8 +6880,14 @@ namespace GH_Toolkit_Core.MIDI
         }
         public static SongQbFile TokenizePak(string pakPath)
         {
+            string endian = "big";
+            string extension = Path.GetExtension(pakPath).ToLowerInvariant();
+            if (extension == ".ps2")
+            {
+                endian = "little";
+            }
             string fileName = Path.GetFileNameWithoutExtension(pakPath);
-            string hasSongPattern = @"(_song|_s)\.pak(\.xen|\.ps3)?$";
+            string hasSongPattern = @"(_song|_s)?\.pak(\.xen|\.ps3|\.ps2)?$";
             string songName = Regex.Replace(fileName, hasSongPattern, "", RegexOptions.IgnoreCase).ToLower();
             string dlcPattern = @"(a|b|c)dlc";
             songName = Regex.Replace(songName, dlcPattern, "dlc", RegexOptions.IgnoreCase);
@@ -6147,7 +6929,7 @@ namespace GH_Toolkit_Core.MIDI
                     perf = entryData.EntryData;
                 }
             }
-            var songData = new SongQbFile(songName, midQb, midQs, songScripts, notes, perf, perfXml);
+            var songData = new SongQbFile(songName, midQb, midQs, songScripts, notes, perf, perfXml, endian);
             return songData;
         }
     }
