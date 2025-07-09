@@ -706,6 +706,10 @@ namespace GH_Toolkit_Core.PAK
             string consoleType = fileExt.Replace(".", "");
             string folderPath = Path.GetDirectoryName(file);
             string NewFolderPath = Path.Combine(folderPath, fileNoExt);
+            if (NewFolderPath.EndsWith("_VRAM", StringComparison.InvariantCultureIgnoreCase))
+            {
+                return; // Skip VRAM files, they are already looked for
+            }
             bool debugFile = fileName.Contains("dbg.pak");
             string masterFilePath = Path.Combine(NewFolderPath, "master.txt");
 
