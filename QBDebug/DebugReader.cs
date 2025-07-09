@@ -19,15 +19,32 @@ namespace GH_Toolkit_Core.Debug
         public static readonly object QsDbgLock = new object();
         public static Dictionary<uint, string> ChecksumDbg { get; private set; }
         public static Dictionary<uint, string> QsDbg { get; private set; }
+        public static Dictionary<uint, string> QsDbgF { get; private set; }
+        public static Dictionary<uint, string> QsDbgG { get; private set; }
+        public static Dictionary<uint, string> QsDbgI { get; private set; }
+        public static Dictionary<uint, string> QsDbgS { get; private set; }
         public static Dictionary<string, uint> Ps2PakDbg { get; private set; }
 
         private static StreamWriter _qbUserWriter;
         private static StreamWriter _qsUserWriter;
 
+        public enum QsDict
+        {
+            En = 0,
+            Fr = 1,
+            De = 2,
+            It = 3,
+            Es = 4
+        }
+
         static DebugReader()
         {
             ChecksumDbg = ReadQBDebug();
             QsDbg = ReadQSDebug();
+            QsDbgF = ReadQSDebug("_f");
+            QsDbgG = ReadQSDebug("_g");
+            QsDbgI = ReadQSDebug("_i");
+            QsDbgS = ReadQSDebug("_s");
             Ps2PakDbg = ReadPs2PakDbg();
             InitializeWriters();
         }
@@ -93,13 +110,13 @@ namespace GH_Toolkit_Core.Debug
             var funcDict = new Dictionary<uint, string>();
             var rootFolder = ExeRootFolder;
 
-            var compressedPath = Path.Combine(rootFolder, "QBDebug", "keys.dbg");
+            //var compressedPath = Path.Combine(rootFolder, "QBDebug", "keys.dbg");
             var dbgPath = Path.Combine(rootFolder, "QBDebug", "keys.txt");
             var userDbgPath = Path.Combine(rootFolder, "QBDebug", "keys_user.txt");
-            if (Path.Exists(compressedPath))
+            /*if (Path.Exists(compressedPath))
             {
                 DecompressToFile(compressedPath, dbgPath);
-            }
+            }*/
 
             try
             {
@@ -131,10 +148,7 @@ namespace GH_Toolkit_Core.Debug
             {
                 Console.WriteLine($"Error reading or processing the file: {ex.Message}");
             }
-            if (Path.Exists(dbgPath))
-            {
-                File.Delete(dbgPath);
-            }
+
             return funcDict;
         }
         static void AddQbKeyToUser(string key, string value)
@@ -148,6 +162,7 @@ namespace GH_Toolkit_Core.Debug
         {
             AddQbKeyToUser(key.ToString("x8"), value);
         }
+
         static void AddQsKeyToUser(string key, string value)
         {
             lock (QsDbgLock)
@@ -159,21 +174,117 @@ namespace GH_Toolkit_Core.Debug
         {
             AddQsKeyToUser(key.ToString("x8"), value);
         }
-        static Dictionary<uint, string> ReadQSDebug()
+        public static void AddToQsDictTemp(string filePath, QsDict dictMod)
+        {
+            try
+            {
+                var textLines = File.ReadAllLines(filePath, Encoding.BigEndianUnicode);
+                Dictionary<uint, string> funcDict;
+                switch (dictMod)
+                {
+                    case QsDict.En:
+                        funcDict = QsDbg;
+                        break;
+                    case QsDict.Fr:
+                        funcDict = QsDbgF;
+                        break;
+                    case QsDict.De:
+                        funcDict = QsDbgG;
+                        break;
+                    case QsDict.It:
+                        funcDict = QsDbgI;
+                        break;
+                    case QsDict.Es:
+                        funcDict = QsDbgS;
+                        break;
+                    default:
+                        throw new ArgumentException("Invalid dictMod value. Must be between 0 and 4.");
+                }
+                foreach (var line in textLines)
+                {
+                    var newLine = line.TrimEnd('\n').Split(new[] { ' ' }, 2);
+
+                    if (newLine.Length != 2) continue;
+
+                    try
+                    {
+                        var key = Convert.ToUInt32(newLine[0], 16);
+                        var value = newLine[1].Replace("\"", "");
+                        funcDict[key] = value;
+                    }
+                    catch
+                    {
+                        // If an exception occurs, ignore and continue processing the next line.
+                    }
+                }
+            }
+            catch
+            {
+
+            }
+        }
+        public static string? GetQsKeyFromDict(uint key, QsDict dictMod = QsDict.En)
+        {
+            Dictionary<uint, string> funcDict;
+            switch (dictMod)
+            {
+                case QsDict.En:
+                    funcDict = QsDbg;
+                    break;
+                case QsDict.Fr:
+                    funcDict = QsDbgF;
+                    break;
+                case QsDict.De:
+                    funcDict = QsDbgG;
+                    break;
+                case QsDict.It:
+                    funcDict = QsDbgI;
+                    break;
+                case QsDict.Es:
+                    funcDict = QsDbgS;
+                    break;
+                default:
+                    throw new ArgumentException("Invalid dictMod value. Must be between 0 and 4.");
+            }
+            if (funcDict.TryGetValue(key, out string value))
+            {
+                return value;
+            }
+            return null;
+        }
+        public static Dictionary<uint, string> TranslateDictionary(Dictionary<uint, string> originalDict, QsDict dictMod = QsDict.En)
+        {
+            var newDict = new Dictionary<uint, string>();
+            foreach (var kvp in originalDict)
+            {
+                var translatedValue = GetQsKeyFromDict(kvp.Key, dictMod);
+                if (translatedValue != null)
+                {
+                    newDict[kvp.Key] = translatedValue;
+                }
+                else
+                {
+                    newDict[kvp.Key] = kvp.Value; // Fallback to original value if translation not found
+                }
+            }
+            return newDict;
+        }
+        static Dictionary<uint, string> ReadQSDebug(string language = "")
         {
             var funcDict = new Dictionary<uint, string>();
             var rootFolder = ExeRootFolder;
 
-            var compressedPath = Path.Combine(rootFolder, "QBDebug", "keys_qs.dbg");
-            var dbgPath = Path.Combine(rootFolder, "QBDebug", "keys_qs.txt");
-            var userDbgPath = Path.Combine(rootFolder, "QBDebug", "keys_qs_user.txt");
-            if (Path.Exists(compressedPath))
+            //var compressedPath = Path.Combine(rootFolder, "QBDebug", "keys_qs.dbg");
+            var dbgPath = Path.Combine(rootFolder, "QBDebug", $"keys_qs{language}.txt");
+            var userDbgPath = Path.Combine(rootFolder, "QBDebug", $"keys_qs_user{language}.txt");
+            /*if (Path.Exists(compressedPath))
             {
-                DecompressToFile(compressedPath, dbgPath);
-            }
+                DecompressQsToFile(compressedPath, dbgPath);
+            }*/
             try
             {
-                var textLines = File.ReadAllLines(dbgPath);
+                var textLines = File.ReadAllLines(dbgPath, Encoding.BigEndianUnicode);
+                var textTest = File.ReadAllText(dbgPath, Encoding.BigEndianUnicode);
                 if (Path.Exists(userDbgPath))
                 {
                     var userTextLines = File.ReadAllLines(userDbgPath);
@@ -199,12 +310,8 @@ namespace GH_Toolkit_Core.Debug
                 }
             }
             catch (Exception ex)
-            {
+            {                    
                 Console.WriteLine($"Error reading or processing the file: {ex.Message}");
-            }
-            if (Path.Exists(dbgPath))
-            {
-                File.Delete(dbgPath);
             }
             return funcDict;
         }
@@ -256,6 +363,17 @@ namespace GH_Toolkit_Core.Debug
             using (GZipStream decompressionStream = new GZipStream(compressedStream, CompressionMode.Decompress))
             using (StreamReader reader = new StreamReader(decompressionStream, Encoding.UTF8))
             using (StreamWriter writer = new StreamWriter(outputFilePath, false, Encoding.UTF8))
+            {
+                writer.Write(reader.ReadToEnd());
+            }
+        }
+
+        public static void DecompressQsToFile(string compressedFilePath, string outputFilePath)
+        {
+            using (FileStream compressedStream = new FileStream(compressedFilePath, FileMode.Open, FileAccess.Read))
+            using (GZipStream decompressionStream = new GZipStream(compressedStream, CompressionMode.Decompress))
+            using (StreamReader reader = new StreamReader(decompressionStream, Encoding.Unicode))
+            using (StreamWriter writer = new StreamWriter(outputFilePath, false, Encoding.BigEndianUnicode))
             {
                 writer.Write(reader.ReadToEnd());
             }
@@ -327,6 +445,7 @@ namespace GH_Toolkit_Core.Debug
             }
             return headers;
         }
+
         // Dispose pattern to clean up resources
         public static void Dispose()
         {
