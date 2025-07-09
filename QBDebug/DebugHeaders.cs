@@ -20,87 +20,101 @@ namespace GH_Toolkit_Core.Debug
         private static readonly string[] songsFolder = { ".mid.qb", "_song_scripts.qb", ".mid.qs", ".note", ".perf", ".perf.xml.qb", ".qs.de", ".qs.en", ".qs.es", ".qs.fr", ".qs.it", "_rms.qd" };
         private static readonly string[] qsExtensions = { ".qs.de", ".qs.en", ".qs.es", ".qs.fr", ".qs.it" };
         private static readonly string[] animsPre = { "car_female_anim_struct_", "car_male_anim_struct_", "car_female_alt_anim_struct_", "car_male_alt_anim_struct_" };
+        private static readonly string[] zoneStrings = { ".pfx", ".tex", ".scn", ".hkc", ".nqb", ".scn", ".fnv", ".imv", ".mdv", ".pimv", ".scv", ".skiv", ".tvx" };
 
         private static readonly string[] dlcDownloadFolder = { "download_song", "songlist" };
         private static readonly string[] dlcSongsFolder = { ".mid_text.qb" };
 
         public static Dictionary<uint, string> CreateHeaderDict(string filename)
         {
+            var listsToProcess = new List<string[]> { others, othersWT, markersWT };
+            var origFilename = filename;
             List<string> headers = new List<string>();
             Dictionary<uint, string> headerDict = new Dictionary<uint, string>();
-
-            foreach (var x in playableParts)
+            foreach (string name in new string[] {"", "_expertplus"})
             {
-                foreach (var z in charts)
+                filename = origFilename + name;
+                foreach (var x in playableParts)
                 {
-                    foreach (var y in difficulties)
+                    foreach (var z in charts)
                     {
-                        if (z == "song")
+                        foreach (var y in difficulties)
                         {
-                            if (string.IsNullOrEmpty(x))
-                                headers.Add($"{filename}_{z}_{y}");
+                            if (z == "song")
+                            {
+                                if (string.IsNullOrEmpty(x))
+                                    headers.Add($"{filename}_{z}_{y}");
+                                else
+                                    headers.Add($"{filename}_{z}_{x}_{y}");
+                            }
                             else
-                                headers.Add($"{filename}_{z}_{x}_{y}");
+                            {
+                                if (string.IsNullOrEmpty(x))
+                                    headers.Add($"{filename}_{y}_{z}");
+                                else
+                                    headers.Add($"{filename}_{x}_{y}_{z}");
+                            }
                         }
+                    }
+
+                    foreach (var z in faceOff)
+                    {
+                        if (string.IsNullOrEmpty(x))
+                            headers.Add($"{filename}_{z}");
                         else
-                        {
-                            if (string.IsNullOrEmpty(x))
-                                headers.Add($"{filename}_{y}_{z}");
-                            else
-                                headers.Add($"{filename}_{x}_{y}_{z}");
-                        }
+                            headers.Add($"{filename}_{x}_{z}");
                     }
                 }
 
-                foreach (var z in faceOff)
+                foreach (var list in listsToProcess)
                 {
-                    if (string.IsNullOrEmpty(x))
-                        headers.Add($"{filename}_{z}");
-                    else
-                        headers.Add($"{filename}_{x}_{z}");
+                    foreach (var x in list)
+                    {
+                        headers.Add($"{filename}{x}");
+                    }
                 }
-            }
 
-            var listsToProcess = new List<string[]> { others, othersWT, markersWT };
-
-            foreach (var list in listsToProcess)
-            {
-                foreach (var x in list)
+                foreach (var x in drumWT)
                 {
-                    headers.Add($"{filename}{x}");
+                    foreach (var y in difficulties)
+                    {
+                        headers.Add($"{filename}_{y}_{x}");
+                    }
                 }
-            }
 
-            foreach (var x in drumWT)
-            {
-                foreach (var y in difficulties)
+                foreach (var x in vocalsWT)
                 {
-                    headers.Add($"{filename}_{y}_{x}");
+                    headers.Add($"{filename}_vocals{x}");
                 }
-            }
 
-            foreach (var x in vocalsWT)
-            {
-                headers.Add($"{filename}_vocals{x}");
-            }
+                headers.Add($"{filename}_song_vocals");
+                headers.Add($"{filename}_lyrics");
 
-            headers.Add($"{filename}_song_vocals");
-            headers.Add($"{filename}_lyrics");
+                foreach (var x in songsFolder)
+                {
+                    headers.Add($"songs/{filename}{x}");
+                }
 
-            foreach (var x in songsFolder)
-            {
-                headers.Add($"songs/{filename}{x}");
-            }
+                foreach (var x in animsPre)
+                {
+                    headers.Add($"{x}{filename}");
+                }
 
-            foreach (var x in animsPre)
-            {
-                headers.Add($"{x}{filename}");
-            }
+                foreach (var x in zoneStrings)
+                {   
+                    var zoneString = $"zones\\{filename}\\{filename}{x}";
+                    var zoneStringGfx = $"zones\\{filename}\\{filename}_gfx{x}";
+                    headers.Add(zoneString);
+                    headers.Add(zoneStringGfx);
+                }
 
-            foreach (var x in headers)
-            {
-                string hexVal = CRC.QBKey(x);
-                headerDict[Convert.ToUInt32(hexVal, 16)] = x;
+                foreach (var x in headers)
+                {
+                    string hexVal = CRC.QBKey(x);
+                    headerDict[Convert.ToUInt32(hexVal, 16)] = x;
+
+                }
+
 
             }
 
