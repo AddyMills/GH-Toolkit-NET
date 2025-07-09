@@ -37,9 +37,11 @@ namespace GH_Toolkit_Core.QB
         private static CultureInfo enUs = new CultureInfo("en-US");
         public Dictionary<uint, string> QsList { get; set; } = new Dictionary<uint, string>();
         public List<QBItem> Children { get; set; }
-        public QB()
+        public bool QsSwap { get; set; } = false; // This is used to determine if strings should be swapped to QS keys
+        public QB(bool qsSwap)
         {
             Children = new List<QBItem>();
+            QsSwap = qsSwap;
         }
         private void AddQbChild(QBItem item)
         {
@@ -527,7 +529,6 @@ namespace GH_Toolkit_Core.QB
             var bytes = CompileQbFile(qbList, qbPath, game, console);
             return bytes;
         }
-
         public static List<QBItem> DecompileQb(byte[] qbBytes, string endian = "big", string songName = "", string game = "", string console = "")
         {
             SetStructType(endian);
@@ -588,7 +589,14 @@ namespace GH_Toolkit_Core.QB
                     test = GetQbKeyFormat(itemString);
                     if (itemType == QSKEY)
                     {
-                        test = $"qs({test})";
+                        if (NeedsQsKeyWrap(itemString))
+                        {
+                            test = $"qs({test})";
+                        }
+                        else
+                        {
+                            test = $"\"{itemString}\"";
+                        }
                     }
                     else if (itemType == POINTER)
                     {
@@ -612,6 +620,17 @@ namespace GH_Toolkit_Core.QB
             }
 
             return test;
+        }
+        private static bool NeedsQsKeyWrap(string qsString)
+        {
+            if (qsString.StartsWith("0x") && qsString.Length == 10)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
         public static string GetQbKeyFormat(string toFormat)
         {
@@ -878,9 +897,10 @@ namespace GH_Toolkit_Core.QB
             }
             return ParseQFile(data);
         }
-        public static (List<QBItem>, Dictionary<uint,string>) ParseQFile(string data, string console = CONSOLE_XBOX)
+        public static (List<QBItem>, Dictionary<uint,string>) ParseQFile(string data, string console = CONSOLE_XBOX, string game = GAME_GH3)
         {
             WideStringSwap = console == CONSOLE_PS2 || console == CONSOLE_WII;
+            bool qsSwap = (game != GAME_GH3 && game != GAME_GHA);
             if (File.Exists(data))
             {
                 var tempData = File.ReadAllText(data);
@@ -896,7 +916,7 @@ namespace GH_Toolkit_Core.QB
             ParseLevel root = new ParseLevel(null, ParseState.whitespace, ROOT);
             ParseLevel currLevel = root;
             bool escaped = false;
-            QB qbFile = new QB();
+            QB qbFile = new QB(qsSwap);
             QBItem currItem = new QBItem();
             data += " "; // Safety character to make sure everything gets parsed
             string tmpKey = "";
@@ -1640,13 +1660,18 @@ namespace GH_Toolkit_Core.QB
             {
                 return;
             }
-            if (WideStringSwap && itemType == WIDESTRING)
-            {
-                itemType = STRING; // Make it a string if it's a wide string on PS2 and Wii
-            }
-            else if (itemType == WIDESTRING)
+            if (itemType == WIDESTRING)
             {
                 qbFile.AddToQsList(tmpValue);
+
+                if (WideStringSwap)
+                {
+                    itemType = STRING; // Make it a string if it's a wide string on PS2 and Wii
+                }
+                if (qbFile.QsSwap)
+                {
+                    itemType = QSKEY;
+                }
             }
             switch (currLevel.LevelType)
             {
