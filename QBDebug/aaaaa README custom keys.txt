@@ -1,0 +1,3 @@
+If you want to add your own keys, you can create the following files in this folder:
+keys_user.txt - For your own custom QB keys. Please note that if you compile a pak file with keys not present in any game, this file will be created for you and the QB key added.
+keys_qs_user.txt - For your own custom QS keys. Please note that if you compile a pak file with keys not present in any game, this file will be created for you and the QS key added.
