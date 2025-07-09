@@ -10,6 +10,8 @@ using static GH_Toolkit_Core.QB.QBConstants;
 using static GH_Toolkit_Core.Checksum.CRC;
 using static GH_Toolkit_Core.PAK.PAKVariables;
 using static System.Net.Mime.MediaTypeNames;
+using static GH_Toolkit_Core.Methods.GlobalVariables;
+using static GH_Toolkit_Core.Methods.GlobalHelpers;
 using System.Reflection.PortableExecutable;
 using GH_Toolkit_Core.MIDI;
 using GH_Toolkit_Core.SKA;
@@ -20,6 +22,14 @@ using System.Text;
 using static GH_Toolkit_Core.Methods.Exceptions;
 using GH_Toolkit_Core.QB;
 using GH_Toolkit_Core.Checksum;
+using Melanchall.DryWetMidi.Interaction;
+using static GH_Toolkit_Core.Debug.DebugReader;
+using Microsoft.VisualBasic;
+using NAudio.Lame;
+using System.IO;
+using System.Net.NetworkInformation;
+using static ICSharpCode.SharpZipLib.Zip.ExtendedUnixData;
+using Instances.Exceptions;
 
 /*
  * * This file is intended to be a collection of custom methods to read and create PAK files
@@ -94,7 +104,7 @@ namespace GH_Toolkit_Core.PAK
                 SetNameNoExt("0x6AF98ED1");
                 SetFullName("0x897ABB4A");
             }
-            public void SetExtension(string extension)
+            public void SetExtension(string extension, bool isNq = false)
             {
                 Extension = extension;
                 /*if (FullFlagPath != null && FullFlagPath!.IndexOf(DOT_MID_QS) != -1 && !FullFlagPath!.EndsWith(DOT_QS))
@@ -105,6 +115,10 @@ namespace GH_Toolkit_Core.PAK
                 {
                     
                 }*/
+            }
+            public void SetAssetContext(string asset)
+            {
+                AssetContext = QBKey(asset);
             }
             public void SetGame(string game)
             {
@@ -271,6 +285,10 @@ namespace GH_Toolkit_Core.PAK
                     Flags = 0;
                 }
             }
+            public void OverwriteFlags(int flagValue)
+            {
+                Flags = flagValue;
+            }
             public void OverwriteData(byte[] data)
             {
                 EntryData = data;
@@ -335,7 +353,7 @@ namespace GH_Toolkit_Core.PAK
             }
             string songCheck = "_song";
             string songCheck2 = "_s";
-            string songName = "";
+            string songName = fileNoExt;
             List<PakEntry> pakEntries;
             if (fileNoExt.EndsWith(songCheck))
             {
@@ -357,6 +375,7 @@ namespace GH_Toolkit_Core.PAK
             }
             bool isWiiorPS2 = fileName.EndsWith(".ngc", StringComparison.InvariantCultureIgnoreCase);
             string endian;
+            var pakExtractor = new PakExtractor(fileExt, songName);
             if (fileExt == ".ps2")
             {
                 endian = "little";
@@ -367,9 +386,10 @@ namespace GH_Toolkit_Core.PAK
                 endian = "big";
                 fileExt = ".xen";
             }
+            
             try
             {
-                pakEntries = ExtractPAK(test_pak, test_pab, endian: endian, songName: songName, isWiiorPS2: isWiiorPS2, vramBytes: vramBytes);
+                pakEntries = pakExtractor.ExtractPAK(test_pak, test_pab, vramBytes);
             }
             catch (Exception ex)
             {
@@ -385,11 +405,288 @@ namespace GH_Toolkit_Core.PAK
                 {
                     test_pab = Compression.DecompressData(test_pab);
                 }
-                pakEntries = ExtractPAK(test_pak, test_pab, endian: endian, songName: songName, isWiiorPS2: isWiiorPS2, vramBytes: vramBytes);
+                pakEntries = pakExtractor.ExtractPAK(test_pak, test_pab, vramBytes);
             }
             return pakEntries;
         }
+        public static void MakeQsFilesForSplitPak(string folderPath, string saveToFolder, string console, string game, Dictionary<uint, string> qsStrings, bool edat = false)
+        {
+            if (qsStrings == null || qsStrings.Count == 0)
+            {
+                Console.WriteLine("No QS strings provided.");
+                return;
+            }
 
+            folderPath = folderPath += "_qs_files_temp";
+            string extension = GetConsoleExtension(console);
+
+            string qsName = "qs";
+            string qsNameF = "qs_f";
+            string qsNameG = "qs_g";
+            string qsNameI = "qs_i";
+            string qsNameS = "qs_s";
+
+            string qsSaveName = "qs.pak" + extension;
+            string qsSaveNameF = "qs_f.pak" + extension;
+            string qsSaveNameG = "qs_g.pak" + extension;
+            string qsSaveNameI = "qs_i.pak" + extension;
+            string qsSaveNameS = "qs_s.pak" + extension;
+
+            string qsPath = Path.Join(folderPath, qsName);
+            string qsPathF = Path.Join(folderPath, qsNameF);
+            string qsPathG = Path.Join(folderPath, qsNameG);
+            string qsPathI = Path.Join(folderPath, qsNameI);
+            string qsPathS = Path.Join(folderPath, qsNameS);
+
+            if (console == "PS3")
+            {
+                if (edat)
+                {
+                    qsName += ".edat";
+                    qsNameF += ".edat";
+                    qsNameG += ".edat";
+                    qsNameI += ".edat";
+                    qsNameS += ".edat";
+                }
+                qsPath = Path.Join(folderPath, qsName.ToUpper());
+                qsPathF = Path.Join(folderPath, qsNameF.ToUpper());
+                qsPathG = Path.Join(folderPath, qsNameG.ToUpper());
+                qsPathI = Path.Join(folderPath, qsNameI.ToUpper());
+                qsPathS = Path.Join(folderPath, qsNameS.ToUpper());
+            }
+
+
+            var qsDictF = new Dictionary<uint, string>();
+            var qsDictG = new Dictionary<uint, string>();
+            var qsDictI = new Dictionary<uint, string>();
+            var qsDictS = new Dictionary<uint, string>();
+
+            foreach (var qsString in qsStrings)
+            {
+                var valF = GetQsKeyFromDict(qsString.Key, QsDict.Fr) ?? qsString.Value;
+                var valG = GetQsKeyFromDict(qsString.Key, QsDict.De) ?? qsString.Value;
+                var valI = GetQsKeyFromDict(qsString.Key, QsDict.It) ?? qsString.Value;
+                var valS = GetQsKeyFromDict(qsString.Key, QsDict.Es) ?? qsString.Value;
+
+                qsDictF[qsString.Key] = valF;
+                qsDictG[qsString.Key] = valG;
+                qsDictI[qsString.Key] = valI;
+                qsDictS[qsString.Key] = valS;
+            }
+
+            var qsFileSave = Path.Combine(qsPath, "english.qs.xen");
+            var qsFileSaveF = Path.Combine(qsPathF, "french.qs.xen");
+            var qsFileSaveG = Path.Combine(qsPathG, "german.qs.xen");
+            var qsFileSaveI = Path.Combine(qsPathI, "italian.qs.xen");
+            var qsFileSaveS = Path.Combine(qsPathS, "spanish.qs.xen");
+            try
+            {
+                ReadWrite.WriteQsFileFromDict(qsFileSave, qsStrings);
+                ReadWrite.WriteQsFileFromDict(qsFileSaveF, qsDictF);
+                ReadWrite.WriteQsFileFromDict(qsFileSaveG, qsDictG);
+                ReadWrite.WriteQsFileFromDict(qsFileSaveI, qsDictI);
+                ReadWrite.WriteQsFileFromDict(qsFileSaveS, qsDictS);
+
+                var qsCompiler = new PakCompiler(game, console, null, false, false);
+                var pakString = ".pak" + extension;
+                if (console == "PS3")
+                {
+                    pakString = pakString.ToUpper();
+                }
+
+                foreach (var qsFolder in new[] { qsPath, qsPathF, qsPathG, qsPathI, qsPathS })
+                {
+                    var (qsPak, _, _) = qsCompiler.CompilePAK(qsFolder, console);
+                    string toSave = qsFolder + pakString;
+                    using (FileStream qsPakFile = new FileStream(toSave, FileMode.Create, FileAccess.Write))
+                    {
+                        qsPakFile.Write(qsPak);
+                    }
+                    // Move the qsPak file to the rootFolder
+                    var newQsSave = Path.Combine(saveToFolder, Path.GetFileName(toSave));
+                    File.Move(toSave, newQsSave, true);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error writing QS files: " + ex.Message);
+                throw;
+            }
+            finally
+            {
+                // Clean up the directories if they were created
+                if (Directory.Exists(folderPath))
+                {
+                    Directory.Delete(folderPath, true);
+                }
+            }
+        }
+        private static void CheckForQsFilesInPak(List<PakEntry> entries) 
+        {
+            
+            foreach (PakEntry entry in entries)
+            {
+                if (entry.Extension.Contains(DOT_QS, StringComparison.CurrentCultureIgnoreCase))
+                {
+                    string tempSavePath = Path.Combine(ExeRootFolder, entry.FullName);
+                    if (!Directory.Exists(Path.GetDirectoryName(tempSavePath)))
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(tempSavePath)!);
+                    }
+                    File.WriteAllBytes(tempSavePath, entry.EntryData);
+                    QsDict dictMod;
+                    switch (Path.GetExtension(entry.Extension))
+                    {
+                        case DOTFR:
+                            dictMod = QsDict.Fr;
+                            break;
+                        case DOTDE:
+                            dictMod = QsDict.De;
+                            break;
+                        case DOTIT:
+                            dictMod = QsDict.It;
+                            break;
+                        case DOTES:
+                            dictMod = QsDict.Es;
+                            break;
+                        case DOTEN:
+                        default:
+                            dictMod = QsDict.En;
+                            break;
+                    }
+                    AddToQsDictTemp(tempSavePath, dictMod);
+                    File.Delete(tempSavePath);
+                }
+            }
+        }
+        private static 
+            (
+            Dictionary<uint, string>, 
+            Dictionary<uint, string>, 
+            Dictionary<uint, string>, 
+            Dictionary<uint, string>, 
+            Dictionary<uint, string>
+            ) 
+        CheckForQsFilesInFolder(string[] entries, out bool localQsFiles)
+        {
+            localQsFiles = false;
+            var qsEn = new Dictionary<uint, string>();
+            var qsFr = new Dictionary<uint, string>();
+            var qsDe = new Dictionary<uint, string>();
+            var qsIt = new Dictionary<uint, string>();
+            var qsEs = new Dictionary<uint, string>();
+            if (entries == null || entries.Length == 0)
+            {
+                return (qsEn, qsFr, qsDe, qsIt, qsEs);
+            }
+
+            Dictionary<uint, string>? currDict = null;
+
+            foreach (string entry in entries)
+            {
+                if (File.Exists(entry) && entry.Contains(DOT_QS, StringComparison.CurrentCultureIgnoreCase))
+                {
+                    if (entry.Contains(DOT_QS + DOTEN, StringComparison.CurrentCultureIgnoreCase))
+                    {
+                        currDict = qsEn;
+                    }
+                    else if (entry.Contains(DOT_QS + DOTFR, StringComparison.CurrentCultureIgnoreCase))
+                    {
+                        currDict = qsFr;
+                    }
+                    else if (entry.Contains(DOT_QS + DOTDE, StringComparison.CurrentCultureIgnoreCase))
+                    {
+                        currDict = qsDe;
+                    }
+                    else if (entry.Contains(DOT_QS + DOTIT, StringComparison.CurrentCultureIgnoreCase))
+                    {
+                        currDict = qsIt;
+                    }
+                    else if (entry.Contains(DOT_QS + DOTES, StringComparison.CurrentCultureIgnoreCase))
+                    {
+                        currDict = qsEs;
+                    }
+                    else
+                    {
+                        currDict = qsEn;
+                    }
+                    var textLines = File.ReadAllLines(entry, Encoding.BigEndianUnicode);
+                    foreach (var line in textLines)
+                    {
+                        var newLine = line.TrimEnd('\n').Split(new[] { ' ' }, 2);
+
+                        if (newLine.Length != 2) continue;
+
+                        try
+                        {
+                            var key = Convert.ToUInt32(newLine[0], 16);
+                            var value = newLine[1].Replace("\"", "");
+                            currDict[key] = value;
+                        }
+                        catch
+                        {
+                            // If an exception occurs, ignore and continue processing the next line.
+                        }
+                    }
+                }
+
+                // Find all keys in other dictionaries that are not in qsEn
+                var allKeys = new HashSet<uint>(qsEn.Keys);
+                var otherDicts = new[] { qsFr, qsDe, qsIt, qsEs };
+
+                foreach (var dict in otherDicts)
+                {
+                    foreach (var key in dict.Keys)
+                    {
+                        if (!allKeys.Contains(key))
+                        {
+                            allKeys.Add(key);
+                        }
+                    }
+                }
+
+                // Ensure all dictionaries have all keys
+                foreach (var key in allKeys)
+                {
+                    // If qsEn doesn't have this key, add it with an empty string
+                    if (!qsEn.ContainsKey(key))
+                    {
+                        if (qsFr.ContainsKey(key))
+                        {
+                            qsEn[key] = qsFr[key];
+                        }
+                        else if (qsDe.ContainsKey(key))
+                        {
+                            qsEn[key] = qsDe[key];
+                        }
+                        else if (qsIt.ContainsKey(key))
+                        {
+                            qsEn[key] = qsIt[key];
+                        }
+                        else if (qsEs.ContainsKey(key))
+                        {
+                            qsEn[key] = qsEs[key];
+                        }
+                        else
+                        {
+                            qsEn[key] = string.Empty; // Default to empty string if no value found
+                            // This should not happen though...
+                        }
+                    }
+
+                    // Ensure all other dictionaries have this key
+                    foreach (var dict in otherDicts)
+                    {
+                        if (!dict.ContainsKey(key))
+                        {
+                            dict[key] = qsEn[key];
+                        }
+                    }
+                }
+            }
+
+            return (qsEn, qsFr, qsDe, qsIt, qsEs);
+        }
         public static void ProcessPAKFromFile(string file, bool convertQ = true, string game = "")
         {
             file = Path.GetFullPath(file);
@@ -414,6 +711,10 @@ namespace GH_Toolkit_Core.PAK
 
             var pakEntries = PakEntriesFromFilepath(file);
             var parents = new Dictionary<string, string>();
+            var flags = new Dictionary<string, int>();
+            var assetContexts = new Dictionary<string, string>();
+
+            CheckForQsFilesInPak(pakEntries);
 
             foreach (PakEntry entry in pakEntries)
             {
@@ -422,6 +723,14 @@ namespace GH_Toolkit_Core.PAK
                     var fullName = entry.GetFullName();
                     var parentString = DebugReader.DbgString(entry.Parent);
                     parents.Add(fullName, parentString);
+                }
+                if (entry.Flags != 0)
+                {
+                    flags.Add(entry.GetFullName(), entry.Flags);
+                }
+                if (entry.AssetContext != null && entry.AssetContext != FLAGBYTE)
+                {
+                    assetContexts.Add(entry.GetFullName(), entry.AssetContext);
                 }
                 string pakFileName = entry.FullName;
                 bool convToQ = ((entry.Extension == DOT_QB || entry.Extension == DOT_NQB) && convertQ) ? true : false;
@@ -501,14 +810,53 @@ namespace GH_Toolkit_Core.PAK
                     File.Delete(saveName);
                 }
             }
+            var configFolder = Path.Combine(NewFolderPath, "pak_config");
+            if (!Directory.Exists(configFolder))
+            {
+                Directory.CreateDirectory(configFolder);
+            }
             if (parents.Count > 0)
             {
-                var parentFile = Path.Combine(NewFolderPath, "parents.config");
+                var parentFile = Path.Combine(configFolder, "parents.config");
                 using (StreamWriter masterFileWriter = File.CreateText(parentFile))
                 {
                     foreach (var entry in parents)
                     {
-                        masterFileWriter.WriteLine($"{entry.Key} {entry.Value}");
+                        masterFileWriter.WriteLine($"{entry.Key}\t{entry.Value}");
+                    }
+                }
+                var fileOrder = Path.Combine(configFolder, "file_order.config");
+                using (StreamWriter masterFileWriter = File.CreateText(fileOrder))
+                {
+                    foreach (var entry in pakEntries)
+                    {
+                        if (entry.Extension == DOT_NQB)
+                        {
+                            entry.SetFullName(entry.FullName.Replace(DOT_NQB, DOT_QB)); 
+                        }
+                        masterFileWriter.WriteLine($"{entry.GetFullName()}");
+                    }
+                }
+            }
+            if (flags.Count > 0)
+            {
+                var flagFile = Path.Combine(configFolder, "flags.config");
+                using (StreamWriter masterFileWriter = File.CreateText(flagFile))
+                {
+                    foreach (var entry in flags)
+                    {
+                        masterFileWriter.WriteLine($"{entry.Key}\t{entry.Value}");
+                    }
+                }
+            }
+            if (assetContexts.Count > 0)
+            {
+                var assetFile = Path.Combine(configFolder, "asset_contexts.config");
+                using (StreamWriter masterFileWriter = File.CreateText(assetFile))
+                {
+                    foreach (var entry in assetContexts)
+                    {
+                        masterFileWriter.WriteLine($"{entry.Key}\t{entry.Value}");
                     }
                 }
             }
@@ -555,111 +903,213 @@ namespace GH_Toolkit_Core.PAK
             }
             return data;
         }
-        public static List<PakEntry> ExtractPAK(byte[] pakBytes, byte[]? pabBytes, string endian = "big", string songName = "", bool isWiiorPS2 = false, byte[]? vramBytes = null)
+        public class PakExtractor
         {
-            ReadWrite reader = new ReadWrite(endian);
-            bool pakComp = Compression.isChnkCompressed(pakBytes);
-            if (pakComp)
+            public string Platform { get; set; }
+            public string Extension { get; set; }
+            public string Endian { get; set; }
+            public string PakName { get; set; }
+            public bool IsWiiOrPs2
             {
-                pakBytes = Compression.DecompressWTPak(pakBytes);
-                if (vramBytes != null && vramBytes.Length > 0)
+                get
                 {
-                    vramBytes = Compression.DecompressWTPak(pakBytes);
+                    return Platform == CONSOLE_PS2 || Extension == CONSOLE_WII;
                 }
             }
-
-            List<PakEntry> pakList = new List<PakEntry>();
-            List<PakEntry> vramList = new List<PakEntry>();
-            if (pabBytes != null)
+            public PakExtractor(string ext, string pakName)
             {
-                bool pabComp = Compression.isChnkCompressed(pabBytes);
-                uint pabStart = CheckPabType(pakBytes, endian);
-                if (pabStart != 0 && pabStart < pakBytes.Length)
+                Extension = ext;
+                PakName = pakName;
+                switch (ext.ToLower())
                 {
-                    var newPak = new byte[pabStart];
-                    Array.Copy(pakBytes, 0, newPak, 0, pabStart);
-                    pakBytes = newPak;
+                    case DOTPS2:
+                        Platform = CONSOLE_PS2;
+                        Endian = "little";
+                        break;
+                    case DOTNGC:
+                        Platform = CONSOLE_WII;
+                        Endian = "big";
+                        break;
+                    case DOTPS3:
+                        Platform = CONSOLE_PS3;
+                        Endian = "big";
+                        break;
+                    case DOTXEN:
+                        Platform = CONSOLE_XBOX;
+                        Endian = "big";
+                        break;
                 }
-                if (pabStart != 0 && pabComp)
+            }
+            public List<PakEntry> ExtractPAK(byte[] pakBytes, byte[]? pabBytes, byte[]? vramBytes = null)
+            {
+                ReadWrite reader = new ReadWrite(Endian);
+                bool pakComp = Compression.isChnkCompressed(pakBytes);
+                if (pakComp)
                 {
-                    pabBytes = Compression.DecompressWTPak(pabBytes);
+                    pakBytes = Compression.DecompressWTPak(pakBytes);
+                    if (vramBytes != null && vramBytes.Length > 0)
+                    {
+                        vramBytes = Compression.DecompressWTPak(pakBytes);
+                    }
                 }
 
-                switch (pabStart)
+                List<PakEntry> pakList = new List<PakEntry>();
+                List<PakEntry> vramList = new List<PakEntry>();
+                if (pabBytes != null)
                 {
-                    case 0:
-                        pakList = GetNewPakEntries(pakBytes, endian, songName);
-                        var lastEntry = pakList[pakList.Count - 1];
-                        var pabTest = pabBytes;
-                        if (pabComp)
+                    bool pabComp = Compression.isChnkCompressed(pabBytes);
+                    uint pabStart = CheckPabType(pakBytes, Endian);
+                    if (pabStart != 0 && pabStart < pakBytes.Length)
+                    {
+                        var newPak = new byte[pabStart];
+                        Array.Copy(pakBytes, 0, newPak, 0, pabStart);
+                        pakBytes = newPak;
+                    }
+                    if (pabStart != 0 && pabComp)
+                    {
+                        pabBytes = Compression.DecompressWTPak(pabBytes);
+                    }
+
+                    switch (pabStart)
+                    {
+                        case 0:
+                            pakList = GetNewPakEntries(pakBytes, Endian, PakName);
+                            var lastEntry = pakList[pakList.Count - 1];
+                            var pabTest = pabBytes;
+                            if (pabComp)
+                            {
+                                pabTest = Compression.DecompressWTPak(pabBytes);
+                            }
+                            bool isLarger = pabTest.Length >= (lastEntry.StartOffset + lastEntry.FileSize);
+                            if (isLarger) // If this is the case, the entire pab file should be decompressed first
+                            {
+                                GetPakDataNew(pakList, pabTest);
+                            }
+                            else // If pak is not compressed, the pab file should be loaded in chunks
+                            {
+                                DecompressNewData(pakList, pabBytes);
+                            }
+                            //pakList = ExtractNewPak(pakBytes, pabBytes, endian, songName);
+                            break;
+                        case uint size when size >= pakBytes.Length:
+                            try
+                            {
+                                byte[] bytes = new byte[pabStart + pabBytes.Length];
+                                Array.Copy(pakBytes, 0, bytes, 0, pakBytes.Length);
+                                Array.Copy(pabBytes, 0, bytes, pabStart, pabBytes.Length);
+                                pakList = ExtractOldPak(bytes);
+                                if (vramBytes != null && !IsWiiOrPs2)
+                                {
+                                    vramList = ExtractOldPak(vramBytes, vram: true);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                var lzss = new Lzss();
+                                // For lzss-compressed files (GH3 and GHA on PS3 only)
+                                var pakEntries = GetNewPakEntries(pakBytes, Endian, PakName);
+                                if (pakEntries == null)
+                                {
+                                    // PAK file is lzss compressed also
+                                    pakBytes = lzss.Decompress(pakBytes);
+                                }
+                                pabBytes = lzss.Decompress(pabBytes);
+                                pabStart = CheckPabType(pakBytes, Endian);
+                                byte[] bytes = new byte[pabStart + pabBytes.Length];
+                                Array.Copy(pakBytes, 0, bytes, 0, pakBytes.Length);
+                                Array.Copy(pabBytes, 0, bytes, pabStart, pabBytes.Length);
+                                pakList = ExtractOldPak(bytes);
+                                if (vramBytes != null && !IsWiiOrPs2)
+                                {
+                                    vramBytes = lzss.Decompress(vramBytes);
+                                    vramList = ExtractOldPak(vramBytes, vram: true);
+                                }
+                            }
+                            break;
+                    }
+                }
+                else
+                {
+                    pakList = ExtractOldPak(pakBytes);
+                    if (vramBytes != null && !IsWiiOrPs2)
+                    {
+                        vramList = ExtractOldPak(vramBytes, vram: true);
+                    }
+                }
+                if (vramList.Count > 0)
+                {
+                    foreach (var entry in vramList)
+                    {
+                        pakList.Add(entry);
+                    }
+                }
+
+                return pakList;
+            }
+            public List<PakEntry> ExtractOldPak(byte[] pakBytes, bool skipNameFlag = false, bool vram = false)
+            {
+                ReadWrite reader = new ReadWrite(Endian);
+                
+                List<PakEntry> PakList = new List<PakEntry>();
+                Dictionary<uint, string> headers = DebugReader.MakeDictFromName(PakName);
+
+                bool TryGH3 = false;
+                bool TryLzss = false;
+                using (MemoryStream stream = new MemoryStream(pakBytes))
+                {
+                    while (true)
+                    {
+                        uint header_start = (uint)stream.Position; // To keep track of which entry since the offset in the header needs to be added to the StartOffset below
+                        PakEntry? entry = GetPakEntry(stream, reader, headers, header_start, IsWiiOrPs2, skipNameFlag);
+                        if (entry == null)
                         {
-                            pabTest = Compression.DecompressWTPak(pabBytes);
+                            break;
                         }
-                        bool isLarger = pabTest.Length >= (lastEntry.StartOffset + lastEntry.FileSize);
-                        if (isLarger) // If this is the case, the entire pab file should be decompressed first
-                        {
-                            GetPakDataNew(pakList, pabTest);
-                        }
-                        else // If pak is not compressed, the pab file should be loaded in chunks
-                        {
-                            DecompressNewData(pakList, pabBytes);
-                        }
-                        //pakList = ExtractNewPak(pakBytes, pabBytes, endian, songName);
-                        break;
-                    case uint size when size >= pakBytes.Length:
                         try
                         {
-                            byte[] bytes = new byte[pabStart + pabBytes.Length];
-                            Array.Copy(pakBytes, 0, bytes, 0, pakBytes.Length);
-                            Array.Copy(pabBytes, 0, bytes, pabStart, pabBytes.Length);
-                            pakList = ExtractOldPak(bytes, endian, songName, isWiiorPS2);
-                            if (vramBytes != null && !isWiiorPS2)
+                            if (vramExts.Contains(entry.Extension) && Platform == CONSOLE_PS3 && !vram)
                             {
-                                vramList = ExtractOldPak(vramBytes, endian, songName, isWiiorPS2, vram: true);
+                                continue;
                             }
+                            entry.EntryData = new byte[entry.FileSize];
+                            Array.Copy(pakBytes, entry.StartOffset, entry.EntryData, 0, entry.FileSize);
+                            if (entry.FullName == "0x00000000.0x00000000")
+                            {
+                                entry.FullName = entry.AssetContext;
+                            }
+                            // entry.FullName = entry.FullName.Replace(".qb", entry.Extension);
+                            if (entry.FullName.IndexOf(entry.Extension, StringComparison.CurrentCultureIgnoreCase) == -1)
+                            {
+                                GetCorrectExtension(entry);
+                            }
+                            PakList.Add(entry);
                         }
                         catch (Exception ex)
                         {
-                            var lzss = new Lzss();
-                            // For lzss-compressed files (GH3 and GHA on PS3 only)
-                            var pakEntries = GetNewPakEntries(pakBytes, endian, songName);
-                            if (pakEntries == null)
+                            PakList.Clear();
+                            if (skipNameFlag == false)
                             {
-                                // PAK file is lzss compressed also
-                                pakBytes = lzss.Decompress(pakBytes);
+                                skipNameFlag = true;
+                                stream.Position = 0;
                             }
-                            pabBytes = lzss.Decompress(pabBytes);
-                            pabStart = CheckPabType(pakBytes, endian);
-                            byte[] bytes = new byte[pabStart + pabBytes.Length];
-                            Array.Copy(pakBytes, 0, bytes, 0, pakBytes.Length);
-                            Array.Copy(pabBytes, 0, bytes, pabStart, pabBytes.Length);
-                            pakList = ExtractOldPak(bytes, endian, songName, isWiiorPS2);
-                            if (vramBytes != null && !isWiiorPS2)
+                            else if (TryGH3 == true)
                             {
-                                vramBytes = lzss.Decompress(vramBytes);
-                                vramList = ExtractOldPak(vramBytes, endian, songName, isWiiorPS2, vram: true);
+                                Console.WriteLine(ex.Message);
+                                throw new Exception("Could not extract PAK file.");
+                            }
+                            else
+                            {
+                                Console.WriteLine("Could not find last entry. Trying Guitar Hero 3 Compression.");
+                                pakBytes = Compression.DecompressData(pakBytes);
+                                stream.Position = 0;
+                                TryGH3 = true;
                             }
                         }
-                        break;
+                    }
                 }
-            }
-            else
-            {
-                pakList = ExtractOldPak(pakBytes, endian, songName, isWiiorPS2);
-                if (vramBytes != null && !isWiiorPS2)
-                {
-                    vramList = ExtractOldPak(vramBytes, endian, songName, isWiiorPS2, vram: true);
-                }
-            }
-            if (vramList.Count > 0)
-            {
-                foreach (var entry in vramList)
-                {
-                    pakList.Add(entry);
-                }
+                return PakList;
             }
 
-            return pakList;
         }
         public static List<string> GetFilesFromFolder(string filePath)
         {
@@ -678,69 +1128,6 @@ namespace GH_Toolkit_Core.PAK
                 throw new Exception("Could not find valid file or folder to parse.");
             }
             return files;
-        }
-        public static List<PakEntry> ExtractOldPak(byte[] pakBytes, string endian, string songName = "", bool isWiiorPS2 = false, bool skipNameFlag = false, bool vram = false)
-        {
-            ReadWrite reader = new ReadWrite(endian);
-            MemoryStream stream = new MemoryStream(pakBytes);
-            List<PakEntry> PakList = new List<PakEntry>();
-            Dictionary<uint, string> headers = DebugReader.MakeDictFromName(songName);
-
-            bool TryGH3 = false;
-            bool TryLzss = false;
-
-            while (true)
-            {
-                uint header_start = (uint)stream.Position; // To keep track of which entry since the offset in the header needs to be added to the StartOffset below
-                PakEntry? entry = GetPakEntry(stream, reader, headers, header_start, isWiiorPS2, skipNameFlag);
-                if (entry == null)
-                {
-                    break;
-                }
-                try
-                {
-                    if (vramExts.Contains(entry.Extension) && !vram)
-                    {
-                        continue;
-                    }
-                    entry.EntryData = new byte[entry.FileSize];
-                    Array.Copy(pakBytes, entry.StartOffset, entry.EntryData, 0, entry.FileSize);
-                    if (entry.FullName == "0x00000000.0x00000000")
-                    {
-                        entry.FullName = entry.AssetContext;
-                    }
-                    // entry.FullName = entry.FullName.Replace(".qb", entry.Extension);
-                    if (entry.FullName.IndexOf(entry.Extension, StringComparison.CurrentCultureIgnoreCase) == -1)
-                    {
-                        GetCorrectExtension(entry);
-                    }
-                    PakList.Add(entry);
-                }
-                catch (Exception ex)
-                {
-                    PakList.Clear();
-                    if (skipNameFlag == false)
-                    {
-                        skipNameFlag = true;
-                        stream.Position = 0;
-                    }
-                    else if (TryGH3 == true)
-                    {
-                        Console.WriteLine(ex.Message);
-                        throw new Exception("Could not extract PAK file.");
-                    }
-                    else
-                    {
-                        Console.WriteLine("Could not find last entry. Trying Guitar Hero 3 Compression.");
-                        pakBytes = Compression.DecompressData(pakBytes);
-                        stream = new MemoryStream(pakBytes);
-                        TryGH3 = true;
-                    }
-
-                }
-            }
-            stream.Close();
-            return PakList;
         }
         public static List<PakEntry>? GetNewPakEntries(byte[] pakBytes, string endian, string songName = "")
         {
@@ -923,6 +1310,7 @@ namespace GH_Toolkit_Core.PAK
             }
             public bool IsNewGame { get; private set; } = false;
             public string? AssetContext { get; set; }
+            public List<PakEntry> PakEntries = new List<PakEntry>();
             private ReadWrite Writer { get; set; }
             public PakCompiler(string game, bool isQb = false, bool split = false)
             {
@@ -980,18 +1368,229 @@ namespace GH_Toolkit_Core.PAK
                     Writer = new ReadWrite("big");
                 }
             }
-            public (byte[]? itemData, byte[]? otherData) CompilePAK(string folderPath, string console = "")
+            private static Dictionary<string, string> ReadStringConfig(string configFile)
+            {
+                var configDict = new Dictionary<string, string>();
+                if (!File.Exists(configFile))
+                {
+                    return configDict;
+                }
+                var lines = File.ReadAllLines(configFile);
+                // Full Name -> Parent String separated by tab
+                foreach (var line in lines)
+                {
+                    if (line.Contains("\t"))
+                    {
+                        var parts = line.Split('\t');
+                        if (parts.Length == 2)
+                        {
+                            var fullName = parts[0].Trim().Replace("/", "\\").Replace(DOT_NQB, DOT_QB);
+                            var configString = parts[1].Trim().Replace("/", "\\").Replace(DOT_NQB, DOT_QB);
+                            if (!configDict.ContainsKey(fullName))
+                            {
+                                configDict.Add(fullName, configString);
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Invalid line in parents.config: {line}");
+                        }
+                    }
+                }
+                return configDict;
+            }
+            private static Dictionary<string, int> ReadIntConfig(string configFile)
+            {
+                var configDict = new Dictionary<string, int>();
+                if (!File.Exists(configFile))
+                {
+                    return configDict;
+                }
+                var lines = File.ReadAllLines(configFile);
+                foreach (var line in lines)
+                {
+                    if (line.Contains("\t"))
+                    {
+                        var parts = line.Split('\t');
+                        if (parts.Length == 2 && int.TryParse(parts[1], out int flagValue))
+                        {
+                            configDict.Add(parts[0].Trim().Replace("/", "\\").Replace(DOT_NQB, DOT_QB), flagValue);
+                        }
+                    }
+                }
+                return configDict;
+            }
+            private void AddParentsToPakEntries(Dictionary<string, string> parents)
+            {
+                if (parents.Count == 0) return;
+
+                var parentStrings = new List<string>(parents.Values).ToList();
+                var parentEntries = new List<PakEntry>();
+                var childEntries = new Dictionary<string, List<PakEntry>>(); // key is the parent
+                var otherEntries = new List<PakEntry>();
+                var addedToNewList = new List<string>();
+
+                foreach (var entry in PakEntries)
+                {
+                    var isOther = true;
+                    if (parentStrings.Contains(entry.FullName))
+                    {
+                        isOther = false;
+                        parentEntries.Add(entry);
+                    }
+                    if (parents.ContainsKey(entry.FullName))
+                    {
+                        isOther = false;
+                        if (!childEntries.ContainsKey(parents[entry.FullName]))
+                        {
+                            childEntries[parents[entry.FullName]] = new List<PakEntry>()
+                            {
+                                entry
+                            };
+                        }
+                        else
+                        {
+                            childEntries[parents[entry.FullName]].Add(entry);
+                        }
+                    }
+                    if (isOther)
+                    {
+                        otherEntries.Add(entry);
+                    }
+                }
+
+                var parentNoChild = new List<PakEntry>();
+                var parentAndChild = new List<PakEntry>();
+                var childOnly = new List<PakEntry>();
+
+                // PakEntries.Clear();
+                foreach (var entry in parentEntries)
+                {
+                    foreach (var childEntry in childEntries[entry.FullName])
+                    {
+                        var qbkey = QBKey(entry.FullName);
+                        childEntry.Parent = QBKeyUInt(entry.FullName);
+                    }
+                }
+
+                foreach (var entry in parentEntries)
+                { 
+                    if (entry.Parent == 0)
+                    {
+                        parentNoChild.Add(entry);
+                    }
+                    else
+                    {
+                        parentAndChild.Add(entry);
+                    }
+                }
+                foreach (var entry in PakEntries)
+                {
+                    if (!parentStrings.Contains(entry.FullName))
+                    {
+                        if (entry.Parent != 0)
+                        {
+                            childOnly.Add(entry);
+                        }
+                    }
+                }
+
+                PakEntries.Clear();
+                PakEntries.AddRange(parentNoChild);
+                PakEntries.AddRange(parentAndChild);
+                PakEntries.AddRange(childOnly);
+                PakEntries.AddRange(otherEntries);
+
+            }
+            private void AddAssetContextsToPakEntries(Dictionary<string, string> assets)
+            {
+                bool allAssets = true;
+                foreach (var entry in PakEntries)
+                {
+                    if (assets.ContainsKey(entry.FullName))
+                    {
+                        entry.SetAssetContext(assets[entry.FullName]);
+                    }
+                    else
+                    {
+                        allAssets = false;
+                    }
+                }
+                if (allAssets)
+                {
+                    AssetContext = PakEntries[0].AssetContext;
+                }
+            }
+            private void AddFlagsToPakEntries(Dictionary<string, int> flags)
+            {
+                foreach (var entry in PakEntries)
+                {
+                    if (flags.ContainsKey(entry.FullName))
+                    {
+                        entry.OverwriteFlags(flags[entry.FullName]);
+                    }
+                }
+            }
+            private void ReorderFiles(List<string> fileOrder)
+            {
+                var newOrder = new List<PakEntry>();
+                foreach (var file in fileOrder)
+                {
+                    var entry = PakEntries.FirstOrDefault(e => e.GetFullName() == file);
+                    if (entry != null)
+                    {
+                        newOrder.Add(entry);
+                    }
+                }
+                if (newOrder.Count < PakEntries.Count)
+                {
+                    // If some entries were not found in the file order, add them at the end
+                    var remainingEntries = PakEntries.Except(newOrder).ToList();
+                    newOrder.AddRange(remainingEntries);
+                }
+                PakEntries = newOrder;
+            }
+            public (byte[]? itemData, byte[]? otherData, Dictionary<uint, string>? qsStrings) CompilePAK(string folderPath, string console = "")
             {
                 if (!Directory.Exists(folderPath))
                 {
                     throw new NotSupportedException("Argument given is not a folder.");
                 }
-
                 string[] entriesRaw = Directory.GetFiles(folderPath, "*", SearchOption.AllDirectories);
                 List<string> rootFiles = new List<string>();
                 List<string> otherFiles = new List<string>();
+                string pakConfigFiles = "pak_config";
+                string parentsFile = Path.Combine(folderPath, pakConfigFiles, "parents.config");
+                string assetsFile = Path.Combine(folderPath, pakConfigFiles, "asset_contexts.config");
+                string flagsFile = Path.Combine(folderPath, pakConfigFiles, "flags.config");
+                string fileOrderFile = Path.Combine(folderPath, pakConfigFiles, "file_order.config");
+                Dictionary<string, string> parents = new Dictionary<string, string>();
+                Dictionary<string, string> assetConfigs = new Dictionary<string, string>();
+                Dictionary<string, int> flags = new Dictionary<string, int>();
+                var fileOrder = new List<string>();
+                if (File.Exists(parentsFile))
+                {
+                    parents = ReadStringConfig(parentsFile);
+                }
+                if (File.Exists(assetsFile))
+                {
+                    assetConfigs = ReadStringConfig(assetsFile);
+                }
+                if (File.Exists(flagsFile))
+                {
+                    flags = ReadIntConfig(flagsFile);
+                }
+                if (File.Exists(fileOrderFile))
+                {
+                    fileOrder = File.ReadAllLines(fileOrderFile).ToList();
+                }
                 foreach (string entry in entriesRaw)
                 {
+                    if (entry == parentsFile) continue;
+                    if (entry == assetsFile) continue;
+                    if (entry == flagsFile) continue;
+                    if (entry == fileOrderFile) continue;
+
                     if (Path.GetDirectoryName(entry) == folderPath)
                     {
                         rootFiles.Add(entry);
@@ -1026,92 +1625,174 @@ namespace GH_Toolkit_Core.PAK
                     }
                 }
                 bool isPs2orWii = (ConsoleType == CONSOLE_PS2 || ConsoleType == CONSOLE_WII);
-                List<PakEntry> PakEntries = new List<PakEntry>();
+                
                 List<string> fileNames = new List<string>();
                 var qsMaster = new Dictionary<uint, string>();
+                bool localQsFiles = false;
+
+                var (qsEn, qsFr, qsDe, qsIt, qsEs) = CheckForQsFilesInFolder(entries, out localQsFiles);
 
                 foreach (string entry in entries)
                 {
                     if (File.Exists(entry))
                     {
-                        bool isQFile = Path.GetExtension(entry) == DOT_Q || Path.GetExtension(entry) == DOT_NQ;
-                        byte[] fileData;
-                        string relPath = GetRelPath(folderPath, entry);
-                        Console.WriteLine($"Processing {relPath}");
-                        string qbName;
-                        if (isQFile)
+                        CreatePakEntry(entry, folderPath, PakEntries, fileNames, qsMaster, isPs2orWii, qsEn);
+                    }
+                }
+
+                AddParentsToPakEntries(parents);
+                AddAssetContextsToPakEntries(assetConfigs);
+                AddFlagsToPakEntries(flags);
+                ReorderFiles(fileOrder);
+
+                if (Game != GAME_GH3 && Game != GAME_GHA && console != CONSOLE_WII && !Split && qsMaster.Count > 0)
+                {
+                    string tempName = "MoreStrings";
+                    if (Game == GAME_GH5 || Game == GAME_GHWOR)
+                    {
+                        string tempQsOrig = Path.Combine(folderPath, $"{tempName}.qs");
+                        foreach (var locale in new[] { DOTEN, DOTFR, DOTDE, DOTIT, DOTES })
                         {
-                            if (Path.GetExtension(entry) == DOT_NQ)
+                            var tempQs = tempQsOrig + locale + ".xen";
+                            QsDict dictMod;
+                            switch (Path.GetExtension(locale))
                             {
-                                relPath = relPath.Replace(DOT_NQ, DOT_Q);
+                                case DOTFR:
+                                    dictMod = QsDict.Fr;
+                                    break;
+                                case DOTDE:
+                                    dictMod = QsDict.De;
+                                    break;
+                                case DOTIT:
+                                    dictMod = QsDict.It;
+                                    break;
+                                case DOTES:
+                                    dictMod = QsDict.Es;
+                                    break;
+                                case DOTEN:
+                                default:
+                                    dictMod = QsDict.En;
+                                    break;
                             }
-                            List<QBItem> qBItems;
-                            Dictionary<uint, string> qsItems;
                             try
                             {
-                                (qBItems, qsItems) = ParseQFile(entry, ConsoleType);
-                                if (qsItems != null)
-                                {
-                                    foreach (var item in qsItems)
-                                    {
-                                        if (!qsMaster.ContainsKey(item.Key))
-                                        {
-                                            qsMaster.Add(item.Key, item.Value);
-                                        }
-                                    }
-                                }
-                            }
-                            catch (QFileParseException ex)
-                            {
-                                Console.WriteLine($"{relPath}: {ex.Message}");
-                                throw;
+                                ReadWrite.TranslateAndWriteQsFile(tempQs, qsMaster, dictMod);
+                                CreatePakEntry(tempQs, folderPath, PakEntries, fileNames, qsMaster, isPs2orWii);
                             }
                             catch (Exception ex)
                             {
-                                Console.WriteLine("Q File compilation failed");
-                                Console.WriteLine($"{relPath}: {ex.Message}");
-                                throw;
+                                Console.WriteLine($"Error writing QS file: {ex.Message}");
+                                throw new Exception("Could not write QS file. Please check the folder path and try again.");
                             }
-                            //AddConsoleExt(ref relPath);
-                            relPath += "b";
-                            //qbName = (isPs2orWii && Game == GAME_GH3) ? DebugReader.Ps2PakString(relPath) : relPath;
-                            qbName = (isPs2orWii && Game == GAME_GH3) ? $"c:/gh3c/data/{relPath}" : relPath;
-                            fileData = CompileQbFile(qBItems, qbName, game: Game, console: ConsoleType!);
+                            finally
+                            {
+                                File.Delete(tempQs);
+                            }
                         }
-                        else if ((Path.GetExtension(entry) == DOT_QB))
-                        {
-                            //AddConsoleExt(ref relPath);
-                            fileData = File.ReadAllBytes(entry);
-                        }
-                        else
-                        {
-                            fileData = File.ReadAllBytes(entry);
-                        }
-                        PakEntry pakEntry = new PakEntry(fileData, ConsoleType, AssetContext);
-                        pakEntry.SetGame(Game);
-                        pakEntry.SetFullFlagPath(relPath);
-                        pakEntry.SetNameNoExt(GetFileNoExt(Path.GetFileName(relPath)));
-                        pakEntry.SetExtension(GetFileExt(relPath));
-                        pakEntry.SetFlags();
-                        pakEntry.SetNames(IsQb);
-
-                        if (!fileNames.Contains(pakEntry.NameNoExt))
-                        {
-                            fileNames.Add(pakEntry.NameNoExt);
-                        }
-                        else
-                        {
-
-                        }
-                        PakEntries.Add(pakEntry);
-
                     }
+                    else
+                    {
+                        string tempQs = Path.Combine(folderPath, $"{tempName}.qs.xen");
+                        try
+                        {
+                            ReadWrite.WriteQsFileFromDict(tempQs, qsMaster);
+                            CreatePakEntry(tempQs, folderPath, PakEntries, fileNames, qsMaster, isPs2orWii);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error writing QS file: {ex.Message}");
+                            throw new Exception("Could not write QS file. Please check the folder path and try again.");
+                        }
+                        finally
+                        {
+                            File.Delete(tempQs);
+                        }
+                    }
+                    
+                    qsMaster = null; // QS files are included in pak so don't need to be returned.
                 }
 
                 var (pakData, pabData) = CompilePakEntries(PakEntries);
 
-                return (pakData, pabData);
+                return (pakData, pabData, qsMaster);
 
+            }
+
+            
+            private void CreatePakEntry(string entry, string folderPath, List<PakEntry> PakEntries, List<string> fileNames, Dictionary<uint, string> qsMaster, bool isPs2orWii, Dictionary<uint, string>? includedQs = null)
+            {
+                if (includedQs == null)
+                {
+                    includedQs = new Dictionary<uint, string>();
+                }
+                bool isQFile = Path.GetExtension(entry) == DOT_Q || Path.GetExtension(entry) == DOT_NQ;
+                byte[] fileData;
+                string relPath = GetRelPath(folderPath, entry);
+                string relPathForExtension = relPath;
+                Console.WriteLine($"Processing {relPath}");
+                string qbName;
+                if (isQFile)
+                {
+                    if (Path.GetExtension(entry) == DOT_NQ)
+                    {
+                        relPath = relPath.Replace(DOT_NQ, DOT_Q);
+                    }
+                    List<QBItem> qBItems;
+                    Dictionary<uint, string> qsItems;
+                    try
+                    {
+                        (qBItems, qsItems) = ParseQFile(entry, ConsoleType, Game);
+                        if (qsItems != null)
+                        {
+                            foreach (var item in qsItems)
+                            {
+                                if (!includedQs.ContainsKey(item.Key) && !qsMaster.ContainsKey(item.Key))
+                                {
+                                    qsMaster.Add(item.Key, item.Value);
+                                }
+                            }
+                        }
+                    }
+                    catch (QFileParseException ex)
+                    {
+                        Console.WriteLine($"{relPath}: {ex.Message}");
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("Q File compilation failed");
+                        Console.WriteLine($"{relPath}: {ex.Message}");
+                        throw;
+                    }
+                    //AddConsoleExt(ref relPath);
+                    relPath += "b";
+                    relPathForExtension += "b";
+                    //qbName = (isPs2orWii && Game == GAME_GH3) ? DebugReader.Ps2PakString(relPath) : relPath;
+                    qbName = (isPs2orWii && Game == GAME_GH3) ? $"c:/gh3c/data/{relPath}" : relPath;
+                    fileData = CompileQbFile(qBItems, qbName, game: Game, console: ConsoleType!);
+                }
+                else if ((Path.GetExtension(entry) == DOT_QB))
+                {
+                    //AddConsoleExt(ref relPath);
+                    fileData = File.ReadAllBytes(entry);
+                }
+                else
+                {
+                    fileData = File.ReadAllBytes(entry);
+                }
+                PakEntry pakEntry = new PakEntry(fileData, ConsoleType, AssetContext);
+                pakEntry.SetGame(Game);
+                pakEntry.SetFullFlagPath(relPath);
+                pakEntry.SetNameNoExt(GetFileNoExt(Path.GetFileName(relPath)));
+                pakEntry.SetExtension(GetFileExt(relPathForExtension));
+                pakEntry.SetFlags();
+                pakEntry.SetNames(IsQb);
+
+                if (!fileNames.Contains(pakEntry.NameNoExt))
+                {
+                    fileNames.Add(pakEntry.NameNoExt);
+                }
+                PakEntries.Add(pakEntry);
             }
             public (byte[], byte[]?) CompilePakEntries(List<PakEntry> PakEntries)
             {
@@ -1279,7 +1960,7 @@ namespace GH_Toolkit_Core.PAK
                 return relPath;
             }
         }
-        public static (string pakSavePath, bool doubleKick) CreateSongPackage(string midiPath,
+        public static (string pakSavePath, bool doubleKick, string? pakSavePathExpertPlus) CreateSongPackage(string midiPath,
             string savePath,
             string songName,
             string game,
@@ -1296,7 +1977,8 @@ namespace GH_Toolkit_Core.PAK
             bool isSteven = false,
             bool easyOpens = false,
             Dictionary<string, int>? diffs = null,
-            string gender = "Male"
+            string gender = "Male",
+            bool gh3Plus = false
             )
         {
             if (gender.ToLower() == "none")
@@ -1307,11 +1989,22 @@ namespace GH_Toolkit_Core.PAK
             {
                 gender = "Male";
             }
+
+            // Process MIDI file
             var midiExt = Path.GetExtension(midiPath);
             SongQbFile midiFile;
             byte[] midQb;
-            if (midiExt == ".mid")
+            byte[]? midQb_xplus = null;
+            if (midiExt == ".mid" || midiExt == ".chart")
             {
+                if (midiExt == ".chart")
+                {
+                    var chart = new Chart(midiPath);
+                    chart.ConvertChartToMid();
+                    midiPath = chart.GetMidiPath();
+                    chart.WriteMidToFile();
+                    hopoThreshold = chart.GetHopoResolution();
+                }
                 midiFile = new SongQbFile(
                 midiPath,
                 songName: songName,
@@ -1325,8 +2018,14 @@ namespace GH_Toolkit_Core.PAK
                 overrideBeat: overrideBeat,
                 hopoType: hopoType,
                 easyOpens: easyOpens,
-                skaPath: skaPath);
+                skaPath: skaPath,
+                gh3Plus: gh3Plus);
+
                 midQb = midiFile.ParseMidiToQb();
+                if (midiFile.Drums.HasExpertPlus && game == GAME_GHWT)
+                {
+                    midQb_xplus = midiFile.ParseMidiToQb(true);
+                }
             }
             else if (midiExt == ".q")
             {
@@ -1338,6 +2037,75 @@ namespace GH_Toolkit_Core.PAK
                 throw new Exception("Invalid file type. Must be .mid or .q");
             }
 
+            // Process errors and warnings
+            var errors = midiFile.GetErrorListAsString();
+            var warnings = midiFile.GetWarningListAsString();
+            if (!string.IsNullOrEmpty(errors))
+            {
+                throw new MidiCompileException(errors);
+            }
+            if (!string.IsNullOrEmpty(warnings))
+            {
+                Console.WriteLine("WARNINGS:");
+                Console.WriteLine(warnings);
+            }
+
+
+            // Create first PAK
+            string mainPakPath = CreatePakForMidiData(
+                savePath,
+                songName,
+                game,
+                gameConsole,
+                midiFile,
+                midQb,
+                skaPath,
+                skaSource,
+                gender,
+                isSteven,
+                diffs);
+
+            if (diffs != null)
+            {
+                midiFile.SetEmptyTracksToDiffZero(diffs);
+            }
+
+            // Create second PAK for Expert+ if it exists
+            string? xplusPakPath = null;
+            if (midQb_xplus != null)
+            {
+                string xplusSongName = songName + "_expertplus";
+                xplusPakPath = CreatePakForMidiData(
+                    savePath,
+                    xplusSongName,
+                    game,
+                    gameConsole,
+                    midiFile,
+                    midQb_xplus,
+                    skaPath,
+                    skaSource,
+                    gender,
+                    isSteven,
+                    diffs);
+            }
+
+            bool doubleKick = midiFile.DoubleKick;
+            return (mainPakPath, doubleKick, xplusPakPath);
+        }
+
+        private static string CreatePakForMidiData(
+        string savePath,
+        string songName,
+        string game,
+        string gameConsole,
+        SongQbFile midiFile,
+        byte[] midQb,
+        string skaPath,
+        string skaSource,
+        string gender,
+        bool isSteven,
+        Dictionary<string, int>? diffs)
+        {
             var saveName = Path.Combine(savePath, $"{songName}_{gameConsole}");
             string pakFolder = gameConsole == CONSOLE_PS2 ? "data\\songs" : "songs";
             var songFolder = Path.Combine(saveName, pakFolder);
@@ -1348,7 +2116,9 @@ namespace GH_Toolkit_Core.PAK
 
             Directory.CreateDirectory(songFolder);
 
-            
+            // Save MIDI QB file
+            File.WriteAllBytes(qbSave, midQb);
+
             // Check for song scripts override and make one if we're not compiling a PS2 song
             if (gameConsole != CONSOLE_PS2)
             {
@@ -1361,6 +2131,7 @@ namespace GH_Toolkit_Core.PAK
                     File.WriteAllBytes(songScriptsSave, songScriptsQb);
                 }
             }
+
             if (game == GAME_GHWOR || game == GAME_GH5)
             {
                 var noteBytes = midiFile.MakeGh5Notes();
@@ -1369,27 +2140,8 @@ namespace GH_Toolkit_Core.PAK
                 string perfSave = Path.Combine(songFolder, songName + ".perf" + consoleExt);
                 File.WriteAllBytes(noteSave, noteBytes);
                 File.WriteAllBytes(perfSave, perfBytes);
-                if (diffs != null)
-                {
-                    midiFile.SetEmptyTracksToDiffZero(diffs);
-                }
+
             }
-
-            var errors = midiFile.GetErrorListAsString();
-            var warnings = midiFile.GetWarningListAsString();
-
-            if (!string.IsNullOrEmpty(errors))
-            {
-                throw new MidiCompileException(errors);
-            }
-            if (!string.IsNullOrEmpty(warnings))
-            {
-                Console.WriteLine("WARNINGS:");
-                Console.WriteLine(warnings);
-            }
-
-            File.WriteAllBytes(qbSave, midQb);
-
 
             bool ps2SkaProcessed = false;
             byte[]? skaScripts = null;
@@ -1457,14 +2209,9 @@ namespace GH_Toolkit_Core.PAK
                     catch (Exception ex)
                     {
                         var fileSka = Path.GetFileNameWithoutExtension(skaFile);
-                        errors += $"{fileSka}: {ex.Message}\n";
+                        Console.WriteLine($"{fileSka}: {ex.Message}\n");
                         continue;
                     }
-
-                }
-                if (!string.IsNullOrEmpty(errors))
-                {
-                    throw new SkaFileParseException(errors);
                 }
 
                 foreach (var skaParsed in readSkaFiles)
@@ -1492,10 +2239,6 @@ namespace GH_Toolkit_Core.PAK
                             {
                                 skaType = gameConsole == CONSOLE_PS2 ? SKELETON_GH3_SINGER_PS2 : SKELETON_GH3_SINGER;
                             }
-                            /*else
-                            {
-                                continue;
-                            }*/
                             break;
                         case GAME_GHA:
                             skaType = isGuitarist ? SKELETON_GH3_GUITARIST : (isSteven ? SKELETON_STEVE : SKELETON_GHA_SINGER);
@@ -1522,7 +2265,7 @@ namespace GH_Toolkit_Core.PAK
                                     }
                                     ps2SkaProcessed = true;
                                 }
-                                
+
                                 if (midiFile.GtrSkaAnims.Contains(skaFileName))
                                 {
                                     continue;
@@ -1544,8 +2287,7 @@ namespace GH_Toolkit_Core.PAK
                             {
                                 if (game != GAME_GHWT)
                                 {
-                                    var fileSka = Path.GetFileNameWithoutExtension(skaParsed.Key);
-                                    errors += $"{fileSka}: Single frame SKA files not supported for {game}.\n";
+                                    Console.WriteLine($"{Path.GetFileNameWithoutExtension(skaParsed.Key)}: Single frame SKA files not supported for {game}.\n");
                                     continue;
                                 }
                                 convertedSka = File.ReadAllBytes(skaParsed.Key);
@@ -1554,25 +2296,19 @@ namespace GH_Toolkit_Core.PAK
                             {
                                 convertedSka = skaParsed.Value.WriteModernStyleSka(skaType, game, skaMultiplier);
                             }
-                            
+
                             skaSave = Path.Combine(saveName, Path.GetFileName(skaParsed.Key));
                         }
                     }
                     catch
                     {
-                        var fileSka = Path.GetFileNameWithoutExtension(skaParsed.Key);
-                        errors += $"{fileSka}: Could not convert ska file.\n";
+                        Console.WriteLine($"{Path.GetFileNameWithoutExtension(skaParsed.Key)}: Could not convert ska file.\n");
                         continue;
                     }
                     if (convertedSka.Length > 0)
                     {
                         File.WriteAllBytes(skaSave, convertedSka);
                     }
-                }
-
-                if (!string.IsNullOrEmpty(errors))
-                {
-                    throw new SkaFileParseException(errors);
                 }
 
                 if (skaScripts != null)
@@ -1603,58 +2339,39 @@ namespace GH_Toolkit_Core.PAK
                 }
 
                 var sortedKeys = qsList.OrderBy(entry => entry.Value)
-                                               .Select(entry => entry.Key)
-                                               .ToList();
+                                           .Select(entry => entry.Key)
+                                           .ToList();
 
                 foreach (string qsSave in qsSaves)
                 {
-                    // Creating a StreamWriter to write to the file with UTF-16 encoding
                     using (StreamWriter writer = new StreamWriter(qsSave, false, Encoding.Unicode))
                     {
-                        // Setting the newline character to only '\n'
                         writer.NewLine = "\n";
 
                         foreach (var key in sortedKeys)
                         {
-                            // Formatting the key as specified
                             string modifiedKey = key.Substring(2).PadLeft(8, '0');
-
-                            // Building the line with the modified key and its value
-                            string line;
-                            if (addQuotes)
-                            {
-                                line = $"{modifiedKey} \"{qsList[key]}\"";
-                            }
-                            else
-                            {
-                                line = $"{modifiedKey} {qsList[key]}";
-                            }
-
-                            // Writing the line to the file
+                            string line = addQuotes ? $"{modifiedKey} \"{qsList[key]}\"" : $"{modifiedKey} {qsList[key]}";
                             writer.WriteLine(line);
                         }
 
-                        // These are needed otherwise the game will crash.
                         writer.WriteLine();
                         writer.WriteLine();
                     }
                 }
             }
 
-            bool doubleKick = midiFile.DoubleKick;
             string? assetContext = game == GAME_GHWOR ? songName : null;
             var pakCompiler = new PAK.PakCompiler(game: game, console: gameConsole, assetContext: assetContext);
-            var (pakData, pabData) = pakCompiler.CompilePAK(saveName);
+            var (pakData, pabData, qsStrings) = pakCompiler.CompilePAK(saveName);
             string songPrefix = gameConsole == CONSOLE_PS2 ? "" : "_song";
             var pakSave = Path.Combine(savePath, songName + $"{songPrefix}.pak{consoleExt}");
             File.WriteAllBytes(pakSave, pakData);
 
-            // Clean up the compile folder, just in case they want to compile for other games
-            // The games are grossly incompatible with each other
-            // Deleting the folder is safer
+            // Clean up the compile folder
             Directory.Delete(saveName, true);
 
-            return (pakSave, doubleKick);
+            return pakSave;
         }
 
         public static byte[] lzssDecompTest(string filePath)
