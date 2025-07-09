@@ -19,6 +19,7 @@ using GH_Toolkit_Core.INI;
 using GH_Toolkit_Core.MIDI;
 using System.Globalization;
 using FFMpegCore.Builders.MetaData;
+using Melanchall.DryWetMidi.MusicTheory;
 
 namespace GH_Toolkit_Core.Methods
 {
@@ -195,11 +196,7 @@ namespace GH_Toolkit_Core.Methods
                 {
                     entry.AddFlagToStruct("use_coop_notetracks", QBKEY);
                 }
-                if (HopoThreshold.ToString() != "2.95")
-                {
                     entry.AddFloatToStruct("hammer_on_measure_scale", HopoThreshold);
-                }
-                
                 if (Bassist != "Default")
                 {
                     entry.AddVarToStruct("bassist", Bassist, pString);
@@ -207,6 +204,10 @@ namespace GH_Toolkit_Core.Methods
                 if (Gh3Convert)
                 {
                     entry.AddFlagToStruct("gh3_convert", QBKEY);
+                }
+                if (!string.IsNullOrEmpty(ChartAuthor))
+                {
+                    entry.AddVarToStruct("charter", ChartAuthor, pString);
                 }
                 return entry;
             }
@@ -267,6 +268,11 @@ namespace GH_Toolkit_Core.Methods
                 }
                 props.AddFloatToStruct("whammy_cutoff", SustainThreshold);
                 props.AddFloatToStruct("overall_song_volume", BandVol);
+                if (!string.IsNullOrEmpty(ChartAuthor))
+                {
+                    props.AddQsKeyToStruct("charter", ChartAuthor);
+                    qsStrings.Add(ChartAuthor);
+                }
 
                 propsMaster.AddStructToStruct(Checksum, props);
                 
