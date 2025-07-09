@@ -1288,6 +1288,10 @@ namespace GH_Toolkit_Core.QB
         {
             return DebugReader.DebugCheck(SongHeaders, ScriptReader.ReadUInt32(stream));
         }
+        public static string ReadScriptQSKey(MemoryStream stream)
+        {
+            return DebugReader.QsDbgString(ScriptReader.ReadUInt32(stream));
+        }
         private static List<object> ParseScript(byte[] script)
         {
             List<object> list = new List<object>();
@@ -1515,7 +1519,15 @@ namespace GH_Toolkit_Core.QB
                     }
                     break;
                 case 0x4E:
-                    list.Add(new ScriptNode(QSKEY, ReadScriptQBKey(stream)));
+                    var qsKey = ReadScriptQSKey(stream);
+                    if (qsKey.StartsWith("0x"))
+                    {
+                        list.Add(new ScriptNode(QSKEY, qsKey));
+                    }
+                    else
+                    {
+                        list.Add(new ScriptNode(WIDESTRING, qsKey));
+                    }
                     break;
                 case 0x4F:
                     list.Add(RANDOMFLOAT);
