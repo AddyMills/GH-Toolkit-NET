@@ -11,6 +11,7 @@ namespace GH_Toolkit_Core.MIDI
     public class SongClip
     {
         public string? Name { get; set; }
+        public string? Game { get; set; }
         public ClipCharacter Guitarist { get; set; } = new ClipCharacter("Guitarist");
         public ClipCharacter Bassist { get; set; } = new ClipCharacter("Bassist");
         public ClipCharacter Vocalist { get; set; } = new ClipCharacter("Vocalist");
@@ -115,9 +116,10 @@ namespace GH_Toolkit_Core.MIDI
                 return Cameras.Count > 0;
             }
         }
-        public SongClip(string name, QBStructData clipStruct)
+        public SongClip(string name, string game, QBStructData clipStruct)
         {
             Name = name;
+            Game = game;
             ParseClipStruct(clipStruct);
         }
         private int RoundClipLen(int len)
@@ -140,6 +142,10 @@ namespace GH_Toolkit_Core.MIDI
         {
             var clipStruct = new QBStructData();
             var clip = new QBItem(Name, clipStruct);
+            if (Game == GAME_GH5)
+            {
+                clipStruct.AddIntToStruct("dataformat", 2); // GH5 clips have dataformat 2
+            }
             if (VenueFlags.Count > 0)
             {
                 clipStruct.AddArrayToStruct("venueflags", MakeFlags(VenueFlags));
