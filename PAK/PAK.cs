@@ -949,7 +949,7 @@ namespace GH_Toolkit_Core.PAK
                     pakBytes = Compression.DecompressWTPak(pakBytes);
                     if (vramBytes != null && vramBytes.Length > 0)
                     {
-                        vramBytes = Compression.DecompressWTPak(pakBytes);
+                        vramBytes = Compression.DecompressWTPak(vramBytes);
                     }
                 }
 
