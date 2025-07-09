@@ -196,7 +196,7 @@ namespace GH_Toolkit_Core.Methods
                 {
                     entry.AddFlagToStruct("use_coop_notetracks", QBKEY);
                 }
-                    entry.AddFloatToStruct("hammer_on_measure_scale", HopoThreshold);
+                entry.AddFloatToStruct("hammer_on_measure_scale", HopoThreshold);
                 if (Bassist != "Default")
                 {
                     entry.AddVarToStruct("bassist", Bassist, pString);
@@ -281,6 +281,19 @@ namespace GH_Toolkit_Core.Methods
 
                 return (entries, qsStrings.ToArray());
             }
+            public (string, string[]) CreateSongListQFile()
+            {
+                if (Game == GAME_GH5 || Game == GAME_GHWOR)
+                {
+                    var (entries, qsStrings) = GenerateGh5SongListEntry();
+                    return (QbToTextString(entries), qsStrings);
+                }
+                else
+                {
+
+                }
+                return ("", [""]);
+            }
             public string GetArtistText()
             {
                 if (ArtistTextSelect == "As Made Famous By")
@@ -319,7 +332,7 @@ namespace GH_Toolkit_Core.Methods
                 }
                 return mics;
             }
-            public void CreateConsolePackage(string game, string platform, string compilePath, string resources, string onyxPath)
+            public void CreateConsolePackage(string game, string platform, string compilePath, string resources, string onyxPath, bool compileToFolder = false)
             {
                 string toCopyTo;
                 string[] onyxArgs;
@@ -334,9 +347,11 @@ namespace GH_Toolkit_Core.Methods
                     packageHash = packageHash.ToUpper();
                     fileType = "PKG";
                     Console.WriteLine("Compiling PKG file using Onyx CLI");
+
                     toCopyTo = Path.Combine(compilePath, "PS3");
                     string gameFiles = Path.Combine(toCopyTo, "USRDIR", packageHash);
                     Directory.CreateDirectory(gameFiles);
+
                     string ps3Resources = Path.Combine(resources, "PS3");
                     string currGameResources = Path.Combine(ps3Resources, game);
                     string vramFile = Path.Combine(ps3Resources, $"VRAM_{game}");
@@ -514,7 +529,7 @@ namespace GH_Toolkit_Core.Methods
             File.WriteAllBytes(pakLocation, pakData);
             File.WriteAllBytes(pabLocation, pabData);
         }
-        public static void CreateConsoleDownloadFilesGh3(uint checksum, string game, string platform, string compilePath, string resources, List<QBStruct.QBStructData> songListEntry)
+        public static void CreateConsoleDownloadFilesGh3(uint checksum, string game, string platform, string compilePath, string resources, List<QBStruct.QBStructData> songListEntry, string? checksumOverride = null)
         {
             if(!Directory.Exists(compilePath))
             {
@@ -541,7 +556,7 @@ namespace GH_Toolkit_Core.Methods
                 Directory.CreateDirectory(qbDirectory);
                 var qbBytes = CompileQbFile(songlist, textChecksum, game, platform);
                 File.WriteAllBytes(qbFile, qbBytes);
-                var (textData, _) = pakCompiler.CompilePAK(localeDirectory, platform);
+                var (textData, _, _) = pakCompiler.CompilePAK(localeDirectory, platform);
                 var textSave = $"{localeDirectory}.pak";
                 File.WriteAllBytes(textSave, textData);
                 Directory.Delete(localeDirectory, true);
@@ -555,14 +570,39 @@ namespace GH_Toolkit_Core.Methods
             string saveDirectory = Path.GetDirectoryName(savePath);
             Directory.CreateDirectory(saveDirectory);
             File.Copy(scriptPath, savePath, true);
-            var (scriptData, _) = pakCompiler.CompilePAK(pakPath, platform);
+            var (scriptData, _, _) = pakCompiler.CompilePAK(pakPath, platform);
             var scriptSave = $"{pakPath}.pak";
             File.WriteAllBytes(scriptSave, scriptData);
             Directory.Delete(pakPath, true);
 
-            if (platform == "360")
+            if (platform == "360" && checksumOverride != null)
             {
                 CreateOnyxStfsFolder("GH3", resources, compilePath, $"dl{checksum}", true);
+            }
+        }
+        public static void CreateConsoleFolderGh3(string checksum, string game, string platform, string compilePath, string resources, List<QBStruct.QBStructData> songListEntry)
+        {
+            if (!Directory.Exists(compilePath))
+            {
+                Directory.CreateDirectory(compilePath);
+            }
+            var gh3Resource = Path.Combine(resources, game);
+            if (!Directory.Exists(gh3Resource))
+            {
+                throw new Exception($"Cannot find {game} Resource folder.\n\nThis should be included with your toolkit.\nPlease re-download the toolkit.");
+            }
+            var pakCompiler = new PakCompiler(game, platform, split: false);
+            string songlistPath = Path.Combine(gh3Resource, $"blank_songlist.q");
+            var (songlist, _) = ParseQFromFile(songlistPath);
+            FileCreation.AddToSonglistGh3(songlist, songListEntry);
+            var songlistText = QbToTextString(songlist);
+            var songlistSave = Path.Combine(compilePath, $"songlist.q");
+            // Writing the songlist to a text file
+            using (StreamWriter writer = new StreamWriter(songlistSave, false, Encoding.Unicode))
+            {
+                // Setting the newline character to only '\n'
+                writer.NewLine = "\n";
+                writer.WriteLine(songlistText);
             }
         }
         public static void CreateConsoleDownloadFilesGh5(uint checksum, string game, string platform, string compilePath, string resources, List<QBItem> songlistQb, string[] qsStrings, string manifest)
@@ -571,7 +611,7 @@ namespace GH_Toolkit_Core.Methods
             {
                 Directory.CreateDirectory(compilePath);
             }
-
+            var dlcModifier = game == GAME_GH5 ? "b" : "c";
             var gameResource = Path.Combine(resources, game);
             uint toIncrement = checksum + 1;
             // Text files
@@ -579,24 +619,26 @@ namespace GH_Toolkit_Core.Methods
             var pakCompiler = new PakCompiler(game, platform, split: false);
             if (!Directory.Exists(gameResource))
             {
-                throw new Exception($"Cannot find {game} Resource folder.\n\nThis should be included with your toolkit.\nPlease re-download the toolkit.");
+                throw new Exception($"Cannot find {game} Resource folder.\n\nThis should be included with your toolkit.\nPlease re-download the toolkit.\n");
             }
             string packageHash = PackageNameHashFormat(manifest);
             string manifestQbName = QBKey(packageHash).Substring(2).TrimStart('0');
-            string manifestFolder = Path.Combine(compilePath, $"cmanifest_{manifestQbName}");
+            string manifestFolder = Path.Combine(compilePath, $"{dlcModifier}manifest_{manifestQbName}");
             string manifestName = $"download{checksum}\\0xb2a7df81.qb";
 
-            var manifestQb = MakeDlcManifest(checksum, packageHash);
-            var blankScripts = "blank_scripts.qb";
-            var dlcScriptsPath = Path.Combine(gameResource, blankScripts);
-            var dlcScriptsFolder = Path.Combine(compilePath, $"cdl{checksum}");
+            
+
+            var manifestQb = MakeDlcManifest(checksum, packageHash, game);
+            var blankScripts = "default_scripts";
+            var dlcScriptsPath = Path.Combine(gameResource, $"{blankScripts}.qb");
+            var dlcScriptsFolder = Path.Combine(compilePath, $"{dlcModifier}dl{checksum}");
 
             var dlcTextqb = CompileQbFile(songlistQb, textChecksum, game, platform);
-            var dlcTextFolder = Path.Combine(compilePath, $"cdl{checksum}_text");
+            var dlcTextFolder = Path.Combine(compilePath, $"{dlcModifier}dl{checksum}_text");
 
             var downloadFolder = Path.GetDirectoryName(Path.Combine(dlcTextFolder, textChecksum));
-            var blankQs = "blank_qs.qs";
-            var dlcTextQs = Path.Combine(gameResource, blankQs);
+            //var blankQs = "blank_qs.qs";
+            var dlcTextQsBlank = Path.Combine(gameResource, blankScripts);
 
             Directory.CreateDirectory(dlcScriptsFolder);
             Directory.CreateDirectory(downloadFolder);
@@ -637,13 +679,14 @@ namespace GH_Toolkit_Core.Methods
                     writer.WriteLine();
                     writer.WriteLine();
                 }
+                var dlcTextQs = $"{dlcTextQsBlank}_{locale}.qs";
                 File.Copy(dlcTextQs, Path.Combine(tempLocale, $"0x179eac5.qs.{locale}"), true);
                 toIncrement++;
             }
 
-            var (scriptsPak, _) = pakCompiler.CompilePAK(dlcScriptsFolder, platform);
-            var (textPak, _) = pakCompiler.CompilePAK(dlcTextFolder, platform);
-            var (manifestPak, _) = pakCompiler.CompilePAK(manifestFolder, platform);
+            var (scriptsPak, _, scriptsQs) = pakCompiler.CompilePAK(dlcScriptsFolder, platform);
+            var (textPak, _, textQs) = pakCompiler.CompilePAK(dlcTextFolder, platform);
+            var (manifestPak, _, manifestQs) = pakCompiler.CompilePAK(manifestFolder, platform);
 
             File.WriteAllBytes($"{dlcScriptsFolder}.pak", scriptsPak);
             File.WriteAllBytes($"{dlcTextFolder}.pak", textPak);
@@ -653,17 +696,64 @@ namespace GH_Toolkit_Core.Methods
             Directory.Delete(dlcTextFolder, true);
             Directory.Delete(manifestFolder, true);
 
+
+            string checksumString = $"adlc{checksum}";
+
             for (int i = 1; i < 4; i++)
             {
-                string audio = Path.Combine(compilePath, $"adlc{checksum}_{i}.fsb");
+                string audio = Path.Combine(compilePath, $"{checksumString}_{i}.fsb");
                 if (!File.Exists(audio))
                 {
                     throw new FileNotFoundException($"Missing audio file {audio} for download file creation.");
                 }
             }
-            if (!File.Exists(Path.Combine(compilePath, $"adlc{checksum}_preview.fsb")))
+            if (!File.Exists(Path.Combine(compilePath, $"{checksumString}_preview.fsb")))
             {
                 throw new FileNotFoundException($"Missing preview audio file for download file creation.");
+            }
+        }
+        public static void CreateConsoleFolderGh5(string checksumOverride, string game, string platform, string compilePath, string resources, List<QBItem> songlistQb, string[] qsStrings)
+        {
+            if (!Directory.Exists(compilePath))
+            {
+                Directory.CreateDirectory(compilePath);
+            }
+            var gameResource = Path.Combine(resources, game);
+            if (!Directory.Exists(gameResource))
+            {
+                throw new Exception($"Cannot find {game} Resource folder.\n\nThis should be included with your toolkit.\nPlease re-download the toolkit.");
+            }
+            var pakCompiler = new PakCompiler(game, platform, split: false);
+            var songlistText = QbToTextString(songlistQb);
+            var songlistSave = Path.Combine(compilePath, $"songlist.q");
+            // Writing the songlist to a text file
+            using (StreamWriter writer = new StreamWriter(songlistSave, false, Encoding.Unicode))
+            {
+                // Setting the newline character to only '\n'
+                writer.NewLine = "\n";
+                writer.WriteLine(songlistText);
+            }
+            var qsSave = Path.Combine(compilePath, $"songlist.qs");
+            using (StreamWriter writer = new StreamWriter(qsSave, false, Encoding.Unicode))
+            {
+                // Setting the newline character to only '\n'
+                writer.NewLine = "\n";
+
+                foreach (var key in qsStrings)
+                {
+                    // Formatting the key as specified
+                    string modifiedKey = QBKeyQs(key).Substring(2).PadLeft(8, '0');
+
+                    // Building the line with the modified key and its value
+                    string line = $"{modifiedKey} \"{key}\"";
+
+                    // Writing the line to the file
+                    writer.WriteLine(line);
+                }
+
+                // These are needed otherwise the game will crash.
+                writer.WriteLine();
+                writer.WriteLine();
             }
         }
         public static string PackageNameHashFormat(string text)
@@ -701,11 +791,14 @@ namespace GH_Toolkit_Core.Methods
 
             return transformedText;
         }
-        private static List<QBItem> MakeDlcManifest(uint checksum, string packageName)
+        private static List<QBItem> MakeDlcManifest(uint checksum, string packageName, string game = GAME_GHWOR)
         {
+            var dlcModifier = game == GAME_GH5 ? "b" : "c";
+
             List<QBItem> manifest = new List<QBItem>();
             QBItem manifest1 = new QBItem();
-            manifest1.CreateQBItem("0xe57c7c6d", "2", INTEGER);
+            string manifestInt = game == GAME_GH5 ? "1" : "2"; // GH5 uses 1, GH6 uses 2
+            manifest1.CreateQBItem("0xe57c7c6d", manifestInt, INTEGER);
             QBItem manifest2 = new QBItem();
             manifest2.CreateQBItem("0x53a97911", "0", INTEGER);
             QBArrayNode manifestArray = new QBArrayNode(); // Big array
@@ -713,11 +806,20 @@ namespace GH_Toolkit_Core.Methods
             QBStructData manifestStruct = new QBStructData(); // First (and only) entry in the array
 
             QBArrayNode packageNames = new QBArrayNode(); // Array of package names
-            packageNames.AddQbkeyToArray(packageName);
+            if (game == GAME_GH5)
+            {
+                var packageNameInt = QBKeyUInt(packageName);
+                packageNames.AddIntToArray((int)packageNameInt);
+            }
+            else
+            {
+                packageNames.AddQbkeyToArray(packageName);
+            }
+            
             manifestStruct.AddArrayToStruct("package_name_checksums", packageNames);
 
             manifestStruct.AddQbKeyToStruct("format", "gh5_dlc");
-            manifestStruct.AddStringToStruct("song_pak_stem", $"cdl{checksum}");
+            manifestStruct.AddStringToStruct("song_pak_stem", $"{dlcModifier}dl{checksum}");
 
             QBArrayNode songNums = new QBArrayNode(); // Array of song numbers
             songNums.AddIntToArray((int)checksum);
