@@ -36,6 +36,13 @@ namespace GH_Toolkit_Core.MIDI
         public const int GH3FORCE = 32;
         public const int GH5FORCE = 1 << 6;
 
+        // Score Stuff
+
+        public const int BASENOTE = 50;
+        public const float POINTSPERBEAT = 25.0f;
+        public const float WHAMMYSHORTENGH3 = 0.25f;
+        public const float WHAMMYSHORTEN = 0.0075f;
+
         // Define constants for note ranges
         public const int EasyNoteMin = 60;
         public const int EasyNoteMax = 64;
@@ -225,6 +232,7 @@ namespace GH_Toolkit_Core.MIDI
 
         public static Dictionary<MidiTheory.NoteName, int> Gh3Notes = new Dictionary<MidiTheory.NoteName, int>()
         {
+            { MidiTheory.NoteName.B, 0x80 }, // Open Notes for GH3 Plus
             { MidiTheory.NoteName.C, 1 },
             { MidiTheory.NoteName.CSharp, 2 },
             { MidiTheory.NoteName.D, 4 },
@@ -541,7 +549,7 @@ namespace GH_Toolkit_Core.MIDI
             {SURGE_SLOW, 89},
             {SURGE_SLOW_OVERRIDE, 89},
             {MUSIC_END, 84},
-            {MUSIC_START, 76},
+            {MUSIC_START, 86},
             {CODA, 87},
             {INTENSE, 87},
             {NORMAL, 88},
