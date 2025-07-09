@@ -49,5 +49,31 @@ namespace GH_Toolkit_Core.Other
                 Console.WriteLine(songData.GetErrorListAsString());
             }
         }
+        public static void GetBaseScore(string folderPath)
+        {
+            if (!Directory.Exists(folderPath) && !File.Exists(folderPath))
+            {
+                Console.WriteLine("Invalid path. Please provide a valid folder or file path.");
+                return;
+            }
+            if (folderPath.Contains(".pak", StringComparison.OrdinalIgnoreCase))
+            {
+                string[]? filePaths = GetAllPaks(folderPath);
+                foreach (string file in filePaths)
+                {
+                    var songData = SongQbFile.TokenizePak(file);
+                    Console.WriteLine($"Base Score for {songData.SongName}: {songData.CalculateBaseScore()}");
+                }
+            }
+            else if (folderPath.Contains(".midi", StringComparison.OrdinalIgnoreCase) || folderPath.Contains(".mid", StringComparison.OrdinalIgnoreCase))
+            {
+                var filename = Path.GetFileNameWithoutExtension(folderPath);
+                var midiConvert = new SongQbFile(folderPath, filename);
+                midiConvert.ParseMidi();
+                midiConvert.CalculateBaseScore();
+            }
+
+
+        }
     }
 }
