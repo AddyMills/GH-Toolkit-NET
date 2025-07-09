@@ -97,7 +97,7 @@ namespace GH_Toolkit_Core.MIDI
                 throw new InvalidOperationException("Resolution is not set. Ensure the chart has been parsed and a resolution is defined.");
             }
             int hopoRes = (int)(Resolution * HopoThreshold);
-            return Resolution.Value;
+            return hopoRes;
         }
         private void CheckForSongIniAndParse()
         {
