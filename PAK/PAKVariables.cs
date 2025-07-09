@@ -8,6 +8,6 @@ namespace GH_Toolkit_Core.PAK
 {
     public class PAKVariables
     {
-        public static string[] vramExts = { ".fnv", ".imv", ".mdv", ".pimv", ".scv", ".skiv", ".tvx" };
+        public static string[] vramExts = { ".fnv", ".imv", ".mdv", ".pimv", ".scv", ".skiv", ".tvx", ".wav" };
     }
 }
