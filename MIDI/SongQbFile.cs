@@ -183,10 +183,11 @@ namespace GH_Toolkit_Core.MIDI
         private List<string> ErrorList { get; set; } = new List<string>();
         private List<string> WarningList { get; set; } = new List<string>();
         public static ReadWrite _readWriteGh5 = new ReadWrite("big");
+        private bool FromChart = false;
         private bool Gh3Plus = false;
         private bool MidiParsed = false;
         private bool WtExpertPlusPak = false;
-        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "", string venueSource = "", bool rhythmTrack = false, bool overrideBeat = false, HopoType hopoType = 0, bool easyOpens = false, string skaPath = "", bool gh3Plus = false)
+        public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "", string venueSource = "", bool rhythmTrack = false, bool overrideBeat = false, HopoType hopoType = 0, bool easyOpens = false, string skaPath = "", bool fromChart = false, bool gh3Plus = false)
         {
             Game = game;
             SongName = songName;
@@ -201,6 +202,7 @@ namespace GH_Toolkit_Core.MIDI
             SkaPath = skaPath;
             SetSkaQbKeys();
             HopoMethod = hopoType;
+            FromChart = fromChart;
             Gh3Plus = gh3Plus;
 
             if (Gh3Plus)
@@ -3994,10 +3996,11 @@ namespace GH_Toolkit_Core.MIDI
                 var list = new List<QBItem>();
                 string playName = $"{name}_song{TrackName}";
                 string starName = $"{name}{TrackName}";
-                list.Add(Easy.CreateGH3Notes(playName));
-                list.Add(Medium.CreateGH3Notes(playName));
-                list.Add(Hard.CreateGH3Notes(playName));
-                list.Add(Expert.CreateGH3Notes(playName));
+                bool gh3Plus = _songQb.Gh3Plus;
+                list.Add(Easy.CreateGH3Notes(playName, gh3Plus));
+                list.Add(Medium.CreateGH3Notes(playName, gh3Plus));
+                list.Add(Hard.CreateGH3Notes(playName, gh3Plus));
+                list.Add(Expert.CreateGH3Notes(playName, gh3Plus));
                 list.Add(Easy.CreateStarPowerPhrases(starName));
                 list.Add(Medium.CreateStarPowerPhrases(starName));
                 list.Add(Hard.CreateStarPowerPhrases(starName));
@@ -5758,7 +5761,7 @@ namespace GH_Toolkit_Core.MIDI
                 currItem.SetInfo(ARRAY);
                 return currItem;
             }
-            public QBItem CreateGH3Notes(string songName) // Combine this with SP
+            public QBItem CreateGH3Notes(string songName, bool gh3Plus = false) // Combine this with SP
             {
                 QBItem currItem = CreateNotesBase(songName);
                 if (PlayNotes == null)
@@ -5773,7 +5776,7 @@ namespace GH_Toolkit_Core.MIDI
                     notes.AddIntToArray(playNote.Length);
                     if ((playNote.IsHopo || playNote.ForcedOn) && !playNote.ForcedOff)
                     {
-                        if (BitOperations.IsPow2(playNote.Note)) // Can't have chords being hopos
+                        if (BitOperations.IsPow2(playNote.Note) || gh3Plus) // Can't have chords being hopos (2025-07-16: Unless it's GH3+)
                         {
                             playNote.Note += GH3FORCE;
                         }
@@ -6849,7 +6852,7 @@ namespace GH_Toolkit_Core.MIDI
             {
                 throw new NotSupportedException("MIDI file does not use ticks as a time measurement.");
             }
-            if (TPB != 480)
+            if (TPB != 480 && !FromChart)
             {
                 HopoThreshold = HopoThreshold * TPB / 480;
             }
