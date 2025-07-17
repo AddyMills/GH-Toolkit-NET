@@ -5783,7 +5783,7 @@ namespace GH_Toolkit_Core.MIDI
                     {
                         if (BitOperations.IsPow2(playNote.Note) || gh3Plus) // Can't have chords being hopos (2025-07-16: Unless it's GH3+)
                         {
-                            playNote.Note += GH3FORCE;
+                            playNote.Note |= GH3FORCE;
                         }
                     }
                     notes.AddIntToArray(playNote.Note);
