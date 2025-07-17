@@ -4,6 +4,9 @@ using static GH_Toolkit_Core.QB.QB;
 using static GH_Toolkit_Core.QB.QBArray;
 using static GH_Toolkit_Core.QB.QBStruct;
 using static GH_Toolkit_Core.QB.QBConstants;
+using GH_Toolkit_Core.Debug;
+using GH_Toolkit_Core.Checksum;
+
 
 namespace GH_Toolkit_Core.MIDI
 {
@@ -666,6 +669,20 @@ namespace GH_Toolkit_Core.MIDI
                 if (File.Exists(animPath))
                 {
                     return animPath;
+                }
+                else
+                {
+                    var tempHex = CRC.QBKey(anim, false);
+                    animPath = Path.Combine(skaPath, $"{tempHex}{ext}");
+                    string animPath2 = Path.Combine(skaPath, $"{tempHex}.{tempHex}{ext}");
+                    if (File.Exists(animPath))
+                    {
+                        return animPath;
+                    }
+                    else if (File.Exists(animPath2)) 
+                    { 
+                        return animPath2;
+                    }
                 }
             }
             return string.Empty;
