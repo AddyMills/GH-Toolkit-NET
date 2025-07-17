@@ -3996,7 +3996,12 @@ namespace GH_Toolkit_Core.MIDI
                 var list = new List<QBItem>();
                 string playName = $"{name}_song{TrackName}";
                 string starName = $"{name}{TrackName}";
-                bool gh3Plus = _songQb.Gh3Plus;
+
+                bool gh3Plus = false;
+                if (_songQb != null)
+                {
+                    gh3Plus = _songQb.Gh3Plus;
+                }
                 list.Add(Easy.CreateGH3Notes(playName, gh3Plus));
                 list.Add(Medium.CreateGH3Notes(playName, gh3Plus));
                 list.Add(Hard.CreateGH3Notes(playName, gh3Plus));
