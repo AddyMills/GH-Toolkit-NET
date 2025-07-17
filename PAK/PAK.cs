@@ -718,7 +718,11 @@ namespace GH_Toolkit_Core.PAK
             var flags = new Dictionary<string, int>();
             var assetContexts = new Dictionary<string, string>();
 
-            CheckForQsFilesInPak(pakEntries);
+            if (fileNoExt.ToUpper() != "QS")
+            {
+                CheckForQsFilesInPak(pakEntries);
+            }
+            
 
             foreach (PakEntry entry in pakEntries)
             {
@@ -953,7 +957,10 @@ namespace GH_Toolkit_Core.PAK
                     pakBytes = Compression.DecompressWTPak(pakBytes);
                     if (vramBytes != null && vramBytes.Length > 0)
                     {
-                        vramBytes = Compression.DecompressWTPak(vramBytes);
+                        if (Compression.isChnkCompressed(vramBytes))
+                        {
+                            vramBytes = Compression.DecompressWTPak(vramBytes);
+                        }
                     }
                 }
 
@@ -2002,6 +2009,7 @@ namespace GH_Toolkit_Core.PAK
             byte[]? midQb_xplus = null;
             if (midiExt == ".mid" || midiExt == ".chart")
             {
+                bool fromChart = false;
                 if (midiExt == ".chart")
                 {
                     var chart = new Chart(midiPath);
@@ -2010,6 +2018,7 @@ namespace GH_Toolkit_Core.PAK
                     chart.WriteMidToFile();
                     hopoThreshold = chart.GetHopoResolution();
                     midiHopoType = MidiDefs.HopoType.GH3;
+                    fromChart = true;
                 }
                 midiFile = new SongQbFile(
                 midiPath,
@@ -2025,6 +2034,7 @@ namespace GH_Toolkit_Core.PAK
                 hopoType: midiHopoType,
                 easyOpens: easyOpens,
                 skaPath: skaPath,
+                fromChart: fromChart,
                 gh3Plus: gh3Plus);
 
                 midQb = midiFile.ParseMidiToQb();
