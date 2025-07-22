@@ -368,10 +368,6 @@ namespace GH_Toolkit_Core.MIDI
         }
         public void ConvertChartToMid()
         {
-            // Placeholder for chart conversion logic
-            // This method should read the chart file and convert it to a MIDI file format
-            // For now, we will just print a message indicating the conversion is happening
-
             if (!File.Exists(ChartFilePath))
             {
                 throw new FileNotFoundException($"The chart file '{ChartFilePath}' does not exist.");
