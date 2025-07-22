@@ -213,6 +213,7 @@ namespace GH_Toolkit_Core.INI
                 string fileExt = Path.GetExtension(file).ToLower();
                 string audioRegex = ".*\\.(mp3|ogg|flac|wav|opus)$";
                 string midiRegex = ".*\\.(mid|midi)$";
+                string chartRegex = ".*\\.(chart)$";
 
                 if (Regex.IsMatch(fileExt, audioRegex))
                 {
@@ -361,6 +362,10 @@ namespace GH_Toolkit_Core.INI
                 else if (Regex.IsMatch(fileExt, midiRegex) && fileNoExt == "notes")
                 {
                     assignment.MidiFile = file;
+                }
+                else if (Regex.IsMatch(fileExt, chartRegex) && fileNoExt == "notes")
+                {
+                    assignment.ChartFile = file;
                 }
                 else if (fileNoExt == "perf_override" && fileExt == ".q" && File.Exists(file))
                 {

@@ -21,17 +21,27 @@ namespace GH_Toolkit_Core.INI
         public string? Vocals { get; set; }
         public bool RenderedPreview { get; set; }
         public string? MidiFile { get; set; }
+        public string? ChartFile { get; set; }
         public string? PerfOverride { get; set; }
         public string? SongScripts { get; set; }
         public string? LipsyncFiles { get; set; }
         public string? SkaFiles { get; set; }
         public bool DoesAudioExist { get { return VerifyAudio(); } }
         public bool DoesMidiExist { get { return VerifyMidi(); } }
+        public bool DoesChartExist { get { return VerifyChart(); } }
         public bool DoesPerfExist { get { return VerifyPerf(); } }
         public bool DoesSongScriptsExist { get { return VerifySongScripts(); } }
         public bool DoesLipsyncExist { get { return VerifyLipsync(); } }
         public bool DoesSkaExist { get { return VerifySka(); } }
 
+        public void SetMidiFile(string filepath)
+        {
+            MidiFile = filepath;
+        }
+        public string? GetChartFile()
+        {
+            return ChartFile;
+        }
         private bool VerifyAudio()
         {
             // Check if any backing track path exists
@@ -49,6 +59,10 @@ namespace GH_Toolkit_Core.INI
         private bool VerifyMidi()
         {
             return MidiFile != null && File.Exists(MidiFile);
+        }
+        private bool VerifyChart()
+        {
+            return ChartFile != null && File.Exists(ChartFile);
         }
         private bool VerifyPerf()
         {
