@@ -29,21 +29,21 @@ namespace GH_Toolkit_Core.MIDI
             Neither
         }
 
-        private Dictionary<string, int> DiffBaseNote = new Dictionary<string, int>()
+        private static Dictionary<string, int> DiffBaseNote = new Dictionary<string, int>()
         {
             { "Easy", 60 },
             { "Medium", 72 },
             { "Hard", 84 },
             { "Expert", 96 },
         };        
-        private Dictionary<string, byte> DiffSysex = new Dictionary<string, byte>()
+        private static Dictionary<string, byte> DiffSysex = new Dictionary<string, byte>()
         {
             { "Easy", 0x00 },
             { "Medium", 0x01 },
             { "Hard", 0x02 },
             { "Expert", 0x03 }
         };
-        private Dictionary<int, int> NoteModifier = new Dictionary<int, int>()
+        private static Dictionary<int, int> NoteModifier = new Dictionary<int, int>()
         {
             { 0, 0 }, // Green / Kick Drums
             { 1, 1 }, // Red
