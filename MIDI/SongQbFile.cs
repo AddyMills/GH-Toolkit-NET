@@ -395,7 +395,15 @@ namespace GH_Toolkit_Core.MIDI
             {
                 string file = Path.GetFileName(ska);// .Substring(0, ska.IndexOf('.'))
                 file = file.Substring(0, file.IndexOf('.'));
-                SkaQbKeys.Add(QBKey(file), file);
+                var qbkey = QBKey(file);
+                try
+                {
+                    SkaQbKeys.Add(qbkey, file);
+                }
+                catch (Exception ex)
+                {
+                    AddToErrorList($"Same ska file found under two names: {qbkey} & {DebugReader.DebugCheck(qbkey)}");
+                }
             }
         }
         public void ParseMidi()
