@@ -603,7 +603,6 @@ namespace GH_Toolkit_Core.Audio
             var backingOut = Path.Combine(outputFolder, "backing.wav");
 
             Task gtrStem = ConvertToWav(gtrAudio, gtrOut, sampleRate);
-            await gtrStem;
             Task rhythmStem = ConvertToWav(rhythmAudio, rhythmOut, sampleRate);
             Task backingStem = fsb.MixFiles(backingAudio, backingOut, convertTo:WAV, sampleRate:sampleRate);
 
