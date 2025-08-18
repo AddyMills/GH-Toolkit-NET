@@ -100,6 +100,8 @@ namespace GH_Toolkit_Core.Audio
                     tasksToAwait.AddRange(new List<Task> { coopGtrStem, coopRhythmStem, coopBackingStem });
                 }
 
+                await Task.WhenAll(tasksToAwait.ToArray());
+
                 // Create the preview audio
                 Task previewStem;
                 if (CustomPreview && File.Exists(PreviewPath))
@@ -111,10 +113,10 @@ namespace GH_Toolkit_Core.Audio
                 {
                     previewStem = fsb.MakePreview(spFiles, previewOutput, PreviewStart, PreviewLength, FadeIn, FadeOut, PreviewVolume);
                 }
-                tasksToAwait.Add(previewStem);
+                await previewStem;
 
                 // Await all started tasks. This ensures all conversions are completed before moving on.
-                await Task.WhenAll(tasksToAwait.ToArray());
+               
 
                 Console.WriteLine("Combining Audio...");
                 (FsbOut, DatOut) = fsb.CombineFSB3File(filesToProcess, fsbOutput);
