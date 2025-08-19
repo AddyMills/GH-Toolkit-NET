@@ -254,6 +254,8 @@ namespace GH_Toolkit_Core.MIDI
                     int notesSinceTap = 0;
                     long lastNoteTime = 0;
                     long lastTapTime = 0;
+                    bool inSolo = false;
+                    long soloStart = -1;
                     foreach (var note in inst[diff])
                     {
                         var split = note.Split('=', StringSplitOptions.TrimEntries);
@@ -344,7 +346,36 @@ namespace GH_Toolkit_Core.MIDI
                                 var specialNoteEvent = new MidiData.Note(midiNote, length, time);
                                 manager.Objects.Add(specialNoteEvent);
                                 break;
+                            case "E":
+                                // Text and Solo Events
+                                string eventText = valueSplit[1];
+                                switch (eventText.ToLower())
+                                {
+                                    case "solo":
+                                        soloStart = time;
+                                        inSolo = true;
+                                        break;
+                                    case "soloend":
+                                        long soloLength = time - soloStart;
+                                        inSolo = false;
+                                        if (diff == "Expert")
+                                        {
+                                            var soloNote = new MidiData.Note((SevenBitNumber)103, soloLength, soloStart);
+                                            manager.Objects.Add(soloNote);
+                                        }
+                                        break;
+                                    default:
+                                        Console.WriteLine($"Unknown event type: {eventText} at time {time}.");
+                                        break;
+                                }
+                                break;
+                            default:
+                                break;
                         }
+                    }
+                    if (inSolo)
+                    {
+                        Console.WriteLine($"Warning: End of song reached, but 'soloend' marker not found in the {name} track on {diff}");
                     }
                     if (tapRange)
                     {
