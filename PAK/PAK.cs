@@ -2019,6 +2019,7 @@ namespace GH_Toolkit_Core.PAK
                     hopoThreshold = chart.GetHopoResolution();
                     midiHopoType = MidiDefs.HopoType.GH3;
                     fromChart = true;
+                    easyOpens = true;
                 }
                 midiFile = new SongQbFile(
                 midiPath,
