@@ -82,6 +82,28 @@ namespace GH_Toolkit_Core.MIDI
             ChartFilePath = filePath;
             CheckForSongIniAndParse();
         }
+        private class ChartNote
+        {
+            public long Time { get; set; }
+            public int Length { get; set; }
+            public SevenBitNumber MidiNote { get; set; }
+            public bool Accent { get; set; }
+            public bool Ghost { get; set; }
+            public SevenBitNumber Velocity { get
+                {
+                    byte vel = 100;
+                    if (Accent)
+                    {
+                        vel = 127;
+                    }
+                    else if (Ghost)
+                    {
+                        vel = 1;
+                    }
+                    return (SevenBitNumber)vel;
+                }
+            }
+        }
         public string GetMidiPath()
         {
             if (string.IsNullOrWhiteSpace(MidiFilepath))
@@ -256,6 +278,17 @@ namespace GH_Toolkit_Core.MIDI
                     long lastTapTime = 0;
                     bool inSolo = false;
                     long soloStart = -1;
+                    var noteListDict = new Dictionary<int, Dictionary<long, ChartNote>>()
+                    {
+                        {0, new Dictionary<long, ChartNote>() },
+                        {1, new Dictionary<long, ChartNote>() },
+                        {2, new Dictionary<long, ChartNote>() },
+                        {3, new Dictionary<long, ChartNote>() },
+                        {4, new Dictionary<long, ChartNote>() },
+                        {5, new Dictionary<long, ChartNote>() },
+                        {7, new Dictionary<long, ChartNote>() },
+                        {32, new Dictionary<long, ChartNote>() },
+                    };
                     foreach (var note in inst[diff])
                     {
                         var split = note.Split('=', StringSplitOptions.TrimEntries);
@@ -263,12 +296,14 @@ namespace GH_Toolkit_Core.MIDI
                         var valueSplit = split[1].Split(' ', StringSplitOptions.TrimEntries);
                         var eventType = valueSplit[0];
                         int length;
+                        int noteMod;
                         SevenBitNumber midiNote;
                         switch (eventType)
                         {
                             case "N": // Note event
                                 int chartNote = int.Parse(valueSplit[1]);
                                 length = int.Parse(valueSplit[2]);
+                                var noteEntry = new ChartNote();
                                 if (length == 0)
                                 {
                                     length = MinLength;
@@ -288,10 +323,22 @@ namespace GH_Toolkit_Core.MIDI
                                         var timedEnd = new TimedEvent(sysexEndEvent, lastTapTime);
                                         manager.Objects.Add(timedEnd);
                                     }
-                                    int noteMod = NoteModifier[chartNote];
+                                    noteMod = NoteModifier[chartNote];
                                     midiNote = (SevenBitNumber)(baseNote + noteMod);
-                                    var noteEvent = new MidiData.Note(midiNote, length, time);
-                                    manager.Objects.Add(noteEvent);
+                                    if (noteListDict[chartNote].ContainsKey(time))
+                                    {
+                                        noteListDict[chartNote][time].MidiNote = midiNote;
+                                        noteListDict[chartNote][time].Length = length;
+                                        noteListDict[chartNote][time].Time = time;
+                                    }
+                                    else
+                                    {
+                                        noteEntry.MidiNote = midiNote;
+                                        noteEntry.Length = length;
+                                        noteEntry.Time = time;
+                                        noteListDict[chartNote][time] = noteEntry;
+                                    }
+                                    
                                 }
                                 else if (chartNote == TAPNOTE)
                                 {
@@ -305,16 +352,32 @@ namespace GH_Toolkit_Core.MIDI
                                     }
                                     notesSinceTap = 0; // Reset tap count for a new tap note
                                     lastTapTime = time + length;
-                                    /*
-                                    var sysexEnd = CreateSysexEvent(diff, SYSTAP, false);
-
-                                    
-                                    var sysexEndEvent = new NormalSysExEvent(sysexEnd);
-
-                                    
-                                    var timedEnd = new TimedEvent(sysexEndEvent, time + length);
-                                    
-                                    manager.Objects.Add(timedEnd);*/
+                                }
+                                else if (AccentModifier.ContainsKey(chartNote))
+                                {
+                                    noteMod = AccentModifier[chartNote];
+                                    if (noteListDict[noteMod].ContainsKey(time))
+                                    {
+                                        noteListDict[noteMod][time].Accent = true;
+                                    }
+                                    else
+                                    {
+                                        noteEntry.Accent = true;
+                                        noteListDict[noteMod][time] = noteEntry;
+                                    }
+                                }
+                                else if (GhostModifier.ContainsKey(chartNote))
+                                {
+                                    noteMod = GhostModifier[chartNote];
+                                    if (noteListDict[noteMod].ContainsKey(time))
+                                    {
+                                        noteListDict[noteMod][time].Ghost = true;
+                                    }
+                                    else
+                                    {
+                                        noteEntry.Ghost = true;
+                                        noteListDict[noteMod][time] = noteEntry;
+                                    }
                                 }
                                 break;
                             case "S":
@@ -371,6 +434,15 @@ namespace GH_Toolkit_Core.MIDI
                                 break;
                             default:
                                 break;
+                        }
+                    }
+                    foreach (var value in noteListDict.Values)
+                    {
+                        foreach (var chartNote in value.Values)
+                        {
+                            var noteEvent = new MidiData.Note(chartNote.MidiNote, chartNote.Length, chartNote.Time);
+                            noteEvent.Velocity = chartNote.Velocity;
+                            manager.Objects.Add(noteEvent);
                         }
                     }
                     if (inSolo)

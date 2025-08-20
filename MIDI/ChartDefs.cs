@@ -54,5 +54,21 @@ namespace GH_Toolkit_Core.MIDI
             { 7, -1 }, // Purple/Open
             {32, -1 } // 2x Kick Drums
         };
+        private static Dictionary<int, int> AccentModifier = new Dictionary<int, int>()
+        {
+            { 34, 1 },
+            { 35, 2 },
+            { 36, 3 },
+            { 37, 4 },
+            { 38, 5 }
+        };
+        private static Dictionary<int, int> GhostModifier = new Dictionary<int, int>()
+        {
+            { 40, 1 },
+            { 41, 2 },
+            { 42, 3 },
+            { 43, 4 },
+            { 44, 5 }
+        };
     }
 }
