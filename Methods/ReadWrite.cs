@@ -507,7 +507,16 @@ namespace GH_Toolkit_Core.Methods
                     {
                         foreach (object o in arrayVal.Items)
                         {
-                            byte[] entryBytes = ValueHex(o);
+                            object arrItem = o;
+                            if (arrayVal.FirstItem.Type == QSKEY)
+                            {
+                                var qsString = o.ToString();
+                                if (!qsString.StartsWith("0x"))
+                                {
+                                    arrItem = CRC.QBKeyQs(o.ToString());
+                                }
+                            }
+                            byte[] entryBytes = ValueHex(arrItem);
                             stream.Write(entryBytes, 0, entryBytes.Length);
                         }
                     }
@@ -779,6 +788,15 @@ namespace GH_Toolkit_Core.Methods
         {
             if (IsSimpleValue(type))
             {
+                if (type == QSKEY)
+                {
+                    var stringData = data.ToString();
+                    if (!stringData.StartsWith("0x"))
+                    {
+                        var qsKey = CRC.QSKeyUInt(stringData);
+                        return (ValueHex(qsKey), null);
+                    }
+                }
                 return (ValueHex(data), null);
             }
             else
