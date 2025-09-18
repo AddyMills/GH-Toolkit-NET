@@ -49,7 +49,7 @@ namespace GH_Toolkit_Core.Other
                 Console.WriteLine(songData.GetErrorListAsString());
             }
         }
-        public static void GetBaseScore(string folderPath)
+        public static void GetBaseScore(string folderPath, int instrument = 0)
         {
             if (!Directory.Exists(folderPath) && !File.Exists(folderPath))
             {
