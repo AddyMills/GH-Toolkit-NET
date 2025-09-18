@@ -1725,6 +1725,8 @@ namespace GH_Toolkit_Core.PAK
 
                 var (pakData, pabData) = CompilePakEntries(PakEntries);
 
+                PakEntries.Clear(); // Clear all entries in case the same pak compiler instance is used multiple times.
+
                 return (pakData, pabData, qsMaster);
 
             }
