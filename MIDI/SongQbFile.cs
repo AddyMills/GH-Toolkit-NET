@@ -626,7 +626,7 @@ namespace GH_Toolkit_Core.MIDI
         public string CalculateBaseScore()
         {
             var guitar = Guitar.GetBaseScore(Fretbars);
-            //var rhythm = Rhythm.GetBaseScore();
+            //var rhythm = Rhythm.GetBaseScore(Fretbars);
 
             return "";
         }
@@ -6186,7 +6186,7 @@ namespace GH_Toolkit_Core.MIDI
                     bool skipLengthCalc = timePlusLengthCurrent <= timePlusLengthCheck;
                     bool sustainCalcCheck = length > origSustainCheck;
 
-                    if (sustainCalcCheck && (!skipLengthCalc))
+                    if (sustainCalcCheck)
                     {
                         if (note.Time < timePlusLengthCheck && timePlusLengthCurrent > timePlusLengthCheck)
                         {
@@ -6204,9 +6204,12 @@ namespace GH_Toolkit_Core.MIDI
 
                         var sustainPoints = CalculateSustainPoints(note.Time, length, fIndex, fretbars, multiplier);
                         var roundedSustain = (int)(sustainPoints + 0.5f); // Round like the original
-
-                        baseScore += roundedSustain;
-                        score += roundedSustain * multiplier; // Apply streak multiplier
+                        if ((!skipLengthCalc))
+                        {
+                            baseScore += roundedSustain;
+                            score += roundedSustain * multiplier; // Apply streak multiplier
+                        }
+                        
                         
 
                     }
