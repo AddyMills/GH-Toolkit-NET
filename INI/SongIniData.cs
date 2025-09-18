@@ -24,8 +24,8 @@ namespace GH_Toolkit_Core.INI
         public int? VocalsTier { get; set; } = 1;
         public decimal? SustainCutoffThreshold { get; set; }
         public int? HopoFrequency { get; set; }
-        public int? PreviewStartTime { get; set; }
-        public int? PreviewEndTime { get; set; }
+        public int PreviewStartTime { get; set; } = 45000;
+        public int PreviewEndTime { get; set; }
         public bool UseBeatTrack { get; set; }
         public int Low8Bars { get; set; } = 1;
         public int High8Bars { get; set; } = 150;
@@ -60,6 +60,14 @@ namespace GH_Toolkit_Core.INI
         public bool UseNewClips { get; set; }
         public bool ModernStrobes { get; set; }
         public bool IsCover { get; set; } = false;
+
+        public void SetDefaults()
+        {
+            if (PreviewEndTime == null)
+            {
+                PreviewEndTime = PreviewStartTime + 30000;
+            }
+        }
     }
 
 }

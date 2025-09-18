@@ -201,7 +201,7 @@ namespace GH_Toolkit_Core.INI
                         break;
                 }
             }
-
+            songData.SetDefaults();
             return songData;
         }
         public static FileAssignment AssignFiles(string folder, string game)
