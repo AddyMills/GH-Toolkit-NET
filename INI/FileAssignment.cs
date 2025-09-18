@@ -33,6 +33,7 @@ namespace GH_Toolkit_Core.INI
         public bool DoesSongScriptsExist { get { return VerifySongScripts(); } }
         public bool DoesLipsyncExist { get { return VerifyLipsync(); } }
         public bool DoesSkaExist { get { return VerifySka(); } }
+        public bool DoesPreviewExist { get { return VerifyPreview(); } }
 
         public void SetMidiFile(string filepath)
         {
@@ -79,6 +80,10 @@ namespace GH_Toolkit_Core.INI
         private bool VerifySka()
         {
             return SkaFiles != null && Directory.Exists(SkaFiles);
+        }
+        private bool VerifyPreview()
+        {
+            return Preview != null && File.Exists(Preview);
         }
     }
 }
