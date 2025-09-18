@@ -595,7 +595,7 @@ namespace GH_Toolkit_Core.QB
                         }
                         else
                         {
-                            test = $"\"{itemString}\"";
+                            test = $"qs(\"{itemString}\")";
                         }
                     }
                     else if (itemType == POINTER)
@@ -1662,15 +1662,16 @@ namespace GH_Toolkit_Core.QB
             }
             if (itemType == WIDESTRING)
             {
-                qbFile.AddToQsList(tmpValue);
-
                 if (WideStringSwap)
                 {
                     itemType = STRING; // Make it a string if it's a wide string on PS2 and Wii
                 }
-                if (qbFile.QsSwap)
+            }
+            else if (itemType == QSKEY)
+            {
+                if (!tmpValue.StartsWith("0x"))
                 {
-                    itemType = QSKEY;
+                    qbFile.AddToQsList(tmpValue);
                 }
             }
             switch (currLevel.LevelType)
