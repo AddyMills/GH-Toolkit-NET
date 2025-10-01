@@ -330,7 +330,7 @@ namespace GH_Toolkit_Core.PS2
             {
                 byte[] fileData = new byte[HedFiles[i].FileSize];
                 Array.Copy(wad, HedFiles[i].SectorIndex * 2048, fileData, 0, HedFiles[i].FileSize);
-                if (HedFiles[i].FilePath.StartsWith("\\"))
+                if (HedFiles[i].FilePath.StartsWith("\\") || HedFiles[i].FilePath.StartsWith("/"))
                 {
                     HedFiles[i].FilePath = HedFiles[i].FilePath.Substring(1);
                 }
