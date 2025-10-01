@@ -81,7 +81,7 @@ namespace GH_Toolkit_Core.QB
             {
                 if (data is string strData)
                 {
-                    if (type == STRING || type == WIDESTRING)
+                    if (type == STRING || type == WIDESTRING || type == QSKEY)
                     {
                         ScriptParsed.Add(new ScriptNode(type, strData));
                         return;
@@ -172,6 +172,7 @@ namespace GH_Toolkit_Core.QB
                             break;
                     }
                     StripArgData(ref strData, ref type);
+                    
                     switch (type)
                     {
                         case MULTIFLOAT:
@@ -1538,7 +1539,7 @@ namespace GH_Toolkit_Core.QB
                     }
                     else
                     {
-                        list.Add(new ScriptNode(WIDESTRING, qsKey));
+                        list.Add(new ScriptNode(QSKEY, qsKey));
                     }
                     break;
                 case 0x4F:
