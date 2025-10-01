@@ -1096,10 +1096,7 @@ namespace GH_Toolkit_Core.PAK
             private List<PakEntry> ParsePak(byte[] pakBytes, ReadWrite reader, Dictionary<uint, string> headers, bool skipNameFlag, bool vram)
             {
                 List<PakEntry> PakList = new List<PakEntry>();
-                Dictionary<uint, string> headers = DebugReader.MakeDictFromName(PakName);
 
-                bool TryGH3 = false;
-                bool TryLzss = false;
                 using (MemoryStream stream = new MemoryStream(pakBytes))
                 {
                     while (true)
@@ -1107,38 +1104,22 @@ namespace GH_Toolkit_Core.PAK
                         uint header_start = (uint)stream.Position;
                         PakEntry? entry = GetPakEntry(stream, reader, headers, header_start, IsWiiOrPs2, skipNameFlag);
                         if (entry == null)
-                        {
                             break;
 
                             if (vramExts.Contains(entry.Extension) && Platform == CONSOLE_PS3 && !vram)
-                            {
                                 continue;
 
                             entry.EntryData = new byte[entry.FileSize];
                             Array.Copy(pakBytes, entry.StartOffset, entry.EntryData, 0, entry.FileSize);
 
                             if (entry.FullName == "0x00000000.0x00000000")
-                            {
                                 entry.FullName = entry.AssetContext;
 
                             if (entry.FullName.IndexOf(entry.Extension, StringComparison.CurrentCultureIgnoreCase) == -1)
-                            {
                                 GetCorrectExtension(entry);
 
                             PakList.Add(entry);
                         }
-                        catch (Exception ex)
-                        {
-                            PakList.Clear();
-                            if (skipNameFlag == false)
-                            {
-                                skipNameFlag = true;
-                                stream.Position = 0;
-                            }
-                            else if (TryGH3 == true)
-                            {
-                                Console.WriteLine(ex.Message);
-                                throw new Exception("Could not extract PAK file.");
                             }
 
                 return PakList;
