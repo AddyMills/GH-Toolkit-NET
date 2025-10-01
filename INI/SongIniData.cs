@@ -15,6 +15,7 @@ namespace GH_Toolkit_Core.INI
         public string Charter { get; set; }
         public string Genre { get; set; }
         public string Checksum { get; set; }
+        public string Album { get; set; }
         public int? Year { get; set; } 
         public int? CoverYear { get; set; } 
         public int? BandTier { get; set; } = 1;
