@@ -757,7 +757,7 @@ namespace GH_Toolkit_Core.PAK
                 {
                     pakFileName = Regex.Replace(pakFileName, @"\\", "/");
                 }
-
+                if (debugFile)
                 var uri = new Uri(Path.Combine(NewFolderPath, pakFileName));
                 string saveName = uri.LocalPath;
 
