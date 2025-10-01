@@ -601,10 +601,13 @@ namespace GH_Toolkit_Core.Methods
         {
             stream.Write(scriptData, 0, scriptData.Length);
         }
-        public byte[] SingleScript(List<object> scriptData)
+        public (byte[], string) SingleScript(List<object> scriptData)
         {
-            (var scriptBytes, var _) = ProcessScriptData(scriptData);
-            return scriptBytes;
+            (var scriptBytes, var scriptCrcBytes) = ProcessScriptData(scriptData);
+            string scriptCrc = CRC.GenQBKey(scriptCrcBytes, out _);
+
+
+            return (scriptBytes, scriptCrc);
         }
         public void ScriptLoop(List<object> script, ref int scriptPos, MemoryStream noCrcStream, MemoryStream scriptStream)
         {
