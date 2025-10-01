@@ -1060,7 +1060,41 @@ namespace GH_Toolkit_Core.PAK
             public List<PakEntry> ExtractOldPak(byte[] pakBytes, bool skipNameFlag = false, bool vram = false)
             {
                 ReadWrite reader = new ReadWrite(Endian);
+                Dictionary<uint, string> headers = DebugReader.MakeDictFromName(PakName);
                 
+                // Try once normally
+                try
+                {
+                    return ParsePak(pakBytes, reader, headers, skipNameFlag, vram);
+                }
+                catch
+                {
+                    // Retry with skipNameFlag set
+                    try
+                    {
+                        return ParsePak(pakBytes, reader, headers, true, vram);
+                    }
+                    catch
+                    {
+                        // Retry with decompression
+                        Console.WriteLine("Could not find last entry. Trying Guitar Hero 3 Compression.");
+                        pakBytes = Compression.DecompressData(pakBytes);
+
+                        try
+                        {
+                            return ParsePak(pakBytes, reader, headers, skipNameFlag, vram);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine(ex.Message);
+                            throw new Exception("Could not extract PAK file.");
+                        }
+                    }
+                }
+            }
+
+            private List<PakEntry> ParsePak(byte[] pakBytes, ReadWrite reader, Dictionary<uint, string> headers, bool skipNameFlag, bool vram)
+            {
                 List<PakEntry> PakList = new List<PakEntry>();
                 Dictionary<uint, string> headers = DebugReader.MakeDictFromName(PakName);
 
@@ -1070,29 +1104,27 @@ namespace GH_Toolkit_Core.PAK
                 {
                     while (true)
                     {
-                        uint header_start = (uint)stream.Position; // To keep track of which entry since the offset in the header needs to be added to the StartOffset below
+                        uint header_start = (uint)stream.Position;
                         PakEntry? entry = GetPakEntry(stream, reader, headers, header_start, IsWiiOrPs2, skipNameFlag);
                         if (entry == null)
                         {
                             break;
-                        }
-                        try
-                        {
+
                             if (vramExts.Contains(entry.Extension) && Platform == CONSOLE_PS3 && !vram)
                             {
                                 continue;
-                            }
+
                             entry.EntryData = new byte[entry.FileSize];
                             Array.Copy(pakBytes, entry.StartOffset, entry.EntryData, 0, entry.FileSize);
+
                             if (entry.FullName == "0x00000000.0x00000000")
                             {
                                 entry.FullName = entry.AssetContext;
-                            }
-                            // entry.FullName = entry.FullName.Replace(".qb", entry.Extension);
+
                             if (entry.FullName.IndexOf(entry.Extension, StringComparison.CurrentCultureIgnoreCase) == -1)
                             {
                                 GetCorrectExtension(entry);
-                            }
+
                             PakList.Add(entry);
                         }
                         catch (Exception ex)
@@ -1108,20 +1140,12 @@ namespace GH_Toolkit_Core.PAK
                                 Console.WriteLine(ex.Message);
                                 throw new Exception("Could not extract PAK file.");
                             }
-                            else
-                            {
-                                Console.WriteLine("Could not find last entry. Trying Guitar Hero 3 Compression.");
-                                pakBytes = Compression.DecompressData(pakBytes);
-                                stream.Position = 0;
-                                TryGH3 = true;
-                            }
-                        }
-                    }
-                }
+
                 return PakList;
             }
 
         }
+
         public static List<string> GetFilesFromFolder(string filePath)
         {
             filePath = Path.GetFullPath(filePath);
