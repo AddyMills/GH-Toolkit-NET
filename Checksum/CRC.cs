@@ -174,6 +174,10 @@ namespace GH_Toolkit_Core.Checksum
         }
         public static uint QSKeyUInt(string textBytes)
         {
+            if (textBytes == string.Empty)
+            {
+                return 0;
+            }
             return GenQBKeyUInt(Encoding.Unicode.GetBytes(textBytes));
         }
         private static uint ConvertHexToUInt(string hexString)
