@@ -142,6 +142,9 @@ namespace GH_Toolkit_Core.MIDI
         public List<int> BandMoments { get; set; } = new List<int>();
         internal MidiFile SongMidiFile { get; set; }
         internal TempoMap SongTempoMap { get; set; }
+        internal IEnumerable<TrackChunk> TrackChunks { get; set; }
+        internal List<AnimNote>? DrumAnimOverride { get; set; } = null;
+        internal List<AnimNote>? CrowdOverride { get; set; } = null;
         private int TPB { get; set; }
         private int HopoThreshold { get; set; }
         private long LastEventTick { get; set; }
@@ -187,6 +190,7 @@ namespace GH_Toolkit_Core.MIDI
         private bool Gh3Plus = false;
         private bool MidiParsed = false;
         private bool WtExpertPlusPak = false;
+        // Basic GH definition
         public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "", string venueSource = "", bool rhythmTrack = false, bool overrideBeat = false, HopoType hopoType = 0, bool easyOpens = false, string skaPath = "", bool fromChart = false, bool gh3Plus = false)
         {
             Game = game;
@@ -210,6 +214,12 @@ namespace GH_Toolkit_Core.MIDI
                 Console.WriteLine("Using GH3+ parsing method");
             }
 
+            SetMidiInfo(midiPath);
+        }
+        // Basic RB definition
+        public SongQbFile(string midiPath, int hopoThreshold = 170)
+        {
+            HopoThreshold = hopoThreshold;
             SetMidiInfo(midiPath);
         }
         public SongQbFile(string songName,
@@ -406,27 +416,33 @@ namespace GH_Toolkit_Core.MIDI
                 }
             }
         }
-        public void ParseMidi()
+        private void ParseSongBasics()
+        {
+            SongTempoMap = SongMidiFile.GetTempoMap();
+            TrackChunks = SongMidiFile.GetTrackChunks();
+            GetTimeSigs(TrackChunks.First());
+            CalculateFretbars();
+        }
+        public void ParseMidiRB()
+        {
+            ParseSongBasics();
+        }
+        public void ParseMidiGH()
         {
             bool hasBass = false;
             bool hasRhythm = false;
             // Getting the tempo map to convert ticks to time
-            SongTempoMap = SongMidiFile.GetTempoMap();
-            var trackChunks = SongMidiFile.GetTrackChunks();
-            GetTimeSigs(trackChunks.First());
-            CalculateFretbars();
+            ParseSongBasics();
             ParseClipsAndAnims();
-            List<AnimNote>? drumAnimOverride = null;
-            List<AnimNote>? crowdOverride = null;
 
-            foreach (var trackChunk in trackChunks.Skip(1))
+            foreach (var trackChunk in TrackChunks.Skip(1))
             {
                 string trackName = GetTrackName(trackChunk);
                 switch (trackName)
                 {
                     case PARTDRUMS:
                         WriteUsedTrack(trackName);
-                        Drums.MakeInstrument(trackChunk, this, drums: true);
+                        Drums.MakeInstrumentGH(trackChunk, this, drums: true);
                         if (Drums.AnimNotes.Count > 0)
                         {
                             DrumsNotes = Drums.AnimNotes;
@@ -435,26 +451,26 @@ namespace GH_Toolkit_Core.MIDI
                         break;
                     case PARTBASS:
                         WriteUsedTrack(trackName);
-                        Rhythm.MakeInstrument(trackChunk, this);
+                        Rhythm.MakeInstrumentGH(trackChunk, this);
                         hasBass = true;
                         break;
                     case PARTGUITAR:
                         WriteUsedTrack(trackName);
-                        Guitar.MakeInstrument(trackChunk, this);
+                        Guitar.MakeInstrumentGH(trackChunk, this);
                         break;
                     case PARTGUITARCOOP:
                         WriteUsedTrack(trackName);
-                        GuitarCoop.MakeInstrument(trackChunk, this);
+                        GuitarCoop.MakeInstrumentGH(trackChunk, this);
                         break;
                     case PARTRHYTHM:
                         WriteUsedTrack(trackName);
-                        RhythmCoop.MakeInstrument(trackChunk, this);
+                        RhythmCoop.MakeInstrumentGH(trackChunk, this);
                         hasRhythm = true;
                         break;
                     case PARTAUX:
                         WriteUsedTrack(trackName);
                         NoAux = false;
-                        Aux.MakeInstrument(trackChunk, this);
+                        Aux.MakeInstrumentGH(trackChunk, this);
                         break;
                     case PARTVOCALS:
                         WriteUsedTrack(trackName);
@@ -476,11 +492,11 @@ namespace GH_Toolkit_Core.MIDI
                         break;
                     case DRUMS:
                         WriteUsedTrack(trackName);
-                        drumAnimOverride = makeOverride(trackChunk);
+                        DrumAnimOverride = makeOverride(trackChunk);
                         break;
                     case CROWD:
                         WriteUsedTrack(trackName);
-                        crowdOverride = makeOverride(trackChunk);
+                        CrowdOverride = makeOverride(trackChunk);
                         break;
                     case ANIMS:
                         WriteUsedTrack(trackName);
@@ -506,14 +522,14 @@ namespace GH_Toolkit_Core.MIDI
             {
                 
             }
-            if (drumAnimOverride != null)
+            if (DrumAnimOverride != null)
             {
-                DrumsNotes = drumAnimOverride;
+                DrumsNotes = DrumAnimOverride;
                 HasDrumAnims = true;
             }
-            if (crowdOverride != null)
+            if (CrowdOverride != null)
             {
-                CrowdNotes = crowdOverride;
+                CrowdNotes = CrowdOverride;
             }
             if (CamerasNotes == null || CamerasNotes.Count == 0)
             {
@@ -1721,12 +1737,12 @@ namespace GH_Toolkit_Core.MIDI
             
             if (WtExpertPlusPak)
             {
-                SongName = origSongName + "_expertplus"; // GHWT Expert Plus PAKs have a different name
+                SongName = origSongName + "X"; // GHWT Expert Plus PAKs have a different name
                 Drums.Expert.PlayNotes = Drums.Expert.ExPlusNotes; // Use the Expert Plus notes for GHWT;
             }
             if (!MidiParsed)
             {
-                ParseMidi();
+                ParseMidiGH();
             }
             var gameQb = MakeConsoleQb();
             if (WtExpertPlusPak)
@@ -1906,6 +1922,10 @@ namespace GH_Toolkit_Core.MIDI
                     marker.Text = $"\\L{marker.Text}";
                     markerEntry = marker.ToStructQs();
                     QsList.Add(marker.QsKeyString, $"\"{marker.Text}\"");
+                }
+                else if (marker.Text == "\\L_ENDOFSONG" && Game == GAME_GHWT)
+                {
+                    markerEntry = marker.ToStructQs();
                 }
                 else
                 {
@@ -3529,7 +3549,7 @@ namespace GH_Toolkit_Core.MIDI
                 }
                 return null;
             }
-            public void MakeInstrument(TrackChunk trackChunk, SongQbFile songQb, bool drums = false)
+            public void MakeInstrumentGH(TrackChunk trackChunk, SongQbFile songQb, bool drums = false)
             {
 
                 if (trackChunk == null || songQb == null)
