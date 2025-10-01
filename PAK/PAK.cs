@@ -758,6 +758,9 @@ namespace GH_Toolkit_Core.PAK
                     pakFileName = Regex.Replace(pakFileName, @"\\", "/");
                 }
                 if (debugFile)
+                {
+                    pakFileName = $"{entry.NameNoExt}.dbg{fileExt}";
+                }
                 var uri = new Uri(Path.Combine(NewFolderPath, pakFileName));
                 string saveName = uri.LocalPath;
 
@@ -921,7 +924,7 @@ namespace GH_Toolkit_Core.PAK
             {
                 get
                 {
-                    return Platform == CONSOLE_PS2 || Extension == CONSOLE_WII;
+                    return Platform == CONSOLE_PS2 || Platform == CONSOLE_WII;
                 }
             }
             public PakExtractor(string ext, string pakName)
@@ -1061,7 +1064,7 @@ namespace GH_Toolkit_Core.PAK
             {
                 ReadWrite reader = new ReadWrite(Endian);
                 Dictionary<uint, string> headers = DebugReader.MakeDictFromName(PakName);
-                
+
                 // Try once normally
                 try
                 {
@@ -1106,21 +1109,21 @@ namespace GH_Toolkit_Core.PAK
                         if (entry == null)
                             break;
 
-                            if (vramExts.Contains(entry.Extension) && Platform == CONSOLE_PS3 && !vram)
-                                continue;
+                        if (vramExts.Contains(entry.Extension) && Platform == CONSOLE_PS3 && !vram)
+                            continue;
 
-                            entry.EntryData = new byte[entry.FileSize];
-                            Array.Copy(pakBytes, entry.StartOffset, entry.EntryData, 0, entry.FileSize);
+                        entry.EntryData = new byte[entry.FileSize];
+                        Array.Copy(pakBytes, entry.StartOffset, entry.EntryData, 0, entry.FileSize);
 
-                            if (entry.FullName == "0x00000000.0x00000000")
-                                entry.FullName = entry.AssetContext;
+                        if (entry.FullName == "0x00000000.0x00000000")
+                            entry.FullName = entry.AssetContext;
 
-                            if (entry.FullName.IndexOf(entry.Extension, StringComparison.CurrentCultureIgnoreCase) == -1)
-                                GetCorrectExtension(entry);
+                        if (entry.FullName.IndexOf(entry.Extension, StringComparison.CurrentCultureIgnoreCase) == -1)
+                            GetCorrectExtension(entry);
 
-                            PakList.Add(entry);
-                        }
-                            }
+                        PakList.Add(entry);
+                    }
+                }
 
                 return PakList;
             }
