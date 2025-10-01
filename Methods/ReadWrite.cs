@@ -866,7 +866,12 @@ namespace GH_Toolkit_Core.Methods
                 case WORINTEGER:
                 case WORFLOAT:
                 case WORQBKEY:
+                case WORSTRING:
+                case WORWIDESTRING:
+                case WORVECTOR:
+                case WORPAIR:
                 case WORARRAY:
+                case WORSTRUCT:
                     return true;
             }
 
