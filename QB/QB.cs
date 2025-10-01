@@ -263,7 +263,8 @@ namespace GH_Toolkit_Core.QB
                     }
                     catch
                     {
-                        Type = QBKEY;
+                        throw new Exception($"Unknown struct type found: 0x{infoByte:X2}");
+                        //Type = QBKEY;
                     }
                 }
                 else
@@ -424,6 +425,7 @@ namespace GH_Toolkit_Core.QB
                 case SCRIPT:
                     return s => new QBScriptData(s);
                 case STRUCT:
+                case WORPOINTER:
                     return s => new QBStructData(s);
                 case STRING:
                     return ReadWrite.ReadUntilNullByte;
@@ -456,7 +458,13 @@ namespace GH_Toolkit_Core.QB
             {0x24, WORINTEGER },
             {0x25, WORFLOAT },
             {0x26, WORQBKEY },
-            {0x2C, WORARRAY }
+            {0x27, WORSTRING },
+            {0x28, WORWIDESTRING }, //Might also be QS Key
+            {0x29, WORVECTOR },
+            {0x2A, WORPAIR },
+            {0x2B, WORSTRUCT },
+            {0x2C, WORARRAY },
+            {0x2D, WORPOINTER } // Unknown at the moment. It's my best guess
 
         };
 
@@ -612,8 +620,23 @@ namespace GH_Toolkit_Core.QB
                 case WORQBKEY:
                     test = $"!q{itemString}";
                     break;
+                case WORSTRING:
+                    test = $"!r{itemString}";
+                    break;
+                case WORWIDESTRING:
+                    test = $"!w{itemString}";
+                    break;
+                case WORVECTOR:
+                    test = $"!v{itemString}";
+                    break;
+                case WORPAIR:
+                    test = $"!p{itemString}";
+                    break;
                 case WORARRAY:
                     test = $"!a{itemString}";
+                    break;
+                case WORSTRUCT:
+                    test = $"!s{itemString}";
                     break;
                 default:
                     throw new ArgumentException("Invalid string found.");
@@ -780,6 +803,7 @@ namespace GH_Toolkit_Core.QB
                 StringType = StringType.isString;
                 if (type == ARRAY) { Array = new QBArrayNode(); }
                 else if (type == STRUCT) { Struct = new QBStructData(); }
+                else if (type == WORPOINTER) { Struct = new QBStructData(); }
                 else if (type == SCRIPT) { Script = new QBScriptData(); }
             }
             public void SetStringType(StringType str)
@@ -809,7 +833,13 @@ namespace GH_Toolkit_Core.QB
                     "!i" => WORINTEGER,
                     "!f" => WORFLOAT,
                     "!q" => WORQBKEY,
+                    "!r" => WORSTRING,
+                    "!w" => WORWIDESTRING,
+                    "!v" => WORVECTOR,
+                    "!p" => WORPAIR,
                     "!a" => WORARRAY,
+                    "!s" => WORSTRUCT,
+                    "!t" => WORPOINTER,
                     _ => throw new ArgumentException("Invalid reference string found.")
                 },
                 var d when Regex.IsMatch(d, FloatPattern) => FLOAT,
@@ -832,22 +862,24 @@ namespace GH_Toolkit_Core.QB
                 case WIDESTRING:
                     return data;
                 case QBKEY:
-                case QSKEY:
                 case POINTER:
                     data = StripQbKeyQuotes(data);
                     if (type == POINTER && data.StartsWith("$"))
                     {
                         data = data.Substring(1);
                     }
-                    if (type == QSKEY)
-                    {
-                        return CRC.QBKeyQs(data);
-                    }
                     return CRC.QBKey(data);
+                case QSKEY:
+                    return CRC.QBKeyQs(data);
                 case WORINTEGER:
                 case WORFLOAT:
                 case WORQBKEY:
+                case WORSTRING:
+                case WORWIDESTRING:
+                case WORVECTOR:
+                case WORPAIR:
                 case WORARRAY:
+                case WORSTRUCT:
                     return int.Parse(data.Substring(2));
                 default:
                     throw new NotImplementedException("Not yet implemented");
@@ -1101,6 +1133,13 @@ namespace GH_Toolkit_Core.QB
                                 }
                                 continue;
                             }
+                            else if (c == '{' && tmpValue == "!t" && currLevel.LevelType != SCRIPT)
+                            {
+                                tmpValue = "";
+                                AddLevel(ref currLevel, ref currItem, ParseState.inStruct, WORPOINTER, ref tmpKey);
+                                continue;
+                            }
+
                             switch (c)
                             {
                                 case ',':
@@ -1216,7 +1255,7 @@ namespace GH_Toolkit_Core.QB
                                     }
                                     break;
                                 case '}':
-                                    if (currLevel.LevelType == STRUCT)
+                                    if (currLevel.LevelType == STRUCT || currLevel.LevelType == WORPOINTER)
                                     {
                                         StateSwitch(currLevel);
                                         AddParseItem(ref currLevel, ref currItem, qbFile, ref tmpKey, ref tmpValue, GetParseType(tmpValue));
@@ -1634,6 +1673,7 @@ namespace GH_Toolkit_Core.QB
                     currLevel.State = ParseState.inArray;
                     break;
                 case STRUCT:
+                case WORPOINTER:
                     currLevel.State = ParseState.inStruct;
                     break;
                 case SCRIPT:
@@ -1656,7 +1696,7 @@ namespace GH_Toolkit_Core.QB
             ref string tmpValue,
             string itemType)
         {
-            if (tmpKey == "" && tmpValue == "" && (itemType != WIDESTRING && itemType != STRING))
+            if (tmpKey == "" && tmpValue == "" && (itemType != WIDESTRING && itemType != STRING && itemType != QSKEY))
             {
                 return;
             }
@@ -1683,6 +1723,7 @@ namespace GH_Toolkit_Core.QB
                     currLevel.Array.AddParseToArray(tmpValue, itemType);
                     break;
                 case STRUCT:
+                case WORPOINTER:
                     if (tmpKey == "")
                     {
                         tmpKey = FLAGBYTE;
@@ -1697,7 +1738,7 @@ namespace GH_Toolkit_Core.QB
                     }
                     break;
                 default:
-                    throw new NotImplementedException();
+                    throw new NotImplementedException($"Level Type {currLevel.LevelType} is not implemented.");
             }
             ClearTmpValues(ref tmpKey, ref tmpValue);
         }
@@ -1797,7 +1838,7 @@ namespace GH_Toolkit_Core.QB
             {
                 currLevel.Parent.Array.AddArrayToArray(currLevel.Array);
             }
-            else if (currLevel.Parent.LevelType == STRUCT)
+            else if (currLevel.Parent.LevelType == STRUCT || currLevel.Parent.LevelType == WORPOINTER)
             {
                 currLevel.Parent.Struct.AddArrayToStruct(currLevel.Name, currLevel.Array);
             }
@@ -1823,7 +1864,7 @@ namespace GH_Toolkit_Core.QB
             }
             else if (currLevel.Parent.LevelType == STRUCT)
             {
-                currLevel.Parent.Struct.AddStructToStruct(currLevel.Name, currLevel.Struct);
+                currLevel.Parent.Struct.AddStructToStruct(currLevel.Name, currLevel.Struct, currLevel.LevelType == WORPOINTER);
             }
             else if (currLevel.Parent.LevelType == SCRIPT)
             {

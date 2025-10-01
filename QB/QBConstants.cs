@@ -32,7 +32,14 @@ namespace GH_Toolkit_Core.QB
         public const string WORINTEGER = "WoRInteger";
         public const string WORFLOAT = "WoRFloat";
         public const string WORQBKEY = "WoRQbKey";
+        public const string WORSTRING = "WoRString";
+        public const string WORWIDESTRING = "WoRWideString";
+        public const string WORVECTOR = "WoRVector";
+        public const string WORPAIR = "WoRPair";
+        public const string WORSTRUCT = "WoRStruct";
         public const string WORARRAY = "WoRArray";
+        public const string WORPOINTER = "WoRPointer";
+
 
         public const string SCRIPTKEY = "script";
 
@@ -167,6 +174,8 @@ namespace GH_Toolkit_Core.QB
         public const string LONGJUMP = "longjump";
         public const string SHORTJUMP = "shortjump";
         public const string NEXTGLOBAL = "nextglobal";
+
+        public const string NONE = "none";
 
         // Unknown Script Things
 

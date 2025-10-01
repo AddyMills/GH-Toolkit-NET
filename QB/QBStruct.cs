@@ -100,9 +100,16 @@ namespace GH_Toolkit_Core.QB
                 Props = new QBStructProps(key, value);
                 Data = Props.DataValue;
             }
-            public QBStructItem(string key, QBStructData value) // Struct
+            public QBStructItem(string key, QBStructData value, bool worData = false) // Struct
             {
-                Info = new QBStructInfo(STRUCT);
+                if (worData)
+                {
+                    Info = new QBStructInfo(WORPOINTER);
+                }
+                else
+                {
+                    Info = new QBStructInfo(STRUCT);
+                }
                 Props = new QBStructProps(key, value);
                 Data = Props.DataValue;
             }
@@ -236,9 +243,9 @@ namespace GH_Toolkit_Core.QB
                 var item = new QBStructItem(key, value);
                 Items.Add(item);
             }
-            public void AddStructToStruct(string key, QBStructData value)
+            public void AddStructToStruct(string key, QBStructData value, bool worData = false)
             {
-                var item = new QBStructItem(key, value);
+                var item = new QBStructItem(key, value, worData);
                 Items.Add(item);
             }
             public void AddFlagToStruct(string flag, string type)
@@ -398,7 +405,12 @@ namespace GH_Toolkit_Core.QB
                     }
                     else if (item.Data is QBStructData structNode)
                     {
-                        writer.WriteLine(indent + $"{key}{{");
+                        var specialWor = "";
+                        if (item.Info.Type == WORPOINTER)
+                        {
+                            specialWor = "!t";
+                        }
+                        writer.WriteLine(indent + $"{key}{specialWor}{{");
                         structNode.StructToText(writer, level + 1);
                         writer.WriteLine(indent + "}");
                     }
