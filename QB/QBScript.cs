@@ -408,6 +408,12 @@ namespace GH_Toolkit_Core.QB
                 }
                 //scriptPos--;
                 CaseNode? currCase = new CaseNode(CASE);
+                if (currItem == ENDSWITCH)
+                {
+                    currCase.Actions.Add(currItem);
+                    currCase.Type = NONE;
+                    scriptPos += 1;
+                }
                 while (currItem != ENDSWITCH)
                 {
                     object scriptItem = script[scriptPos];
@@ -468,10 +474,12 @@ namespace GH_Toolkit_Core.QB
                 {
                     CaseNode caseNode = Cases[i];
                     loopStart = 0;
+                    if (caseNode.Type != NONE)
+                    {
                     writer.ScriptStringParse(caseNode.Type, script, ref loopStart, noCrcStream, scriptStream);
                     writer.AddScriptToStream(SHORTJUMP_BYTE, noCrcStream, scriptStream);
                     writer.AddShortToStream((short)caseNode.JumpIfFalse, noCrcStream, scriptStream);
-
+                    }
 
                     long streamBytesStart = scriptStream.Position;
                     long crcBytesStart = noCrcStream.Position;
@@ -511,9 +519,13 @@ namespace GH_Toolkit_Core.QB
                     {
                         loopStart = 0;
                         CaseNode caseNode = Cases[i];
+                        if (caseNode.Type != NONE)
+                        {
                         writer.ScriptStringParse(caseNode.Type, script, ref loopStart, switchCrc, switchStream);
                         writer.AddScriptToStream(SHORTJUMP_BYTE, switchCrc, switchStream);
                         writer.AddShortToStream((short)caseNode.JumpIfFalse, switchCrc, switchStream);
+                        }
+                        
                         writer.WriteNoFlipBytes(switchCrc, caseNode.CrcBytes);
                         writer.WriteNoFlipBytes(switchStream, caseNode.ScriptBytes);
                         if (caseNode.CasesLeft > 0)
