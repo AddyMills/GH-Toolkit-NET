@@ -33,7 +33,7 @@ namespace GH_Toolkit_Core.Methods
             public string Artist { get; set; } = "";
             public string ArtistTextSelect { get; set; } = "";
             public string ArtistTextCustom { get; set; } = "";
-            public string AlbumTitle { get; set; } = "If you find this text... Hi!";
+            public string AlbumTitle { get; set; } = "";
             public int? Year { get; set; }
             public string CoverArtist { get; set; } = "";
             public int? CoverYear { get; set; }
@@ -208,6 +208,10 @@ namespace GH_Toolkit_Core.Methods
                 if (!string.IsNullOrEmpty(ChartAuthor))
                 {
                     entry.AddVarToStruct("charter", ChartAuthor, pString);
+                }
+                if (!string.IsNullOrEmpty(AlbumTitle))
+                {
+                    entry.AddVarToStruct("album_title", AlbumTitle, pString);
                 }
                 return entry;
             }
