@@ -64,6 +64,13 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DrainSimulator", "..\StarPo
 		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RB_MIDI_Checker", "..\RB_MIDI_Checker\RB_MIDI_Checker.csproj", "{190177DE-2D96-410C-BC7F-EA9F7C658AF7}"
+	ProjectSection(ProjectDependencies) = postProject
+		{C2E443D5-E121-4CD5-99B9-003838FA85E5} = {C2E443D5-E121-4CD5-99B9-003838FA85E5}
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRCHexChecker", "..\CRCHexChecker\CRCHexChecker.csproj", "{84EF349A-1C49-4074-AE0A-4824075AEBB4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -146,6 +153,14 @@ Global
 		{870CAF54-DA61-4DC9-B28E-72EDB1FEC966}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{870CAF54-DA61-4DC9-B28E-72EDB1FEC966}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{870CAF54-DA61-4DC9-B28E-72EDB1FEC966}.Release|Any CPU.Build.0 = Release|Any CPU
+		{190177DE-2D96-410C-BC7F-EA9F7C658AF7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{190177DE-2D96-410C-BC7F-EA9F7C658AF7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{190177DE-2D96-410C-BC7F-EA9F7C658AF7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{190177DE-2D96-410C-BC7F-EA9F7C658AF7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{84EF349A-1C49-4074-AE0A-4824075AEBB4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{84EF349A-1C49-4074-AE0A-4824075AEBB4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{84EF349A-1C49-4074-AE0A-4824075AEBB4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{84EF349A-1C49-4074-AE0A-4824075AEBB4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
