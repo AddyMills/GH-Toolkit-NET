@@ -96,7 +96,13 @@ namespace GH_Toolkit_Core.Checksum
             byte[] textBytes = Encoding.Unicode.GetBytes(text);
 
             string hexString = GenQBKey(textBytes, out uint checksumInt);
-            
+            if (hexString == "0xffffffff")
+            {
+                // Special case. Although an empty string would result in -1
+                // Neversoft had it set to 0
+                hexString = "0x00000000";
+                checksumInt = 0;
+            }
             // Use a lock to ensure thread safety when accessing the dictionary
             lock (DebugReader.QsDbgLock) // Add a static object in DebugReader for locking
             {
@@ -137,7 +143,144 @@ namespace GH_Toolkit_Core.Checksum
 
             return hexString;
         }
+        public static byte[] MakeHexBytes(string hexString)
+        {
+            // Remove all whitespace, and 
+            hexString = hexString.Replace(" ", "").Replace("\n", "").Replace("\r", "").Replace("\t", "");
+            // split the string into a byte array
+            byte[] bytes = new byte[hexString.Length / 2];
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                bytes[i] = Convert.ToByte(hexString.Substring(i * 2, 2), 16);
+            }
+            return bytes;
+        }
+        public static string QBKeyFromHexString(string hexString)
+        {
+            byte[] bytes = MakeHexBytes(hexString);
+            return GenQBKey(bytes, out uint checksumInt);
+        }
+        /// <summary>
+        /// Attempts to brute-force by removing bytes from the input until GenQBKey produces the target checksum.
+        /// </summary>
+        /// <param name="original">Original input bytes.</param>
+        /// <param name="targetChecksum">Checksum string you want to match.</param>
+        /// <param name="genQBKey">Function that computes checksum string from a byte[] (your GenQBKey wrapper).</param>
+        /// <param name="maxRemovals">Maximum number of bytes to remove in combination (1..maxRemovals will be tried).</param>
+        /// <param name="maxAttempts">Optional hard limit on how many candidate arrays to test (avoid infinite/huge runs).</param>
+        /// <param name="progressCallback">Optional callback invoked periodically with number of attempts completed.</param>
+        /// <returns>
+        /// Tuple: (ResultingBytes, RemovedIndices). If no solution found, ResultingBytes is null.
+        /// RemovedIndices is the indices in the original array that were removed (ascending).
+        /// </returns>
+        public static (byte[] Result, int[] RemovedIndices) BruteForceRemoveBytes(
+            byte[] original,
+            string targetChecksum,
+            Func<byte[], string> genQBKey,
+            int maxRemovals = 4,
+            long maxAttempts = long.MaxValue,
+            Action<long> progressCallback = null)
+        {
+            if (original == null) throw new ArgumentNullException(nameof(original));
+            if (genQBKey == null) throw new ArgumentNullException(nameof(genQBKey));
+            if (maxRemovals < 1) throw new ArgumentOutOfRangeException(nameof(maxRemovals));
 
+            int n = original.Length;
+
+            // Quick direct check
+            string originalChecksum = genQBKey(original);
+            if (string.Equals(originalChecksum, targetChecksum, StringComparison.Ordinal))
+                return (original, Array.Empty<int>());
+
+            long attempts = 0;
+            // For k = number of bytes to remove
+            for (int k = 1; k <= Math.Min(maxRemovals, n); k++)
+            {
+                // initialize the first combination: [0,1,2,...,k-1] (these are indices to remove)
+                int[] comb = new int[k];
+                for (int i = 0; i < k; i++) comb[i] = i;
+
+                bool done = false;
+                while (!done)
+                {
+                    // Build candidate by skipping indices in comb (comb is sorted ascending)
+                    byte[] candidate = new byte[n - k];
+                    int dest = 0;
+                    int nextRemovePos = 0;
+                    int nextRemoveIdx = (k > 0) ? comb[0] : -1;
+
+                    for (int src = 0; src < n; src++)
+                    {
+                        if (src == nextRemoveIdx)
+                        {
+                            // skip this byte
+                            nextRemovePos++;
+                            nextRemoveIdx = (nextRemovePos < k) ? comb[nextRemovePos] : -1;
+                        }
+                        else
+                        {
+                            candidate[dest++] = original[src];
+                        }
+                    }
+
+                    // call the checksum function
+                    attempts++;
+                    if (attempts % 1000 == 0)
+                    {
+                        progressCallback?.Invoke(attempts);
+                    }
+
+                    string cs = genQBKey(candidate);
+                    if (string.Equals(cs, targetChecksum, StringComparison.Ordinal))
+                    {
+                        // Found it — return candidate and removed indices
+                        return (candidate, (int[])comb.Clone());
+                    }
+
+                    if (attempts >= maxAttempts)
+                    {
+                        return (null, null); // hit the attempt limit
+                    }
+
+                    // generate next combination (lexicographic)
+                    int iPos = k - 1;
+                    while (iPos >= 0 && comb[iPos] == iPos + n - k) iPos--;
+                    if (iPos < 0)
+                    {
+                        done = true; // finished all combinations of this k
+                    }
+                    else
+                    {
+                        comb[iPos]++;
+                        for (int j = iPos + 1; j < k; j++)
+                            comb[j] = comb[j - 1] + 1;
+                    }
+                } // while combinations for k
+            } // for k
+
+            // nothing found
+            return (null, null);
+        }
+
+        public static (byte[] Result, int[] RemovedIndices) BruteForce(
+            byte[] original,
+            string targetChecksum,
+            int maxRemovals = 4,
+            long maxAttempts = long.MaxValue,
+            Action<long> progressCallback = null)
+        {
+            return BruteForceRemoveBytes(original, targetChecksum, GenQBKey, maxRemovals, maxAttempts, progressCallback);
+        }
+        public static string GenQBKey(byte[] textBytes)
+        {
+            uint checksumInt = GenQBKeyUInt(textBytes);
+            string result = checksumInt.ToString("x8");
+
+            // Pad to 8 characters
+            result = result.PadLeft(8, '0');
+            result = "0x" + result;
+            return result;
+        }
         public static string GenQBKey(byte[] textBytes, out uint checksumInt)
         {
             checksumInt = GenQBKeyUInt(textBytes);
