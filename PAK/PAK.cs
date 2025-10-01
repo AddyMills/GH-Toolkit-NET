@@ -2098,7 +2098,7 @@ namespace GH_Toolkit_Core.PAK
             string? xplusPakPath = null;
             if (midQb_xplus != null)
             {
-                string xplusSongName = songName + "_expertplus";
+                string xplusSongName = songName + "X";
                 xplusPakPath = CreatePakForMidiData(
                     savePath,
                     xplusSongName,
