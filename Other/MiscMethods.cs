@@ -69,7 +69,7 @@ namespace GH_Toolkit_Core.Other
             {
                 var filename = Path.GetFileNameWithoutExtension(folderPath);
                 var midiConvert = new SongQbFile(folderPath, filename);
-                midiConvert.ParseMidi();
+                midiConvert.ParseMidiGH();
                 midiConvert.CalculateBaseScore();
             }
 
