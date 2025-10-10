@@ -416,6 +416,16 @@ namespace GH_Toolkit_Core.MIDI
                 }
             }
         }
+        public void GetAllErrors()
+        {
+            Console.WriteLine("Guitar:");
+            Guitar.CheckBadInstrumentData();
+            Console.WriteLine("Rhythm:");
+            Rhythm.CheckBadInstrumentData();
+            /*
+            Console.WriteLine("Drums:");
+            Drums.CheckBadInstrumentData();*/
+        }
         private void ParseSongBasics()
         {
             SongTempoMap = SongMidiFile.GetTempoMap();
@@ -3549,6 +3559,70 @@ namespace GH_Toolkit_Core.MIDI
                 }
                 return null;
             }
+            public void CheckBadInstrumentData()
+            {
+                List<string> duplicates = new List<string>();
+                foreach (var diff in new[] { Easy, Medium, Hard, Expert })
+                {
+                    Dictionary<int, List<PlayNote>> duplicateDiff = new Dictionary<int, List<PlayNote>>();
+                    int prevTime = -500;
+                    if (diff.PlayNotes != null)
+                    {
+                        foreach (var note in diff.PlayNotes)
+                        {
+                            // Hidden Notes
+                            if (note.Note == 0)
+                            {
+                                TimeSpan time = TimeSpan.FromMilliseconds(note.Time);
+                                string formatted = string.Format("{0:D2}:{1:D2}.{2:D3}",
+                                    time.Minutes,
+                                    time.Seconds,
+                                    time.Milliseconds);
+                                _songQb.AddToErrorList($"{diff.diffName.ToUpper()}: Empty note at {formatted} in chart");
+                            }
+                            
+                            // Duplicate Notes
+                            if (!duplicateDiff.ContainsKey(note.Time))
+                            {
+                                duplicateDiff[note.Time] = [note];
+                            }
+                            else
+                            {
+                                duplicateDiff[note.Time].Add(note);
+                            }
+                            var prevDiff = Math.Abs(note.Time - prevTime);
+                            if (prevDiff < 16 && prevDiff != 0)
+                            {
+                                // 16ms is the smallest time difference possible
+                                duplicateDiff[prevTime].Add(note);
+                            }
+                            prevTime = note.Time;
+                        }
+                        foreach (var key in duplicateDiff.Keys)
+                        {
+                            if (duplicateDiff[key].Count > 1)
+                            {
+                                var sb = new StringBuilder();
+                                var value = duplicateDiff[key];
+                                sb.Append($"{diff.diffName}, ");
+                                for (int i = 0; i < value.Count; i++)
+                                {
+                                    var note2 = value[i];
+                                    var keyTime = TimeSpan.FromMilliseconds(note2.Time).ToString(@"mm\:ss\.fff");
+                                    sb.Append($"{keyTime}, ");
+                                    sb.Append($"{note2.NoteColor}, {note2.Length}");
+                                    if (i < value.Count - 1)
+                                    {
+                                        sb.Append(", ");
+                                    }
+                                }
+                                _songQb.AddToErrorList(sb.ToString());
+                            }
+                        }
+                    }
+                }
+
+            }
             public void MakeInstrumentGH(TrackChunk trackChunk, SongQbFile songQb, bool drums = false)
             {
 
@@ -4010,6 +4084,7 @@ namespace GH_Toolkit_Core.MIDI
                     }
                 }
             }
+            
 
             public ((int baseScore, int simScore) easy, (int baseScore, int simScore) medium, (int baseScore, int simScore) hard, (int baseScore, int simScore) expert) GetBaseScore(List<int> fretbars)
             {

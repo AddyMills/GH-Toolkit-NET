@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using GH_Toolkit_Core.MIDI;
@@ -72,8 +73,22 @@ namespace GH_Toolkit_Core.Other
                 midiConvert.ParseMidiGH();
                 midiConvert.CalculateBaseScore();
             }
-
-
+        }
+        public static void CheckForErrors(string folderPath)
+        {
+            string[]? filePaths = GetAllPaks(folderPath);
+            foreach (string file in filePaths)
+            {
+                var songData = SongQbFile.TokenizePak(file);
+                songData.GetAllErrors();
+                var errors = songData.GetErrorListAsString();
+                if (string.IsNullOrWhiteSpace(errors))
+                {
+                    continue;
+                }
+                Console.WriteLine($"Errors for {songData.SongName}:");
+                Console.WriteLine(errors);
+            }
         }
     }
 }
