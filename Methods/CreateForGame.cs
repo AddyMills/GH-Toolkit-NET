@@ -469,10 +469,42 @@ namespace GH_Toolkit_Core.Methods
         
         public static (PakEntry, Dictionary<string, QBItem>, QBArrayNode, QBStructData) GetSongListPak(Dictionary<string, PakEntry> qbPak)
         {
-            var songList = qbPak[songlistRef];
+            string songlistString;
+            string songlistArray;
+            string songlistProps;
+            // TODO: Fix this for GHA
+            if (qbPak.TryGetValue(songlistRef, out _))
+            {
+                songlistString = songlistRef;
+                songlistArray = gh3Songlist;
+                songlistProps = permanentProps;
+            }
+            else
+            {
+                songlistString = customsSonglistRef;
+                songlistArray = downloadSonglist;
+                songlistProps = downloadProps;
+            }
+            PakEntry? songList = null;
+            try
+            {
+                songList = qbPak[songlistString];
+            }
+            catch (KeyNotFoundException)
+            {
+                try
+                {
+                    songList = qbPak[QBKey(songlistString)];
+                }
+                catch (KeyNotFoundException)
+                {
+                    throw new Exception($"Song list entry not found: {songlistString}");
+                }
+            }
+             
             var songListEntries = QbEntryDictFromBytes(songList.EntryData, "big");
-            var dlSongList = songListEntries[gh3Songlist].Data as QBArrayNode;
-            var dlSongListProps = songListEntries[permanentProps].Data as QBStructData;
+            var dlSongList = songListEntries[songlistArray].Data as QBArrayNode;
+            var dlSongListProps = songListEntries[songlistProps].Data as QBStructData;
             return (songList, songListEntries, dlSongList, dlSongListProps);
         }
 
@@ -483,13 +515,33 @@ namespace GH_Toolkit_Core.Methods
             var downloadlist = downloadQbEntries[gh3DownloadSongs].Data as QBStructData;
             return (downloadQb, downloadQbEntries, downloadlist);
         }
-        public static (byte[] pakData, byte[] pabData) AddToDownloadList(string qbPakLocation, string platform, List<QBStructData> songListEntry)
+        
+        public static (byte[] pakData, byte[] pabData) AddToDownloadList(string qbPakLocation, string platform, List<QBStructData> songListEntry, string game = GAME_GH3)
         {
-            var pakCompiler = new PakCompiler(GAME_GH3, platform, split: true);
+            if (!Path.Exists(qbPakLocation))
+            {
+                throw new FileNotFoundException("The Customs PAK file was not found at the specified location.");
+            }
+            bool splitPak = game == GAME_GH3? false: true;
+            var pakCompiler = new PakCompiler(GAME_GH3, platform, split: splitPak);
             var qbPak = PakEntryDictFromFile(qbPakLocation);
             var (songList, songListEntries, dlSongList, dlSongListProps) = GetSongListPak(qbPak);
 
-            var (downloadQb, downloadQbEntries, downloadlist) = GetDownloadPak(qbPak);
+            PakEntry? downloadQb;
+            Dictionary<string, QBItem>? downloadQbEntries;
+            QBStructData downloadlist;
+
+            if (songListEntries.TryGetValue(gh3DownloadSongs, out QBItem dlSongs))
+            {
+                downloadQb = null;
+                downloadQbEntries = null;
+                downloadlist = dlSongs.Data as QBStructData;
+            }
+            else
+            {
+                (downloadQb, downloadQbEntries, downloadlist) = GetDownloadPak(qbPak);
+            }
+            
             var tier1 = downloadlist["tier1"] as QBStructData;
             var songArray = tier1["songs"] as QBArrayNode;
 
@@ -510,15 +562,23 @@ namespace GH_Toolkit_Core.Methods
                 if (songArray.GetItemIndex(checksum, QBKEY) == -1)
                 {
                     songArray.AddQbkeyToArray(checksum);
-                    tier1["defaultunlocked"] = songArray.Items.Count;
+                    if (downloadQb != null)
+                    {
+                        tier1["defaultunlocked"] = songArray.Items.Count;
+                    }
                 }
             }
 
-            byte[] songlistBytes = CompileQbFromDict(songListEntries, songlistRef,  GAME_GH3, platform);
+            var qbName = downloadQb == null ? customsSonglistRef : songlistRef;
+            byte[] songlistBytes = CompileQbFromDict(songListEntries, qbName,  GAME_GH3, platform);
             songList.OverwriteData(songlistBytes);
            
-            byte[] downloadQbBytes = CompileQbFromDict(downloadQbEntries, downloadRef, GAME_GH3, platform);
-            downloadQb.OverwriteData(downloadQbBytes);
+            if (downloadQb != null && downloadQbEntries != null)
+            {
+                byte[] downloadQbBytes = CompileQbFromDict(downloadQbEntries, downloadRef, GAME_GH3, platform);
+                downloadQb.OverwriteData(downloadQbBytes);
+            }
+                        
 
             var (pakData, pabData) = pakCompiler.CompilePakFromDictionary(qbPak);
             return (pakData, pabData);
@@ -527,11 +587,19 @@ namespace GH_Toolkit_Core.Methods
         {
             if (!File.Exists(pakLocation))
             {
-                throw new FileNotFoundException("The QB.PAK file was not found at the specified location.");
+                throw new FileNotFoundException($"The split PAK file was not found at the specified location: {pakLocation}");
             }
             string pabLocation = pakLocation.Replace(DOT_PAK + dotX, DOT_PAB + dotX);
             File.WriteAllBytes(pakLocation, pakData);
             File.WriteAllBytes(pabLocation, pabData);
+        }
+        public static void OverwritePak(string pakLocation, byte[] pakData, string dotX = DOTXEN)
+        {
+            if (!File.Exists(pakLocation))
+            {
+                throw new FileNotFoundException($"The PAK file was not found at the specified location: {pakLocation}");
+            }
+            File.WriteAllBytes(pakLocation, pakData);
         }
         public static void CreateConsoleDownloadFilesGh3(uint checksum, string game, string platform, string compilePath, string resources, List<QBStruct.QBStructData> songListEntry, string? checksumOverride = null)
         {
