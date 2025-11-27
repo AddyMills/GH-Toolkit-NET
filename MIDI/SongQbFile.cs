@@ -190,6 +190,19 @@ namespace GH_Toolkit_Core.MIDI
         private bool Gh3Plus = false;
         private bool MidiParsed = false;
         private bool WtExpertPlusPak = false;
+        private int BeatTime { get {
+                try // Duration of first beat
+                {
+                    return Fretbars[1] - Fretbars[0];
+                }
+                catch
+                {
+                    return 0;
+                }
+            } 
+        } 
+        private float SustainThreshold => BeatTime / 2.0f;    // Threshold for sustain notes (half beat)
+        private float SustainTicks => TPB / 4;  // Threshold for sustain notes in ticks (16th note)
         // Basic GH definition
         public SongQbFile(string midiPath, string songName, string game = GAME_GH3, string console = CONSOLE_XBOX, int hopoThreshold = 170, string perfOverride = "", string songScriptOverride = "", string venueSource = "", bool rhythmTrack = false, bool overrideBeat = false, HopoType hopoType = 0, bool easyOpens = false, string skaPath = "", bool fromChart = false, bool gh3Plus = false)
         {
@@ -339,6 +352,7 @@ namespace GH_Toolkit_Core.MIDI
         }
         private string GetMeasureBeatTick(double errorMs)
         {
+            // TODO: Change this to use BarBeatTicksTimeSpan in DryWetMidi
             var fretbarTime = GetClosestIntFromList((int)Math.Round(errorMs), Fretbars);
             var fretbarIndex = Fretbars.IndexOf(fretbarTime);
             if (fretbarTime > errorMs)
@@ -5006,6 +5020,8 @@ namespace GH_Toolkit_Core.MIDI
                     length = 10; // This is a 1/128th note at 200bpm. Definitely small enough to not overlap even the fastest of notes
                 }
                 PlayNote currNote = new PlayNote(startTime, noteVal, length);
+                currNote.TickTime = currTime;
+                currNote.TickLength = notes.Length;
                 switch (HopoMethod)
                 {
                     case HopoType.RB:
@@ -5050,8 +5066,8 @@ namespace GH_Toolkit_Core.MIDI
             }
             if (Game == GAME_GH3 || Game == GAME_GHA)
             {
-                // Make method to make sure notes do not overlap
-                FixOverlappingNotes(noteList);
+                // Make method to make sure notes do not overlap and optionally extends lengths for GH3
+                FixNoteLengths(noteList);
             }
             else
             {
@@ -5060,7 +5076,7 @@ namespace GH_Toolkit_Core.MIDI
             }
             return noteList;
         }
-        private void FixOverlappingNotes(List<PlayNote> notes)
+        private void FixNoteLengths(List<PlayNote> notes)
         {
             for (int i = 0; i < notes.Count; i++)
             {
@@ -5076,7 +5092,25 @@ namespace GH_Toolkit_Core.MIDI
                     // to end at the start of the first contained note
                     currNote.Length = containedNotes[0].Time - currNote.Time;
                 }
+                try
+                {
+                    // Because GH3/A shortens sustains, this will lengthen them if the next note is close enough
+                    var nextNote = notes[i + 1];
+                    if (currNote.TickLength <= SustainTicks)
+                    {
+                        continue;
+                    }
+                    if (nextNote.Time - (currNote.Time + currNote.Length) <= SustainThreshold)
+                    {
+                        var newLength = nextNote.Time - currNote.Time;
+                        currNote.Length = newLength;
+                    }
+                }
+                catch
+                {
+                    continue;
             }
+        }
         }
         private void MakeExtendedNotes(List<PlayNote> notes)
         {
@@ -6613,6 +6647,8 @@ namespace GH_Toolkit_Core.MIDI
             public bool IsHopo { get; set; } // A natural Hopo from being within a certain distance of another note
             public bool IsForcedGh3 { get; set; } // A forced note. It flips whatever the note is currently. Should only be set if reading GH3 notes
             public string Type { get; set; }
+            public long TickTime { get; set; }
+            public long TickLength { get; set; }
 
             // Property to get color name
             public string NoteColor
