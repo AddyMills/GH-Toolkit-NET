@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../FFMpegCore" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../FileComparer" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../GH-Toolkit-GUI" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../MIDITester" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../PAK-Manipulator" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../PS2ArchiveExplorer" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../Pak-Compiler" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../Pak-Extractor" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../PopstarConverter" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../QBDecompiler" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../QBKey-Gen" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../QBRecompiler" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../ScriptTester" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../StarPowerSimulator" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../WAD-Compiler" vcs="Git" />
+  </component>
+</project>
