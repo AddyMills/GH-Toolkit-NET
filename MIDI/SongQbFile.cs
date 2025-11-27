@@ -1198,9 +1198,9 @@ namespace GH_Toolkit_Core.MIDI
             byte comp1 = 0;
             byte comp2 = 0;
 
-            if (RhythmCoop.Expert.PlayNotes.Count != 0)
+            if (RhythmCoop.Expert.PlayNotes?.Count > 0)
             {
-                newAux = Rhythm.Expert.PlayNotes.Count != 0 ? Rhythm : RhythmCoop;
+                newAux = Rhythm.Expert.PlayNotes?.Count > 0 ? Rhythm : RhythmCoop;
                 animMod = 1;
                 comp1 = 101;
                 comp2 = 110;
@@ -1213,7 +1213,7 @@ namespace GH_Toolkit_Core.MIDI
                 comp2 = 127;
             }
             List<AnimNote> newAuxNotes = new List<AnimNote>();
-            if (newAux.AnimNotes.Count == 0 && AnimNotes.Count != 0) // Implying this is a q file convert
+            if (newAux.AnimNotes.Count == 0 && AnimNotes?.Count > 0) // Implying this is a q file convert
             {
                 foreach (AnimNote note in AnimNotes)
                 {
