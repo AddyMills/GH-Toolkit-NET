@@ -15,18 +15,18 @@ namespace GH_Toolkit_Core.Debug
 {
     public class DebugReader : IDisposable
     {
-        public static readonly object ChecksumDbgLock = new object();
-        public static readonly object QsDbgLock = new object();
-        public static Dictionary<uint, string> ChecksumDbg { get; private set; }
-        public static Dictionary<uint, string> QsDbg { get; private set; }
-        public static Dictionary<uint, string> QsDbgF { get; private set; }
-        public static Dictionary<uint, string> QsDbgG { get; private set; }
-        public static Dictionary<uint, string> QsDbgI { get; private set; }
-        public static Dictionary<uint, string> QsDbgS { get; private set; }
-        public static Dictionary<string, uint> Ps2PakDbg { get; private set; }
+        private static readonly Lazy<DebugData> _data = new(() => new DebugData());
 
-        private static StreamWriter _qbUserWriter;
-        private static StreamWriter _qsUserWriter;
+        public static readonly object ChecksumDbgLock = new();
+        public static readonly object QsDbgLock = new();
+
+        public static Dictionary<uint, string> ChecksumDbg => _data.Value.ChecksumDbg;
+        public static Dictionary<uint, string> QsDbg => _data.Value.QsDbg;
+        public static Dictionary<uint, string> QsDbgF => _data.Value.QsDbgF;
+        public static Dictionary<uint, string> QsDbgG => _data.Value.QsDbgG;
+        public static Dictionary<uint, string> QsDbgI => _data.Value.QsDbgI;
+        public static Dictionary<uint, string> QsDbgS => _data.Value.QsDbgS;
+        public static Dictionary<string, uint> Ps2PakDbg => _data.Value.Ps2PakDbg;
 
         public enum QsDict
         {
@@ -36,144 +36,213 @@ namespace GH_Toolkit_Core.Debug
             It = 3,
             Es = 4
         }
-
-        static DebugReader()
+        private class DebugData : IDisposable
         {
-            ChecksumDbg = ReadQBDebug();
-            QsDbg = ReadQSDebug();
-            QsDbgF = ReadQSDebug("_f");
-            QsDbgG = ReadQSDebug("_g");
-            QsDbgI = ReadQSDebug("_i");
-            QsDbgS = ReadQSDebug("_s");
-            Ps2PakDbg = ReadPs2PakDbg();
-            InitializeWriters();
-        }
+            public Dictionary<uint, string> ChecksumDbg { get; }
+            public Dictionary<uint, string> QsDbg { get; }
+            public Dictionary<uint, string> QsDbgF { get; }
+            public Dictionary<uint, string> QsDbgG { get; }
+            public Dictionary<uint, string> QsDbgI { get; }
+            public Dictionary<uint, string> QsDbgS { get; }
+            public Dictionary<string, uint> Ps2PakDbg { get; }
 
-        private static void InitializeWriters()
-        {
-            var rootFolder = ExeRootFolder;
-            var qbDebugFolder = Path.Combine(rootFolder, "QBDebug");
-            Directory.CreateDirectory(qbDebugFolder); // Ensures directory exists
+            public StreamWriter QbUserWriter { get; }
+            public StreamWriter QsUserWriter { get; }
 
-            var userDbgPath = Path.Combine(qbDebugFolder, "keys_user.txt");
-            var qsUserDbgPath = Path.Combine(qbDebugFolder, "keys_qs_user.txt");
-
-            // Initialize StreamWriters with append mode and AutoFlush
-            _qbUserWriter = new StreamWriter(userDbgPath, true, Encoding.UTF8) { AutoFlush = true };
-            _qsUserWriter = new StreamWriter(qsUserDbgPath, true, Encoding.UTF8) { AutoFlush = true };
-        }
-        static Dictionary<string, uint> ReadPs2PakDbg()
-        {
-            var funcDict = new Dictionary<string, uint>();
-            var rootFolder = ExeRootFolder;
-            var compressedPath = Path.Combine(rootFolder, "QBDebug", "PS2Pak.dbg");
-            var dbgPath = Path.Combine(rootFolder, "QBDebug", "ps2pak.txt");
-            if (Path.Exists(compressedPath))
+            public DebugData()
             {
-                DecompressToFile(compressedPath, dbgPath);
+                // Load dictionaries
+                ChecksumDbg = ReadQBDebug();
+                QsDbg = ReadQSDebug();
+                QsDbgF = ReadQSDebug("_f");
+                QsDbgG = ReadQSDebug("_g");
+                QsDbgI = ReadQSDebug("_i");
+                QsDbgS = ReadQSDebug("_s");
+                Ps2PakDbg = ReadPs2PakDbg();
+
+                // Prepare user writers
+                var folder = Path.Combine(ExeRootFolder, "QBDebug");
+                Directory.CreateDirectory(folder);
+
+                QbUserWriter = new StreamWriter(Path.Combine(folder, "keys_user.txt"), true, Encoding.UTF8) { AutoFlush = true };
+                QsUserWriter = new StreamWriter(Path.Combine(folder, "keys_qs_user.txt"), true, Encoding.UTF8) { AutoFlush = true };
             }
+
+            public void Dispose()
+            {
+                QbUserWriter?.Dispose();
+                QsUserWriter?.Dispose();
+            }
+        }
+
+        // --------------------------
+        // File Readers
+        // --------------------------
+
+        private static Dictionary<uint, string> ReadQBDebug()
+        {
+            try
+            {
+                string folder = Path.Combine(ExeRootFolder, "QBDebug");
+                string dbg = Path.Combine(folder, "keys.txt");
+                string user = Path.Combine(folder, "keys_user.txt");
+
+                var lines = File.Exists(dbg)
+                    ? File.ReadAllLines(dbg)
+                    : Array.Empty<string>();
+
+                if (File.Exists(user))
+                    lines = lines.Concat(File.ReadAllLines(user)).ToArray();
+
+                var dict = new Dictionary<uint, string>();
+                foreach (var line in lines)
+                {
+                    var parts = line.Split('\t');
+                    if (parts.Length != 2) continue;
+
+                    if (uint.TryParse(parts[0].Replace("0x", string.Empty), NumberStyles.HexNumber, null, out var key))
+                        dict[key] = parts[1];
+                }
+
+                return dict;
+            }
+            catch
+            {
+                return new Dictionary<uint, string>();
+            }
+        }
+
+        private static Dictionary<uint, string> ReadQSDebug(string suffix = "")
+        {
+            try
+            {
+                string folder = Path.Combine(ExeRootFolder, "QBDebug");
+                string dbg = Path.Combine(folder, $"keys_qs{suffix}.txt");
+                string user = Path.Combine(folder, $"keys_qs_user{suffix}.txt");
+
+                var lines = File.Exists(dbg)
+                    ? File.ReadAllLines(dbg, Encoding.BigEndianUnicode)
+                    : Array.Empty<string>();
+
+                if (File.Exists(user))
+                    lines = lines.Concat(File.ReadAllLines(user)).ToArray();
+
+                var dict = new Dictionary<uint, string>();
+                foreach (var line in lines)
+                {
+                    var parts = line.Split('\t');
+                    if (parts.Length != 2) continue;
+
+                    if (uint.TryParse(parts[0].Replace("0x", string.Empty), NumberStyles.HexNumber, null, out var key))
+                        dict[key] = parts[1];
+                }
+
+                return dict;
+            }
+            catch
+            {
+                return new Dictionary<uint, string>();
+            }
+        }
+
+        private static Dictionary<string, uint> ReadPs2PakDbg()
+        {
+            var dict = new Dictionary<string, uint>();
+            string folder = Path.Combine(ExeRootFolder, "QBDebug");
+
+            string compressed = Path.Combine(folder, "PS2Pak.dbg");
+            string output = Path.Combine(folder, "ps2pak.txt");
 
             try
             {
-                var textLines = File.ReadAllLines(dbgPath);
+                if (File.Exists(compressed))
+                    DecompressToFile(compressed, output);
 
-                foreach (var line in textLines)
+                if (!File.Exists(output))
+                    return dict;
+
+                foreach (var line in File.ReadAllLines(output))
                 {
-                    var newLine = line.TrimEnd('\n').Split(new[] { '\t' }, 2);
+                    var parts = line.Split('\t');
+                    if (parts.Length != 2) continue;
 
-                    if (newLine.Length != 2) continue;
-
-                    try
-                    {
-                        var key = newLine[1];//.Replace("\"", "");
-                        var value = Convert.ToUInt32(newLine[0], 16);
-                        funcDict[key] = value;
-                    }
-                    catch
-                    {
-                        // If an exception occurs, ignore and continue processing the next line.
-                    }
+                    if (uint.TryParse(parts[0].Replace("0x", string.Empty), NumberStyles.HexNumber, null, out var val))
+                        dict[parts[1]] = val;
                 }
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error reading or processing the file: {ex.Message}");
-            }
-            if (Path.Exists(dbgPath))
-            {
-                File.Delete(dbgPath);
-            }
-            return funcDict;
+            catch { }
+
+            try { if (File.Exists(output)) File.Delete(output); } catch { }
+
+            return dict;
         }
-        static Dictionary<uint, string> ReadQBDebug()
-        {
-            var funcDict = new Dictionary<uint, string>();
-            var rootFolder = ExeRootFolder;
 
-            //var compressedPath = Path.Combine(rootFolder, "QBDebug", "keys.dbg");
-            var dbgPath = Path.Combine(rootFolder, "QBDebug", "keys.txt");
-            var userDbgPath = Path.Combine(rootFolder, "QBDebug", "keys_user.txt");
-            /*if (Path.Exists(compressedPath))
-            {
-                DecompressToFile(compressedPath, dbgPath);
-            }*/
+        // --------------------------
+        // Write helpers
+        // --------------------------
 
-            try
-            {
-                var textLines = File.ReadAllLines(dbgPath);
-                if (Path.Exists(userDbgPath))
-                {
-                    var userTextLines = File.ReadAllLines(userDbgPath);
-                    textLines = textLines.Concat(userTextLines).ToArray();
-                }
-                foreach (var line in textLines)
-                {
-                    var newLine = line.TrimEnd('\n').Split(new[] { '\t' }, 2);
-
-                    if (newLine.Length != 2) continue;
-
-                    try
-                    {
-                        var key = Convert.ToUInt32(newLine[0], 16);
-                        var value = newLine[1];//.Replace("\"", "");
-                        funcDict[key] = value;
-                    }
-                    catch
-                    {
-                        // If an exception occurs, ignore and continue processing the next line.
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error reading or processing the file: {ex.Message}");
-            }
-
-            return funcDict;
-        }
-        static void AddQbKeyToUser(string key, string value)
+        private static void AddQbKeyToUser(string key, string value)
         {
             lock (ChecksumDbgLock)
-            {
-                _qbUserWriter.WriteLine($"{key}\t{value}");
-            }
-        }
-        public static void AddQbKeyToUser(uint key, string value)
-        {
-            AddQbKeyToUser(key.ToString("x8"), value);
+                _data.Value.QbUserWriter.WriteLine($"{key}\t{value}");
         }
 
-        static void AddQsKeyToUser(string key, string value)
+        public static void AddQbKeyToUser(uint key, string value) =>
+            AddQbKeyToUser(key.ToString("x8"), value);
+
+        private static void AddQsKeyToUser(string key, string value)
         {
             lock (QsDbgLock)
-            {
-                _qsUserWriter.WriteLine($"{key}\t{value}");
-            }
+                _data.Value.QsUserWriter.WriteLine($"{key}\t{value}");
         }
-        public static void AddQsKeyToUser(uint key, string value)
-        {
+
+        public static void AddQsKeyToUser(uint key, string value) =>
             AddQsKeyToUser(key.ToString("x8"), value);
+
+        // --------------------------
+        // Lookup methods
+        // --------------------------
+
+        public static string DbgString(uint toCheck) =>
+            ChecksumDbg.TryGetValue(toCheck, out var v) ? v : "0x" + toCheck.ToString("x8");
+
+        public static string QsDbgString(uint toCheck) =>
+            QsDbg.TryGetValue(toCheck, out var v) ? v : "0x" + toCheck.ToString("x8");
+
+        public static string Ps2PakString(string input) =>
+            Ps2PakDbg.TryGetValue(input, out var v) ? "0x" + v.ToString("x8") : input;
+
+        // --------------------------
+        // Decompression helpers
+        // --------------------------
+
+        public static void DecompressToFile(string compressedFilePath, string outputFilePath)
+        {
+            using var input = new FileStream(compressedFilePath, FileMode.Open, FileAccess.Read);
+            using var gzip = new GZipStream(input, CompressionMode.Decompress);
+            using var reader = new StreamReader(gzip, Encoding.UTF8);
+            using var writer = new StreamWriter(outputFilePath, false, Encoding.UTF8);
+
+            writer.Write(reader.ReadToEnd());
         }
+
+        // --------------------------
+        // Misc
+        // --------------------------
+
+        public static void Dispose()
+        {
+            if (_data.IsValueCreated)
+                _data.Value.Dispose();
+        }
+
+        void IDisposable.Dispose()
+        {
+            Dispose();
+            GC.SuppressFinalize(this);
+        }
+
+
         public static void AddToQsDictTemp(string filePath, QsDict dictMod)
         {
             try
@@ -269,52 +338,7 @@ namespace GH_Toolkit_Core.Debug
             }
             return newDict;
         }
-        static Dictionary<uint, string> ReadQSDebug(string language = "")
-        {
-            var funcDict = new Dictionary<uint, string>();
-            var rootFolder = ExeRootFolder;
-
-            //var compressedPath = Path.Combine(rootFolder, "QBDebug", "keys_qs.dbg");
-            var dbgPath = Path.Combine(rootFolder, "QBDebug", $"keys_qs{language}.txt");
-            var userDbgPath = Path.Combine(rootFolder, "QBDebug", $"keys_qs_user{language}.txt");
-            /*if (Path.Exists(compressedPath))
-            {
-                DecompressQsToFile(compressedPath, dbgPath);
-            }*/
-            try
-            {
-                var textLines = File.ReadAllLines(dbgPath, Encoding.BigEndianUnicode);
-                var textTest = File.ReadAllText(dbgPath, Encoding.BigEndianUnicode);
-                if (Path.Exists(userDbgPath))
-                {
-                    var userTextLines = File.ReadAllLines(userDbgPath);
-                    textLines = textLines.Concat(userTextLines).ToArray();
-                }
-
-                foreach (var line in textLines)
-                {
-                    var newLine = line.TrimEnd('\n').Split(new[] { '\t' }, 2);
-
-                    if (newLine.Length != 2) continue;
-
-                    try
-                    {
-                        var key = Convert.ToUInt32(newLine[0], 16);
-                        var value = newLine[1];//.Replace("\"", "");
-                        funcDict[key] = value;
-                    }
-                    catch
-                    {
-                        // If an exception occurs, ignore and continue processing the next line.
-                    }
-                }
-            }
-            catch (Exception ex)
-            {                    
-                Console.WriteLine($"Error reading or processing the file: {ex.Message}");
-            }
-            return funcDict;
-        }
+ 
         public static string DebugCheck(Dictionary<uint, string> headers, uint check)
         {
             return headers.TryGetValue(check, out string? result) ? result : DbgString(check);
@@ -324,60 +348,7 @@ namespace GH_Toolkit_Core.Debug
             uint check = uint.Parse(checkString.Substring(2), NumberStyles.HexNumber);
             return DbgString(check);
         }
-        public static string DbgString(uint toCheck)
-        {
-            if (ChecksumDbg.TryGetValue(toCheck, out var checksum))
-            {
-                return checksum;
-            }
-            else
-            {
-                return "0x" + toCheck.ToString("x8");
-            }
-        }
-        public static string QsDbgString(uint toCheck)
-        {
-            if (QsDbg.TryGetValue(toCheck, out var checksum))
-            {
-                return checksum;
-            }
-            else
-            {
-                return "0x" + toCheck.ToString("x8");
-            }
-        }
-        public static string Ps2PakString(string toCheck)
-        {
-            if (Ps2PakDbg.TryGetValue(toCheck, out var checksum))
-            {
-                return "0x" + checksum.ToString("x8");
-            }
-            else
-            {
-                return toCheck;
-            }
-        }
-        public static void DecompressToFile(string compressedFilePath, string outputFilePath)
-        {
-            using (FileStream compressedStream = new FileStream(compressedFilePath, FileMode.Open, FileAccess.Read))
-            using (GZipStream decompressionStream = new GZipStream(compressedStream, CompressionMode.Decompress))
-            using (StreamReader reader = new StreamReader(decompressionStream, Encoding.UTF8))
-            using (StreamWriter writer = new StreamWriter(outputFilePath, false, Encoding.UTF8))
-            {
-                writer.Write(reader.ReadToEnd());
-            }
-        }
-
-        public static void DecompressQsToFile(string compressedFilePath, string outputFilePath)
-        {
-            using (FileStream compressedStream = new FileStream(compressedFilePath, FileMode.Open, FileAccess.Read))
-            using (GZipStream decompressionStream = new GZipStream(compressedStream, CompressionMode.Decompress))
-            using (StreamReader reader = new StreamReader(decompressionStream, Encoding.Unicode))
-            using (StreamWriter writer = new StreamWriter(outputFilePath, false, Encoding.BigEndianUnicode))
-            {
-                writer.Write(reader.ReadToEnd());
-            }
-        }
+ 
 
         public static Dictionary<uint, string> MakeDictFromName(string name)
         {
@@ -444,19 +415,6 @@ namespace GH_Toolkit_Core.Debug
                 headers = DebugHeaders.CreateDlcDict(name);
             }
             return headers;
-        }
-
-        // Dispose pattern to clean up resources
-        public static void Dispose()
-        {
-            _qbUserWriter?.Dispose();
-            _qsUserWriter?.Dispose();
-        }
-
-        void IDisposable.Dispose()
-        {
-            Dispose();
-            GC.SuppressFinalize(this);
         }
     }
 }
