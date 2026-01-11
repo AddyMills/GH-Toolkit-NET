@@ -5109,8 +5109,8 @@ namespace GH_Toolkit_Core.MIDI
                 catch
                 {
                     continue;
+                }
             }
-        }
         }
         private void MakeExtendedNotes(List<PlayNote> notes)
         {

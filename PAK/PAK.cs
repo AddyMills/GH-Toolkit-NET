@@ -1569,7 +1569,7 @@ namespace GH_Toolkit_Core.PAK
                 }
                 PakEntries = newOrder;
             }
-            public (byte[]? itemData, byte[]? otherData, Dictionary<uint, string>? qsStrings) CompilePAK(string folderPath, string console = "")
+            public (byte[]? itemData, byte[]? otherData, Dictionary<uint, string>? qsStrings) CompilePAK(string folderPath, string console = "", bool noQs = false)
             {
                 if (!Directory.Exists(folderPath))
                 {
@@ -1664,7 +1664,7 @@ namespace GH_Toolkit_Core.PAK
                 AddFlagsToPakEntries(flags);
                 ReorderFiles(fileOrder);
 
-                if (Game != GAME_GH3 && Game != GAME_GHA && console != CONSOLE_WII && !Split && qsMaster.Count > 0)
+                if (Game != GAME_GH3 && Game != GAME_GHA && console != CONSOLE_WII && !Split && !noQs && qsMaster.Count > 0)
                 {
                     string tempName = "MoreStrings";
                     if (Game == GAME_GH5 || Game == GAME_GHWOR)
