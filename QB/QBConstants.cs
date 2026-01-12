@@ -218,6 +218,7 @@ namespace GH_Toolkit_Core.QB
         public static string downloadRef = "scripts\\guitar\\guitar_download.qb";
         public static string gh3DownloadSongs = "gh3_download_songs";
         public static string songlistRef = "scripts\\guitar\\songlist.qb";
+        public static string customsSonglistRef = "dlc_songlist.qb";
         public static string downloadSonglist = "download_songlist";
         public static string gh3Songlist = "gh3_songlist";
         public static string downloadProps = "download_songlist_props";
