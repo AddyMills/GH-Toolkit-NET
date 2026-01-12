@@ -84,6 +84,10 @@ namespace GH_Toolkit_Core.Methods
         }
         public static void MakeUnprotectedZip(string extractPath, string zipPath)
         {
+            if (File.Exists(zipPath))
+            {
+                File.Delete(zipPath);
+            }
             SystemZip.ZipFile.CreateFromDirectory(extractPath, zipPath);
         }
         private static void ExtractZip(string zipPath, string extractPath, out bool isEncrypted, string password = "")
