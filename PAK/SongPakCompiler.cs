@@ -1,8 +1,10 @@
 ﻿using GH_Toolkit_Core.MIDI;
 using GH_Toolkit_Core.SKA;
 using static GH_Toolkit_Core.Methods.Exceptions;
+using static GH_Toolkit_Core.MIDI.SongQbFile;
 using static GH_Toolkit_Core.PAK.PAK;
 using static GH_Toolkit_Core.QB.QBConstants;
+using static GH_Toolkit_Core.Checksum.CRC;
 
 namespace GH_Toolkit_Core.PAK
 {
@@ -29,11 +31,12 @@ namespace GH_Toolkit_Core.PAK
         public bool Gh3Plus { get; set; }
         public Dictionary<string, int>? Diffs { get; set; }
         public string Gender { get; set; } = "Male";
+        public string EffectiveSongName { get; set; }
         // ===== Internal state =====
         private SongQbFile? _midiFile;
         private byte[]? _midQb;
         private byte[]? _midQbExpertPlus;
-        private bool _hasBuilt;
+        private bool _hasBuilt;        
         // ===== Results =====
         private string? _mainPakPath;
         private string? _expertPlusPakPath;
@@ -52,6 +55,7 @@ namespace GH_Toolkit_Core.PAK
             _game = game;
             _gameConsole = gameConsole;
             _consoleExt = gameConsole == CONSOLE_PS2 ? DOTPS2 : DOTXEN;
+            EffectiveSongName = songName;
         }
         // ===== Public API =====
         public void Build()
@@ -123,6 +127,7 @@ namespace GH_Toolkit_Core.PAK
                 );
 
                 _midQb = _midiFile.ParseMidiToQb();
+                EffectiveSongName = _midiFile.GetSongName();
 
                 if (_midiFile.Drums.HasExpertPlus && _game == GAME_GHWT)
                 {
@@ -178,7 +183,7 @@ namespace GH_Toolkit_Core.PAK
         }
         private PakBuildScope CreateScope(bool isExpertPlus)
         {
-            string scopedSongName = isExpertPlus ? _songName + "X" : _songName;
+            string scopedSongName = isExpertPlus ? EffectiveSongName + "X" : EffectiveSongName;
 
             string saveName = Path.Combine(_savePath, $"{scopedSongName}_{_gameConsole}");
             string pakFolder = _gameConsole == CONSOLE_PS2 ? "data\\songs" : "songs";

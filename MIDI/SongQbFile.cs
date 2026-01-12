@@ -74,6 +74,7 @@ namespace GH_Toolkit_Core.MIDI
         private const string WHAMMYCONTROLLER = "WhammyController";
 
         private const string LYRIC = "lyric";
+        private const int MaxSongNameLength = 22;
 
         private const int AccentVelocity = 127;
         private const int GhostVelocity = 1;
@@ -321,6 +322,10 @@ namespace GH_Toolkit_Core.MIDI
             var male = Gh6Loops["male"]["vocalist"].Count > 0 || Gh6Loops["male"]["guitarist"].Count > 0 || Gh6Loops["male"]["bassist"].Count > 0;
             var female = Gh6Loops["female"]["vocalist"].Count > 0 || Gh6Loops["female"]["guitarist"].Count > 0 || Gh6Loops["female"]["bassist"].Count > 0;
             return male && female;
+        }
+        public string GetSongName()
+        {
+            return SongName!;
         }
         public string GetGame()
         {
@@ -1767,6 +1772,7 @@ namespace GH_Toolkit_Core.MIDI
             if (!MidiParsed)
             {
                 ParseMidiGH();
+                ApplyGh3PcSongNameMutation();
             }
             var gameQb = MakeConsoleQb();
             if (WtExpertPlusPak)
@@ -1776,6 +1782,79 @@ namespace GH_Toolkit_Core.MIDI
             }
             WtExpertPlusPak = false; // Reset the flag after making the console QB
             return gameQb;
+        }
+        private bool IsGh3PcBuild()
+        {
+            return Game == GAME_GH3 && GamePlatform == CONSOLE_PC;
+        }
+        private void ApplyGh3PcSongNameMutation()
+        {
+            if (!IsGh3PcBuild())
+                return;
+            var playNotes = Guitar.Expert.PlayNotes;
+            var starEntries = Guitar.Expert.StarEntries;
+
+            byte[] playNotesBytes = BuildPlayNotesBytes(playNotes);
+            byte[] starBytes = BuildStarEntriesBytes(starEntries);
+
+            string _ = GenQBKey(playNotesBytes, out uint playChecksum);
+            string __ = GenQBKey(starBytes, out uint starChecksum);
+
+            uint combined = playChecksum ^ starChecksum;
+            SongName = BuildEffectiveSongName(_songName, combined);
+        }
+        private static string BuildEffectiveSongName(string baseName, uint checksum)
+        {
+            string suffix = "_" + checksum.ToString("x8"); // always 9 chars
+
+            if (string.IsNullOrEmpty(baseName))
+                baseName = "song";
+
+            // Keep checksum intact, truncate base only if required
+            if (baseName.Length > MaxSongNameLength)
+            {
+                baseName = baseName.Substring(0, MaxSongNameLength);
+            }
+
+            return baseName + suffix;
+        }
+        private static void AppendInt32LittleEndian(List<byte> bytes, int value)
+        {
+            unchecked
+            {
+                bytes.Add((byte)(value & 0xFF));
+                bytes.Add((byte)((value >> 8) & 0xFF));
+                bytes.Add((byte)((value >> 16) & 0xFF));
+                bytes.Add((byte)((value >> 24) & 0xFF));
+            }
+        }
+
+        private static byte[] BuildPlayNotesBytes(IEnumerable<PlayNote> notes)
+        {
+            var bytes = new List<byte>(capacity: 4096);
+
+            foreach (var n in notes)
+            {
+                AppendInt32LittleEndian(bytes, n.Time);
+                AppendInt32LittleEndian(bytes, n.Note);
+                AppendInt32LittleEndian(bytes, n.Length);
+            }
+
+            return bytes.ToArray();
+        }
+
+        private static byte[] BuildStarEntriesBytes(IEnumerable<StarPower> entries)
+        {
+            var bytes = new List<byte>(capacity: 1024);
+
+            foreach (var sp in entries)
+            {
+                AppendInt32LittleEndian(bytes, sp.Time);
+                AppendInt32LittleEndian(bytes, sp.Length);
+                AppendInt32LittleEndian(bytes, sp.NoteCount);
+            }
+
+            return bytes.ToArray();
         }
         public byte[] MakeConsoleQb()
         {
