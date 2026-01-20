@@ -3060,10 +3060,11 @@ namespace GH_Toolkit_Core.MIDI
                                 switch (eventData)
                                 {
                                     case THE_END:
-                                        if (Game != GAME_GH3)
+                                        if (Game == GAME_GH3 && GamePlatform != CONSOLE_PC)
                                         {
-                                            Markers.Add(new Marker(eventTime, "_ENDOFSONG"));
+                                            break;
                                         }
+                                        Markers.Add(new Marker(eventTime, "_ENDOFSONG"));
                                         break;
                                     case STARTLIGHTERS:
                                     case STOPLIGHTERS:
