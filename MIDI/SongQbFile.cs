@@ -1791,17 +1791,27 @@ namespace GH_Toolkit_Core.MIDI
         {
             if (!IsGh3PcBuild())
                 return;
-            var playNotes = Guitar.Expert.PlayNotes;
-            var starEntries = Guitar.Expert.StarEntries;
 
-            byte[] playNotesBytes = BuildPlayNotesBytes(playNotes);
-            byte[] starBytes = BuildStarEntriesBytes(starEntries);
+            var bytes = new List<byte>(capacity: 8192);
 
-            string _ = GenQBKey(playNotesBytes, out uint playChecksum);
-            string __ = GenQBKey(starBytes, out uint starChecksum);
+            // Process all 4 instrument types
+            foreach (var instrument in new[] { Guitar, Rhythm, GuitarCoop, RhythmCoop })
+            {
+                foreach (var diff in new[] { instrument.Easy, instrument.Medium, instrument.Hard, instrument.Expert })
+                {
+                    if (diff.PlayNotes != null && diff.PlayNotes.Count > 0)
+                    {
+                        bytes.AddRange(BuildPlayNotesBytes(diff.PlayNotes));
+                    }
+                    if (diff.StarEntries != null && diff.StarEntries.Count > 0)
+                    {
+                        bytes.AddRange(BuildStarEntriesBytes(diff.StarEntries));
+                    }
+                }
+            }
 
-            uint combined = playChecksum ^ starChecksum;
-            SongName = BuildEffectiveSongName(_songName, combined);
+            string _ = GenQBKey(bytes.ToArray(), out uint checksum);
+            SongName = BuildEffectiveSongName(_songName, checksum);
         }
         private static string BuildEffectiveSongName(string baseName, uint checksum)
         {
