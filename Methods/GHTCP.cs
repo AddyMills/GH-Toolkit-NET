@@ -12,7 +12,7 @@ namespace GH_Toolkit_Core.Methods
 {
     public class GHTCP
     {
-        // The Decrypt AES methods are ported from Onyx Toolkit by Michael Tolly (who in turn ported it from C# to Haskell)
+        // The Decrypt AES methods are ported from Onyx Toolkit by Melody Tolly (who in turn ported it from C# to Haskell)
         // It's a perfect loop!
 
         private static readonly byte[] sghSetlistKey = [ 61, 250, 11, 73, 254, 154, 8, 191, 18, 188, 243, 32, 246, 40, 148, 145, 62, 219, 250, 196, 15, 63, 217, 91, 29, 73, 8, 22, 197, 186, 176, 81 ];
