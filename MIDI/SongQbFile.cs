@@ -5219,10 +5219,20 @@ namespace GH_Toolkit_Core.MIDI
                 // Ensure currNote.Accents has itself (currNote.Note) set
                 currNote.Accents |= currNote.Note;
 
-                // Get the notes that are contained within the current note
-                var containedNotes = notes.Where(n => n.Time > currNote.Time && n.Time < (currNote.Time + currNote.Length)).ToList();
-                foreach (var note in containedNotes)
+                int currNoteEndTime = currNote.Time + currNote.Length;
+
+                // Process notes contained within the current note by iterating forward
+                // Notes are sorted by time, so we can start from i+1 and break early
+                for (int j = i + 1; j < notes.Count; j++)
                 {
+                    var note = notes[j];
+                    // If note starts at or after current note ends, no more contained notes possible
+                    if (note.Time >= currNoteEndTime)
+                    {
+                        break;
+                    }
+                    // note.Time > currNote.Time is always true for j > i since notes are sorted
+
                     if (note.Note < currNote.Note)
                     {
                         currNote.Length = note.Time - currNote.Time;
@@ -5241,23 +5251,8 @@ namespace GH_Toolkit_Core.MIDI
                     currNote.Accents &= bitsToUnset;
                     note.Accents &= ~currNote.Note;
                 }
-                /*
-                // Apply updated currNote.Accents to all contained notes that weren't skipped
-                foreach (var note in containedNotes)
-                {
-                    if (note.Time >= currNote.Time + currNote.Length)
-                    {
-                        // This note was beyond the updated range; it should not be updated.
-                        break;
                     }
-
-                    // Unset bits from note.Accents that are set in currNote.Note
-                    
-
-                    //note.Accents = currNote.Accents;
-                }*/
             }
-        }
         public List<PlayNote> MakeDrums(List<MidiData.Chord> chords, Dictionary<MidiTheory.NoteName, int> noteDict)
         {
             List<PlayNote> noteList = new List<PlayNote>();
