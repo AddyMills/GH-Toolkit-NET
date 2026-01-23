@@ -5172,17 +5172,28 @@ namespace GH_Toolkit_Core.MIDI
             {
                 // Get the current note
                 var currNote = notes[i];
-                // Get the notes that are contained within the current note
-                var containedNotes = notes.Where(n => n.Time > currNote.Time && n.Time < (currNote.Time + currNote.Length)).ToList();
+                int currNoteEndTime = currNote.Time + currNote.Length;
 
-
-                if (containedNotes.Count > 0)
+                // Find the first note contained within the current note by iterating forward
+                // Notes are sorted by time, so we can start from i+1 and break early
+                for (int j = i + 1; j < notes.Count; j++)
                 {
-                    // If there are notes contained within the current note, adjust the length of the current note
-                    // to end at the start of the first contained note
-                    currNote.Length = containedNotes[0].Time - currNote.Time;
+                    var candidateNote = notes[j];
+                    // If candidate note starts at or after current note ends, no more contained notes possible
+                    if (candidateNote.Time >= currNoteEndTime)
+                    {
+                        break;
                 }
-                try
+                    // If candidate note starts after current note (n.Time > currNote.Time is always true for j > i)
+                    // then it's contained within the current note
+                    // Adjust the length of the current note to end at the start of this contained note
+                    currNote.Length = candidateNote.Time - currNote.Time;
+                    currNoteEndTime = currNote.Time + currNote.Length;
+                    break;
+                }
+
+                // Check if there's a next note for sustain lengthening
+                if (i + 1 < notes.Count)
                 {
                     // Because GH3/A shortens sustains, this will lengthen them if the next note is close enough
                     var nextNote = notes[i + 1];
@@ -5196,12 +5207,8 @@ namespace GH_Toolkit_Core.MIDI
                         currNote.Length = newLength;
                     }
                 }
-                catch
-                {
-                    continue;
                 }
             }
-        }
         private void MakeExtendedNotes(List<PlayNote> notes)
         {
             for (int i = 0; i < notes.Count; i++)
