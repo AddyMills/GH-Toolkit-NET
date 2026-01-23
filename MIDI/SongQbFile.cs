@@ -5183,7 +5183,7 @@ namespace GH_Toolkit_Core.MIDI
                     if (candidateNote.Time >= currNoteEndTime)
                     {
                         break;
-                }
+                    }
                     // If candidate note starts after current note (n.Time > currNote.Time is always true for j > i)
                     // then it's contained within the current note
                     // Adjust the length of the current note to end at the start of this contained note
@@ -5207,8 +5207,8 @@ namespace GH_Toolkit_Core.MIDI
                         currNote.Length = newLength;
                     }
                 }
-                }
             }
+        }
         private void MakeExtendedNotes(List<PlayNote> notes)
         {
             for (int i = 0; i < notes.Count; i++)
@@ -5251,8 +5251,8 @@ namespace GH_Toolkit_Core.MIDI
                     currNote.Accents &= bitsToUnset;
                     note.Accents &= ~currNote.Note;
                 }
-                    }
             }
+        }
         public List<PlayNote> MakeDrums(List<MidiData.Chord> chords, Dictionary<MidiTheory.NoteName, int> noteDict)
         {
             List<PlayNote> noteList = new List<PlayNote>();
@@ -5789,55 +5789,120 @@ namespace GH_Toolkit_Core.MIDI
             }
             public List<StarPower> ProcessTapNotes(List<MidiData.Note> allNotes, List<MidiData.Chord> chords, SongQbFile songQb)
             {
-                List<StarPower> allTaps = new List<StarPower>();
+                const int TapEndOffsetMs = 100;
+                var allTaps = new List<StarPower>();
                 var wtdeTaps = songQb.GetConsole() == CONSOLE_PC && songQb.GetGame() == GAME_GHWT;
                 var gh3PlusTaps = songQb.GetGame() == GAME_GH3 && songQb.Gh3Plus;
                 bool filterChords = !(wtdeTaps || gh3PlusTaps);
-                // Extract Tap Notes 
-                var tapNotes = allNotes.Where(x => x.NoteNumber == TapNote).ToList();
-                foreach (var note in tapNotes)
+
+                foreach (var note in allNotes)
                 {
+                    if (note.NoteNumber != TapNote)
+                        continue;
+
                     var currTime = note.Time;
-                    int startTime;
-                    int endTime;
-                    int length;
                     int noteCount = 0;
+                    long lastSingleNoteTime = note.Time;
+                    int chordIndex = 0;
+
+                    // Skip chords before the tap note range
+                    while (chordIndex < chords.Count && chords[chordIndex].Time < note.Time)
+                    {
+                        chordIndex++;
+                    }
+
                     if (filterChords)
                     {
-                        var tapUnder = chords.Where(x => x.Time >= note.Time && x.Time < note.EndTime).ToList();
-                        for (int i = 0; i < tapUnder.Count; i++)
+                        while (chordIndex < chords.Count && chords[chordIndex].Time < note.EndTime)
                         {
-                            var chord = tapUnder[i];
+                            var chord = chords[chordIndex];
+
                             if (chord.Notes.Count > 1)
                             {
-                                if (noteCount == 0)
+                                if (noteCount > 0)
                                 {
-                                    currTime = chord.EndTime;
-                                    continue;
+                                    int startTime = (int)Math.Round(songQb.TicksToMilliseconds(currTime));
+                                    int lastNoteStartMs = (int)Math.Round(songQb.TicksToMilliseconds(lastSingleNoteTime));
+                                    int calculatedEndTime = lastNoteStartMs + TapEndOffsetMs;
+                                    int chordStartTime = (int)Math.Round(songQb.TicksToMilliseconds(chord.Time));
+
+                                    int endTime;
+                                    if (chordStartTime < calculatedEndTime)
+                                    {
+                                        endTime = chordStartTime;
+                                        songQb.AddTimedWarning($"Tap marker ends within {TapEndOffsetMs}ms of next non-tap note", "Tap Notes", lastSingleNoteTime);
+                                    }
+                                    else
+                                    {
+                                        endTime = calculatedEndTime;
+                                    }
+
+                                    allTaps.Add(new StarPower(startTime, endTime - startTime, 1));
                                 }
-                                startTime = (int)Math.Round(songQb.TicksToMilliseconds(currTime));
-                                endTime = (int)Math.Round(songQb.TicksToMilliseconds(chord.Time));
-                                length = endTime - startTime;
-                                allTaps.Add(new StarPower(startTime, length, 1));
                                 currTime = chord.EndTime;
                                 noteCount = 0;
                             }
                             else
                             {
+                                lastSingleNoteTime = chord.Time;
                                 noteCount++;
                             }
+                            chordIndex++;
+                        }
+
+                        // Final tap section after processing all chords in range
+                        if (noteCount > 0)
+                        {
+                            int startTime = (int)Math.Round(songQb.TicksToMilliseconds(currTime));
+                            int lastNoteStartMs = (int)Math.Round(songQb.TicksToMilliseconds(lastSingleNoteTime));
+                            int calculatedEndTime = lastNoteStartMs + TapEndOffsetMs;
+
+                            int endTime = calculatedEndTime;
+                            if (chordIndex < chords.Count)
+                            {
+                                int nextChordStartTime = (int)Math.Round(songQb.TicksToMilliseconds(chords[chordIndex].Time));
+                                if (nextChordStartTime < calculatedEndTime)
+                                {
+                                    endTime = nextChordStartTime;
+                                    songQb.AddTimedWarning($"Tap marker ends within {TapEndOffsetMs}ms of next non-tap note", "Tap Notes", lastSingleNoteTime);
+                                }
+                            }
+
+                            allTaps.Add(new StarPower(startTime, endTime - startTime, 1));
                         }
                     }
                     else
                     {
-                        noteCount++;
-                    }
-                    if (noteCount != 0)
-                    {
-                        startTime = (int)Math.Round(songQb.TicksToMilliseconds(currTime));
-                        endTime = (int)Math.Round(songQb.TicksToMilliseconds(note.EndTime));
-                        length = endTime - startTime;
-                        allTaps.Add(new StarPower(startTime, length, 1));
+                        // Non-filter case (WTDE/GH3+): find last chord in range
+                        long lastChordTime = note.Time;
+                        bool foundAnyChord = false;
+
+                        while (chordIndex < chords.Count && chords[chordIndex].Time < note.EndTime)
+                        {
+                            lastChordTime = chords[chordIndex].Time;
+                            foundAnyChord = true;
+                            chordIndex++;
+                        }
+
+                        if (foundAnyChord)
+                        {
+                            int startTime = (int)Math.Round(songQb.TicksToMilliseconds(currTime));
+                            int lastNoteStartMs = (int)Math.Round(songQb.TicksToMilliseconds(lastChordTime));
+                            int calculatedEndTime = lastNoteStartMs + TapEndOffsetMs;
+
+                            int endTime = calculatedEndTime;
+                            if (chordIndex < chords.Count)
+                            {
+                                int nextChordStartTime = (int)Math.Round(songQb.TicksToMilliseconds(chords[chordIndex].Time));
+                                if (nextChordStartTime < calculatedEndTime)
+                                {
+                                    endTime = nextChordStartTime;
+                                    songQb.AddTimedWarning($"Tap marker ends within {TapEndOffsetMs}ms of next non-tap note", "Tap Notes", lastChordTime);
+                                }
+                            }
+
+                            allTaps.Add(new StarPower(startTime, endTime - startTime, 1));
+                        }
                     }
                 }
                 return allTaps;
