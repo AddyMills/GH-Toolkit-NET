@@ -5666,6 +5666,7 @@ namespace GH_Toolkit_Core.MIDI
             }
             public void ProcessDifficultyGuitar(List<MidiData.Note> allNotes, int minNote, int maxNote, Dictionary<MidiTheory.NoteName, int> noteDict, int openNotes, SongQbFile songQb, List<MidiData.Note> StarPowerPhrases, List<MidiData.Note> BattleStarPhrases, List<MidiData.Note>? FaceOffStarPhrases = null, List<StarPower>? sysexTaps = null, List<StarPower>? sysexOpens = null, string trackName = "")
             {
+                const int TapEndOffsetMs = 100;
                 var notes = allNotes.Where(n => n.NoteNumber >= (minNote - openNotes) && n.NoteNumber <= maxNote).ToList();
                 //var chords = notes.GetChords().ToList();
                 var chords = GroupNotes(notes, DefaultTickThreshold * songQb.TPB / DefaultTPB).ToList();
@@ -5733,6 +5734,7 @@ namespace GH_Toolkit_Core.MIDI
                                     tempList = new List<MidiData.Chord>();
                                     continue;
                                 }
+                                tempList.Add(chord);
                             }
                             else
                             {
@@ -5749,13 +5751,24 @@ namespace GH_Toolkit_Core.MIDI
                         }
                         foreach (var tapList in noteList)
                         {
-                            var lastNote = chords.IndexOf(tapList[tapList.Count - 1]);
-                            var nextNote = chords.ElementAtOrDefault(lastNote + 1);
+                            var lastNoteIndex = chords.IndexOf(tapList[tapList.Count - 1]);
+                            var lastNote = chords.ElementAtOrDefault(lastNoteIndex);
+                            var lastNoteTime = lastNote != null ? songQb.GameMilliseconds(lastNote.Time) : 0;
+                            int calculatedEndTime = lastNoteTime + TapEndOffsetMs;
+                            var nextNote = chords.ElementAtOrDefault(lastNoteIndex + 1);
                             var startTime = songQb.GameMilliseconds(tapList[0].Time);
                             int endTime;
                             if (nextNote != null)
                             {
                                 endTime = songQb.GameMilliseconds(nextNote.Time);
+                                if (endTime > calculatedEndTime)
+                                {
+                                    endTime = calculatedEndTime;
+                                }
+                                else
+                                {
+                                    songQb.AddTimedWarning($"Tap marker ends within {TapEndOffsetMs}ms of next non-tap note", "Tap Notes", endTime);
+                                }
                             }
                             else
                             {
