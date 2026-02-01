@@ -2312,192 +2312,243 @@ namespace GH_Toolkit_Core.MIDI
             {
                 return null;
             }
+
             string perfText = File.ReadAllText(PerfOverride).Trim();
-            if (perfText == "")
+            if (string.IsNullOrEmpty(perfText))
             {
                 return null;
             }
+
             perfText = CleanPerfOverride(perfText);
             var (qb, _) = ParseQFile(perfText);
             var perfScripts = new List<(int, QBStructData)>();
-            List<string> SkaErrors = new List<string>();
+            var skaErrors = new List<string>();
 
-            // This nested method looks icky, but I don't feel like refactoring right now.
-            // It works... so it's fine for now.
-            foreach (var qbItem in qb)
+            foreach (var qbItem in qb.OfType<QBItem>().Where(item => item.Name.Contains("_performance")))
             {
-                if (qbItem is QBItem qbItem2)
+                if (qbItem.Data is not QBArrayNode qbStructData)
                 {
-                    if (qbItem2.Name.Contains("_performance"))
+                    continue;
+                }
+
+                foreach (var perfEntry in qbStructData.Items.OfType<QBStructData>())
+                {
+                    ProcessPerformanceEntry(perfEntry, perfScripts, skaErrors);
+                }
+            }
+
+            ReportSkaErrors(skaErrors);
+            return perfScripts;
+        }
+
+        private void ProcessPerformanceEntry(QBStructData perfEntry, List<(int, QBStructData)> perfScripts, List<string> skaErrors)
+        {
+            int timeOrig = (int)perfEntry["time"];
+            int time = RoundTime(timeOrig);
+            perfEntry["time"] = time;
+
+            var scriptType = perfEntry["scr"].ToString()!.ToLower();
+
+            if (scriptType == BAND_PLAYCLIP)
+            {
+                if (!ProcessBandPlayClip(perfEntry, timeOrig, ref time, skaErrors))
+                {
+                    return;
+                }
+            }
+
+            RoutePerformanceScript(scriptType, time, perfEntry, perfScripts);
+        }
+
+        private bool ProcessBandPlayClip(QBStructData perfEntry, int timeOrig, ref int time, List<string> skaErrors)
+        {
+            var scrParams = (QBStructData)perfEntry["params"];
+            var clipName = scrParams["clip"].ToString()!;
+            var clipQb = QBKey(clipName);
+
+            if (!SongClips.TryGetValue(clipQb, out var currClip))
+            {
+                throw new ClipNotFoundException($"{clipName} at time {timeOrig} referenced in Performance Override, but not defined in Song Scripts!");
+            }
+
+            currClip.UpdateFromParams(scrParams);
+            EnsureTimeFactor(scrParams, currClip);
+
+            float timeFactor = Convert.ToSingle(scrParams["timefactor"]);
+            if (Game == GAME_GHWT && timeFactor != 1.0f)
+            {
+                scrParams.AddIntToStruct("tempomatching", 0);
+            }
+
+            var (startChange, endChange) = CalculateCameraChanges(ref time, currClip.Length, perfEntry, timeFactor);
+
+            try
+            {
+                currClip.UpdateFromSkaFile(SkaPath, startChange, endChange, GetClosestCamera(time), GetClosestCamera(RoundCamLen(time + currClip.Length)), out int endCameraChange, SkaQbKeys);
+                AdjustCameraIfNeeded(time, currClip.Length, endCameraChange);
+            }
+            catch (Exception e)
+            {
+                skaErrors.AddRange(e.Message.Split(','));
+                return false;
+            }
+
+            UpdateClipFrames(perfEntry, currClip);
+            return true;
+        }
+
+        private void EnsureTimeFactor(QBStructData scrParams, SongClip currClip)
+        {
+            if (scrParams.StructDict.ContainsKey("timefactor"))
+            {
+                return;
+            }
+
+            if (currClip.TimeFactor == 1.0f)
+            {
+                scrParams.AddIntToStruct("timefactor", 1);
+            }
+            else
+            {
+                scrParams.AddFloatToStruct("timefactor", currClip.TimeFactor);
+            }
+        }
+
+        private (int startChange, int endChange) CalculateCameraChanges(ref int time, int clipLength, QBStructData perfEntry, float timeFactor)
+        {
+            const int CameraThreshold = 100;
+            const float FrameConversionFactor = 30f / 1000f;
+
+            int closeStart = GetClosestCamera(time);
+            int timeEnd = RoundCamLen(time + clipLength);
+            int closeEnd = GetClosestCamera(timeEnd);
+
+            int startChange = time - closeStart;
+            int endChange = timeEnd - closeEnd;
+
+            if (Math.Abs(startChange) > CameraThreshold)
+            {
+                startChange = 0;
+            }
+            else
+            {
+                time = closeStart;
+                perfEntry["time"] = time;
+            }
+
+            if (Math.Abs(endChange) > CameraThreshold)
+            {
+                endChange = 0;
+            }
+
+            startChange = (int)Math.Round(startChange * FrameConversionFactor * timeFactor);
+            endChange = (int)Math.Round(endChange * FrameConversionFactor * timeFactor);
+
+            return (startChange, endChange);
+        }
+
+        private void AdjustCameraIfNeeded(int time, int clipLength, int endCameraChange)
+        {
+            const int CameraThreshold = 100;
+
+            int newTimeEnd = RoundCamLen(time + clipLength);
+            int closeEnd = GetClosestCamera(newTimeEnd);
+            int moveEnd = RoundCamLen(closeEnd - endCameraChange);
+            int cameraCheck = RoundCamLen(moveEnd - newTimeEnd);
+
+            if (Math.Abs(cameraCheck) <= CameraThreshold)
+            {
+                ChangeCamera(closeEnd, newTimeEnd);
+            }
+        }
+
+        private static void UpdateClipFrames(QBStructData perfEntry, SongClip currClip)
+        {
+            var clipParams = (QBStructData)perfEntry["params"];
+
+            if (clipParams.StructDict.ContainsKey("startframe"))
+            {
+                clipParams["startframe"] = currClip.StartFrame;
+            }
+            else
+            {
+                clipParams.AddIntToStruct("startframe", currClip.StartFrame);
+            }
+
+            if (clipParams.StructDict.ContainsKey("endframe"))
+            {
+                clipParams["endframe"] = currClip.EndFrame;
+            }
+            else
+            {
+                clipParams.AddIntToStruct("endframe", currClip.EndFrame);
+            }
+        }
+
+        private void RoutePerformanceScript(string scriptType, int time, QBStructData perfEntry, List<(int, QBStructData)> perfScripts)
+        {
+            bool isGh5OrWor = Game == GAME_GH5 || Game == GAME_GHWOR;
+
+            if (!isGh5OrWor)
+            {
+                perfScripts.Add((time, perfEntry));
+                return;
+            }
+
+            switch (scriptType)
+            {
+                case BAND_PLAYFACIALANIM:
+                    FacialTimedScripts.Add((time, perfEntry));
+                    break;
+                case BAND_PLAYLOOP:
+                    ProcessBandPlayLoop(perfEntry);
+                    ScriptTimedEvents.Add((time, perfEntry));
+                    break;
+                default:
+                    ScriptTimedEvents.Add((time, perfEntry));
+                    break;
+            }
+        }
+
+        private void ProcessBandPlayLoop(QBStructData perfEntry)
+        {
+            var parameters = (QBStructData)perfEntry["params"];
+
+            if (Game == GAME_GHWOR)
+            {
+                string avatar = ((string)parameters["name"]).ToLower();
+                foreach (var gender in new[] { "male", "female" })
+                {
+                    if (parameters.StructDict.TryGetValue(gender, out var loopObj) && loopObj is string loop)
                     {
-                        var qbStructData = qbItem2.Data as QBArrayNode;
-                        if (qbStructData != null)
+                        if (!Gh6Loops[gender][avatar].Contains(loop))
                         {
-                            foreach (var perfBlock in qbStructData.Items)
-                            {
-                                var perfEntry = perfBlock as QBStructData;
-                                if (perfEntry != null)
-                                {
-                                    int timeOrig = (int)perfEntry["time"];
-                                    int time = RoundTime(timeOrig);
-                                    perfEntry["time"] = time; //Update the time to be on the nearest frame.
-                                    var scriptType = perfEntry["scr"].ToString().ToLower();
-                                    if (scriptType == "band_playclip")
-                                    {
-                                        var scrParams = (QBStructData)perfEntry["params"];
-                                        var clip = scrParams["clip"].ToString();
-                                        var clipQb = QBKey(scrParams["clip"].ToString());
-                                        if (!SongClips.ContainsKey(clipQb))
-                                        {
-                                            throw new ClipNotFoundException($"{clip} at time {timeOrig} referenced in Performance Override, but not defined in Song Scripts!");
-                                        }
-                                        var currClip = SongClips[clipQb];
-                                        currClip.UpdateFromParams(scrParams);
-                                        if (!scrParams.StructDict.ContainsKey("timefactor"))
-                                        {
-                                            if (currClip.TimeFactor == 1.0f)
-                                            {
-                                                scrParams.AddIntToStruct("timefactor", 1);
-                                            }
-                                            else
-                                            {
-                                                scrParams.AddFloatToStruct("timefactor", currClip.TimeFactor);
-                                            }
-                                        }
-                                        float timeFactor = Convert.ToSingle(scrParams["timefactor"]);
-                                        if (Game == GAME_GHWT && timeFactor != 1.0f)
-                                        {
-                                            scrParams.AddIntToStruct("tempomatching", 0);
-                                        }
-                                        int closeStart = GetClosestCamera(time);
-                                        int timeEnd = RoundCamLen(time + currClip.Length);
-                                        int closeEnd = GetClosestCamera(timeEnd);
-                                        int startChange = time - closeStart;
-                                        int endChange = timeEnd - closeEnd;
-
-                                        if (Math.Abs(startChange) > 100)
-                                        {
-                                            startChange = 0;
-                                        }
-                                        else
-                                        {
-                                            time = closeStart;
-                                            perfEntry["time"] = time;
-                                        }
-                                        if (Math.Abs(endChange) > 100)
-                                        {
-                                            endChange = 0;
-                                        }
-                                        var startNoRound = startChange * 30f / 1000 * timeFactor;
-                                        var endNoRound = endChange * 30f / 1000 * timeFactor;
-                                        startChange = (int)Math.Round(startNoRound);
-                                        endChange = (int)Math.Round(endNoRound);
-                                        int endCameraChange = 0;
-                                        try
-                                        {
-                                            currClip.UpdateFromSkaFile(SkaPath, startChange, endChange, closeStart, closeEnd, out endCameraChange, SkaQbKeys);
-                                        }
-                                        catch (Exception e)
-                                        {
-                                            var errors = e.Message.Split(',');
-                                            SkaErrors.AddRange(errors);
-                                            continue;
-                                        }
-                                        int newTimeEnd = RoundCamLen(time + currClip.Length);
-                                        closeEnd = GetClosestCamera(newTimeEnd);
-                                        int moveEnd = RoundCamLen(closeEnd - endCameraChange);
-                                        int cameraCheck = RoundCamLen(moveEnd - newTimeEnd);
-                                        if (Math.Abs(cameraCheck) <= 100)
-                                        {
-                                            ChangeCamera(closeEnd, newTimeEnd);
-                                        }
-                                        // update start and end frame in the perf entry
-                                        var clipParams = (QBStructData)perfEntry["params"];
-                                        if (clipParams.StructDict.ContainsKey("startframe"))
-                                        {
-                                            clipParams["startframe"] = currClip.StartFrame;
-                                        }
-                                        else
-                                        {
-                                            clipParams.AddIntToStruct("startframe", currClip.StartFrame);
-                                        }
-                                        if (clipParams.StructDict.ContainsKey("endframe"))
-                                        {
-                                            clipParams["endframe"] = currClip.EndFrame;
-                                        }
-                                        else
-                                        {
-                                            clipParams.AddIntToStruct("endframe", currClip.EndFrame);
-                                        }
-                                    }
-                                    if (Game == GAME_GH5 || Game == GAME_GHWOR)
-                                    {
-                                        switch (scriptType)
-                                        {
-                                            case "band_playfacialanim":
-                                                FacialTimedScripts.Add((time, perfEntry));
-                                                break;
-                                            case "band_playloop":
-                                                if (Game == GAME_GHWOR)
-                                                {
-                                                    var parameters = (QBStructData)perfEntry["params"];
-                                                    var avatar = (string)parameters["name"];
-
-                                                    string[] genders = { "male", "female" };
-
-                                                    foreach (var gender in genders)
-                                                    {
-                                                        try
-                                                        {
-                                                            string loop = parameters[gender] as string;
-                                                            if (loop != null && !Gh6Loops[gender][avatar].Contains(loop))
-                                                            {
-                                                                Gh6Loops[gender][avatar].Add(loop);
-                                                            }
-                                                        }
-                                                        catch
-                                                        {
-                                                        }
-                                                    }
-                                                }
-                                                else
-                                                {
-                                                    var newParams = new QBStructData();
-                                                    var parameters = (QBStructData)perfEntry["params"];
-                                                    foreach (var item in parameters.StructDict)
-                                                    {
-                                                        if (item.Key == "name")
-                                                        {
-                                                            newParams.AddQbKeyToStruct(item.Key, (string)item.Value);
-                                                        }
-                                                    }
-                                                    perfEntry["params"] = newParams;
-                                                }
-                                                goto default;
-                                            default:
-                                                ScriptTimedEvents.Add((time, perfEntry));
-                                                break;
-                                        }
-                                    }
-                                    else
-                                    {
-                                        perfScripts.Add((time, perfEntry));
-                                    }
-                                }
-                            }
+                            Gh6Loops[gender][avatar].Add(loop);
                         }
                     }
                 }
             }
-            if (SkaErrors.Count > 0)
+            else
             {
-                foreach (var error in SkaErrors)
+                var newParams = new QBStructData();
+                if (parameters.StructDict.TryGetValue("name", out var nameValue))
                 {
-                    var errorList = error.Split(':');
-                    AddToErrorList($"Animation file {errorList[1]} referenced in clip {errorList[0]}, but not found in SKA folder");
+                    newParams.AddQbKeyToStruct("name", (string)nameValue);
+                }
+                perfEntry["params"] = newParams;
+            }
+        }
+
+        private void ReportSkaErrors(List<string> skaErrors)
+        {
+            foreach (var error in skaErrors)
+            {
+                var errorParts = error.Split(':');
+                if (errorParts.Length >= 2)
+                {
+                    AddToErrorList($"Animation file {errorParts[1]} referenced in clip {errorParts[0]}, but not found in SKA folder");
                 }
             }
-            return perfScripts;
         }
         private int GetClosestCamera(int time)
         {

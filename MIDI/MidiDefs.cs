@@ -176,6 +176,8 @@ namespace GH_Toolkit_Core.MIDI
         public const string STAGEDIVER_JUMP = "stagediver_jump";
 
         public const string BAND_PLAYFACIALANIM = "band_playfacialanim";
+        public const string BAND_PLAYCLIP = "band_playclip";
+        public const string BAND_PLAYLOOP = "band_playloop";
         public const string LIGHTSHOW_SETTIME = "lightshow_settime";
         public const string SETBLENDTIME = "setblendtime";
         public const string FOVPULSE = "cameracutseffect_fovpulse";
