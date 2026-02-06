@@ -74,7 +74,7 @@ namespace GH_Toolkit_Core.MIDI
         private const string WHAMMYCONTROLLER = "WhammyController";
 
         private const string LYRIC = "lyric";
-        private const int MaxSongNameLength = 22;
+        private const int MaxSongNameLength = 18;
 
         private const int AccentVelocity = 127;
         private const int GhostVelocity = 1;
@@ -2092,164 +2092,150 @@ namespace GH_Toolkit_Core.MIDI
         }
         public void ProcessCameras(TrackChunk trackChunk)
         {
-            int MinCameraGh3 = 79;
-            int MaxCameraGh3 = 117;
-            int MinCameraGha = 3;
-            int MaxCameraGha = 91;
-            int MinCameraWt = 3;
-            int MaxCameraWt = 127;            
-            int MinCamera5 = 3;
-            int MaxCamera5 = 99;
-            int MinCameraWor = 3;
-            int MaxCameraWor = 99;
-
-            var gh5NoteFilter = new Dictionary<int, int> 
-            {
-                {40, 74},
-                {41, 74},
-                {59, 31},
-                {62, 14},
-                {63, 9},
-                {64, 24},
-                {65, 18},
-                {66, 61},
-                {67, 60},
-                {68, 26},
-                {69, 8}
-            };
-
-            int minCamera;
-            int maxCamera;
-            switch (VenueSource)
-            {
-                case GAME_GH3:
-                    minCamera = MinCameraGh3;
-                    maxCamera = MaxCameraGh3;
-                    break;
-                case GAME_GHA:
-                    minCamera = MinCameraGha;
-                    maxCamera = MaxCameraGha;
-                    break;
-                case GAME_GHWT:
-                    minCamera = MinCameraWt;
-                    maxCamera = MaxCameraWt;
-                    break;
-                case GAME_GH5:
-                    minCamera = MinCamera5;
-                    maxCamera = MaxCamera5;
-                    break;
-                case GAME_GHWOR:
-                    minCamera = MinCameraWor;
-                    maxCamera = MaxCameraWor;
-                    break;
-                default:
-                    throw new NotImplementedException("Unknown game found");
-            }
-            var timedEvents = trackChunk.GetTimedEvents().ToList();
-            var textEvents = timedEvents.Where(e => e.Event is TextEvent || e.Event is LyricEvent).ToList();
-
-            var cameraNotes = trackChunk.GetNotes().Where(x => x.NoteNumber >= minCamera && x.NoteNumber <= maxCamera).ToList();
-
+            var (minCamera, maxCamera) = GetCameraRange(Game);
             var (game, venue) = NormalizeGameAndVenueSource(Game, VenueSource);
+            
+            var cameraNotes = ExtractCameraNotes(trackChunk, minCamera, maxCamera);
+            cameraNotes = ApplyCameraConversion(cameraNotes, game, venue, ref minCamera);
+            
+            CamerasNotes = BuildCameraAnimNotes(cameraNotes);
+            
+            if (!IsOldGame())
+            {
+                CameraTimedScripts = ExtractCameraScripts(trackChunk);
+            }
+        }
 
-            bool skipConvertCams = game == GAME_GHA && venue == GAME_GH3 && (GamePlatform != CONSOLE_PC && GamePlatform != CONSOLE_PS2);
+        private static (int Min, int Max) GetCameraRange(string venueSource)
+        {
+            if (CameraRanges.TryGetValue(venueSource, out var range))
+            {
+                return range;
+            }
+            throw new NotImplementedException($"Unknown venue source: {venueSource}");
+        }
+
+        private List<MidiData.Note> ExtractCameraNotes(TrackChunk trackChunk, int minCamera, int maxCamera)
+        {
+            return trackChunk.GetNotes()
+                .Where(x => x.NoteNumber >= minCamera && x.NoteNumber <= maxCamera)
+                .ToList();
+        }
+
+        private List<MidiData.Note> ApplyCameraConversion(List<MidiData.Note> cameraNotes, string game, string venue, ref int minCamera)
+        {
+            bool skipConvertCams = game == GAME_GHA && venue == GAME_GH3 && 
+                                   GamePlatform != CONSOLE_PC && GamePlatform != CONSOLE_PS2;
 
             if (skipConvertCams && venue == GAME_GH3)
             {
-                minCamera = MinCameraGh3 - 4;
+                minCamera = CameraRanges[GAME_GH3].Min - 4;
             }
 
             if (game != venue && !skipConvertCams)
             {
-                Dictionary<int, int> cameraMap;
-                try
-                {
-                    switch (Game)
-                    {
-                        case GAME_GH3:
-                            cameraMap = cameraToGh3[venue];
-                            break;
-                        case GAME_GHA:
-                            cameraMap = cameraToGha[venue];
-                            break;
-                        case GAME_GHWT:
-                        case GAME_GH5:
-                        case GAME_GHWOR:
-                            cameraMap = cameraToGhwt[venue];
-                            break;
-                        default:
-                            throw new NotImplementedException("Unknown game found");
-                    }
-                }
-                catch
-                {
-                    throw;
-                }
+                var cameraMap = GetCameraMap(Game, venue);
                 cameraNotes = ConvertCameras(cameraNotes, cameraMap);
             }
 
-            List<AnimNote> cameraAnimNotes = new List<AnimNote>();
+            return cameraNotes;
+        }
+
+        private static Dictionary<int, int> GetCameraMap(string targetGame, string sourceVenue)
+        {
+            return targetGame switch
+            {
+                GAME_GH3 => cameraToGh3[sourceVenue],
+                GAME_GHA => cameraToGha[sourceVenue],
+                GAME_GHWT or GAME_GH5 or GAME_GHWOR => cameraToGhwt[sourceVenue],
+                _ => throw new NotImplementedException($"Unknown target game: {targetGame}")
+            };
+        }
+
+        private List<AnimNote> BuildCameraAnimNotes(List<MidiData.Note> cameraNotes)
+        {
+            const int DefaultLastCameraLength = 20000;
+            var cameraAnimNotes = new List<AnimNote>(cameraNotes.Count);
+            var noteFilter = GetCameraNoteFilter();
+
             for (int i = 0; i < cameraNotes.Count; i++)
             {
-                MidiData.Note note = cameraNotes[i];
+                var note = cameraNotes[i];
                 int startTime = RoundTimeMills(note.Time);
-                int length;
-                if (i == cameraNotes.Count - 1)
-                {
-                    length = 20000;
-                }
-                else
-                {
-                    length = RoundCamLen(RoundTimeMills(cameraNotes[i + 1].Time) - startTime);
-                }
-                int noteVal = note.NoteNumber;
-                if (Game == GAME_GH5 && gh5NoteFilter.ContainsKey(noteVal))
-                {
-                    noteVal = gh5NoteFilter[noteVal];
-                }
-                int velocity = note.Velocity;
-                cameraAnimNotes.Add(new AnimNote(startTime, noteVal, length, velocity));
-            }
-            CamerasNotes = cameraAnimNotes;
+                int length = (i == cameraNotes.Count - 1)
+                    ? DefaultLastCameraLength
+                    : RoundCamLen(RoundTimeMills(cameraNotes[i + 1].Time) - startTime);
 
-            if (Game != GAME_GH3 && Game != GAME_GHA)
-            {
-                var cameraScripts = new List<(int, QBStructData)>();
-                foreach (var timedEvent in textEvents)
+                int noteVal = note.NoteNumber;
+
+                if (noteFilter.TryGetValue(noteVal, out int filteredNote))
                 {
-                    string eventText;
-                    if (timedEvent.Event is TextEvent textEvent)
-                    {
-                        eventText = textEvent.Text;
-                        var (eventType, eventData) = GetEventData(eventText);
-                        int eventTime = GameMilliseconds(timedEvent.Time);
-                        switch (eventType)
-                        {
-                            case ZOOM_IN_QUICK_SMALL:
-                            case ZOOM_IN_QUICK_LARGE:
-                            case ZOOM_OUT_QUICK_SMALL:
-                            case ZOOM_OUT_QUICK_LARGE:
-                            case ZOOM_IN_SLOW_SMALL:
-                            case ZOOM_IN_SLOW_LARGE:
-                            case ZOOM_OUT_SLOW_SMALL:
-                            case ZOOM_OUT_SLOW_LARGE:
-                            case PULSE1:
-                            case PULSE2:
-                            case PULSE3:
-                            case PULSE4:
-                            case PULSE5:
-                                cameraScripts.Add((eventTime, MakeNewCameraFovScript(eventTime, eventType, eventData)));
-                                break;
-                            case FADEOUTANDIN:
-                            case FADEINANDOUT:
-                                cameraScripts.Add((eventTime, MakeNewFadeOutInScript(eventTime, eventData)));
-                                break;
-                        }
-                    }
+                    noteVal = filteredNote;
                 }
-                CameraTimedScripts = cameraScripts;
+
+                cameraAnimNotes.Add(new AnimNote(startTime, noteVal, length, note.Velocity));
             }
+
+            return cameraAnimNotes;
         }
+
+        private Dictionary<int, int> GetCameraNoteFilter()
+        {
+            if (Game == GAME_GH5)
+            {
+                return Gh5CameraNoteFilter;
+            }
+            else if (Game == GAME_GHWOR)
+            {
+                return GhWorCameraNoteFilter;
+            }
+            return new Dictionary<int, int>();
+        }
+
+        private List<(int, QBStructData)> ExtractCameraScripts(TrackChunk trackChunk)
+        {
+            var cameraScripts = new List<(int, QBStructData)>();
+            var textEvents = trackChunk.GetTimedEvents()
+                .Where(e => e.Event is TextEvent)
+                .ToList();
+
+            foreach (var timedEvent in textEvents)
+            {
+                if (timedEvent.Event is not TextEvent textEvent)
+                    continue;
+
+                var (eventType, eventData) = GetEventData(textEvent.Text);
+                int eventTime = GameMilliseconds(timedEvent.Time);
+
+                var script = CreateCameraScript(eventType, eventData, eventTime);
+                if (script != null)
+                {
+                    cameraScripts.Add((eventTime, script));
+                }
+            }
+
+            return cameraScripts;
+        }
+
+        private QBStructData? CreateCameraScript(string eventType, string eventData, int eventTime)
+        {
+            return eventType switch
+            {
+                ZOOM_IN_QUICK_SMALL or ZOOM_IN_QUICK_LARGE or
+                ZOOM_OUT_QUICK_SMALL or ZOOM_OUT_QUICK_LARGE or
+                ZOOM_IN_SLOW_SMALL or ZOOM_IN_SLOW_LARGE or
+                ZOOM_OUT_SLOW_SMALL or ZOOM_OUT_SLOW_LARGE or
+                PULSE1 or PULSE2 or PULSE3 or PULSE4 or PULSE5
+                    => MakeNewCameraFovScript(eventTime, eventType, eventData),
+                
+                FADEOUTANDIN or FADEINANDOUT
+                    => MakeNewFadeOutInScript(eventTime, eventData),
+                
+                _ => null
+            };
+        }
+
+        private bool IsOldGame() => Game == GAME_GH3 || Game == GAME_GHA;
         private static (string, string) NormalizeGameAndVenueSource(string game, string venue)
         {
             // The following checks are to normalize the game and venue source names

@@ -1098,6 +1098,39 @@ namespace GH_Toolkit_Core.MIDI
             {99,75}
         };
 
+        // Camera range definitions per game: (minCamera, maxCamera)
+        public static readonly Dictionary<string, (int Min, int Max)> CameraRanges = new()
+        {
+            { GAME_GH3, (79, 117) },
+            { GAME_GHA, (3, 91) },
+            { GAME_GHWT, (3, 127) },
+            { GAME_GH5, (3, 99) },
+            { GAME_GHWOR, (3, 99) }
+        };
+
+        // GH5-specific camera note remapping
+        public static readonly Dictionary<int, int> Gh5CameraNoteFilter = new()
+        {
+            { 40, 74 },
+            { 41, 74 },
+            { 59, 31 },
+            { 62, 14 },
+            { 63, 9 },
+            { 64, 24 },
+            { 65, 18 },
+            { 66, 61 },
+            { 67, 60 },
+            { 68, 26 },
+            { 69, 8 }
+        };
+
+        // GHWOR-specific camera note remapping
+        public static readonly Dictionary<int, int> GhWorCameraNoteFilter = new()
+        {
+            { 45, 72 },
+            { 46, 72 }
+        };
+
 
         public static Dictionary<string, InstrumentAnim> DefaultStructsFemale = new Dictionary<string, InstrumentAnim>
         {
