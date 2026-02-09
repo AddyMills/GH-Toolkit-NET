@@ -1127,8 +1127,8 @@ namespace GH_Toolkit_Core.MIDI
         // GHWOR-specific camera note remapping
         public static readonly Dictionary<int, int> GhWorCameraNoteFilter = new()
         {
-            { 45, 72 },
-            { 46, 72 }
+            { 40, 72 },
+            { 41, 72 }
         };
 
 

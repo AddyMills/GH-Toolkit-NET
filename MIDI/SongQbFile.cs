@@ -823,6 +823,7 @@ namespace GH_Toolkit_Core.MIDI
                 gameQb.Add(TimedScriptArrayQbItem($"{SongName}_facial", FacialTimedScripts));
                 gameQb.Add(LocalizedStringsQbItem($"{SongName}_localized_strings"));
                 PerfScriptEvents = TimedScriptArrayQbItem($"{SongName}_scriptevents", ScriptTimedEvents);
+            
             }
             return gameQb;
         }
