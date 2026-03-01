@@ -4,14 +4,19 @@ import os
 
 dbgFile = sys.argv[1]
 
-with open(dbgFile, 'rt') as original_file:
-    data = original_file.read()
+
 if "QBKeys.txt" in dbgFile:
     dbg_name = "PS2Pak.dbg"
+    with open(dbgFile, 'rt') as original_file:
+        data = original_file.read()
 elif "AllQs.txt" in dbgFile:
     dbg_name = "keys_qs.dbg"
+    with open(dbgFile, 'rt', encoding = "utf_16_le") as original_file:
+        data = original_file.read()
 else:
     dbg_name = "keys.dbg"
+    with open(dbgFile, 'rt') as original_file:
+        data = original_file.read()
 saveName = os.path.join(os.path.dirname(dbgFile), dbg_name)
 
 with gzip.open(saveName, 'wt') as compressed_file:
