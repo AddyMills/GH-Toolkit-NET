@@ -50,7 +50,7 @@ using static System.Formats.Asn1.AsnWriter;
 
 namespace GH_Toolkit_Core.MIDI
 {
-    public class SongQbFile
+    public partial class SongQbFile
     {
         private const string EMPTYSTRING = "";
         private const string SECTION_OLD = "section ";
@@ -161,7 +161,7 @@ namespace GH_Toolkit_Core.MIDI
         public static string? SongScriptOverride { get; set; }
         public static string? VenueSource { get; set; }
         public static bool RhythmTrack { get; set; }
-        public static string? Game { get; set; }
+        public string? Game { get; set; }
         public List<string> GtrSkaAnims { get; set; } = new List<string>();
         public List<string> BassSkaAnims { get; set; } = new List<string>();
         public List<string> VoxSkaAnims { get; set; } = new List<string>();
@@ -252,6 +252,7 @@ namespace GH_Toolkit_Core.MIDI
             SongName = songName;
             Endian = endian;
             ParseQbToData(midQb, midQs, songScripts, notes, perf, perfXml);
+            SetMeasuresForDebugging();
         }
 
         public SongQbFile(string songName,
@@ -355,7 +356,7 @@ namespace GH_Toolkit_Core.MIDI
         {
             return string.Join("\r\n", WarningList);
         }
-        private string GetMeasureBeatTick(double errorMs)
+        public string GetMeasureBeatTick(double errorMs)
         {
             // TODO: Change this to use BarBeatTicksTimeSpan in DryWetMidi
             var fretbarTime = GetClosestIntFromList((int)Math.Round(errorMs), Fretbars);
@@ -456,7 +457,7 @@ namespace GH_Toolkit_Core.MIDI
         {
             ParseSongBasics();
         }
-        public void ParseMidiGH()
+        public void ParseMidiGH(bool onlyInstruments = false)
         {
             bool hasBass = false;
             bool hasRhythm = false;
@@ -550,6 +551,10 @@ namespace GH_Toolkit_Core.MIDI
             if (!hasBass && hasRhythm)
             {
                 
+            }
+            if (onlyInstruments)
+            {
+                return;
             }
             if (DrumAnimOverride != null)
             {
@@ -1934,12 +1939,11 @@ namespace GH_Toolkit_Core.MIDI
                     }
                 }
 
-                else if (Game == GAME_GHA)
+                else if (Game == GAME_GHA || Game == GAME_GHWT)
                 {
                     AnimNotes.AddRange(Rhythm.AnimNotes);
                     AnimNotes.AddRange(Aux.AnimNotes);
                 }
-
                 else
                 {
                     AnimNotes.AddRange(Rhythm.AnimNotes);
@@ -3562,12 +3566,16 @@ namespace GH_Toolkit_Core.MIDI
             else
                 return lengthVal;
         }
-        public class Instrument
+        public partial class Instrument
         {
             public Difficulty Easy { get; set; } = new Difficulty(EASY);
             public Difficulty Medium { get; set; } = new Difficulty(MEDIUM);
             public Difficulty Hard { get; set; } = new Difficulty(HARD);
             public Difficulty Expert { get; set; } = new Difficulty(EXPERT);
+            public Difficulty[] Difficulties { get                 {
+                    return [Easy, Medium, Hard, Expert];
+                }
+            }
             public List<StarPower>? FaceOffStar { get; set; } = null; // In-game. Based off of the easy chart.
             public QBArrayNode FaceOffP1 { get; set; } = new QBArrayNode();
             public QBArrayNode FaceOffP2 { get; set; } = new QBArrayNode();
@@ -3767,182 +3775,17 @@ namespace GH_Toolkit_Core.MIDI
             }
             public void MakeInstrumentGH(TrackChunk trackChunk, SongQbFile songQb, bool drums = false)
             {
-
                 if (trackChunk == null || songQb == null)
                 {
                     throw new ArgumentNullException("trackChunk or songQb is null");
                 }
-                _songQb = songQb;
 
-                int drumsMode = !drums ? 0 : 1;
-                // Create performance scripts for the instrument
-                var timedEvents = trackChunk.GetTimedEvents().ToList();
-                var textEvents = timedEvents.Where(e => e.Event is TextEvent).ToList();
-
-                Dictionary<MidiTheory.NoteName, int> noteDict;
-                Dictionary<int, int> animDict = new Dictionary<int, int>();
-                Dictionary<int, int> drumAnimDict = new Dictionary<int, int>();
-                List<TimedEvent>? sysExEvents = null;
-
-                int openNotes = Game == GAME_GH3 || Game == GAME_GHA ? 0 : 1;
-                int easyOpens;
-                if (openNotes == 0)
-                {
-                    easyOpens = 0;
-                    if (Game == GAME_GH3 && songQb.Gh3Plus)
-                    {
-                        openNotes = 1; // GH3+ has open notes, so we set it to 1
-                        sysExEvents = timedEvents.Where(e => e.Event is NormalSysExEvent).ToList();
-                    }
-                }
-                else
-                {
-                    easyOpens = songQb.EasyOpens ? 1 : 0;
-                }
-
-
-                if (Game == GAME_GH3 || Game == GAME_GHA)
-                {
-                    noteDict = Gh3Notes;
-                    try
-                    {
-                        animDict = leftHandMappingsGh3[TrackName];
-                    }
-                    catch (KeyNotFoundException)
-                    {
-                        animDict = leftHandMappingsGh3[RHYTHM_NAME];
-                    }
-                    drumAnimDict = drumKeyMapRB_gh3;
-                }
-                else if (drums)
-                {
-                    noteDict = Gh4Drums;
-                    drumAnimDict = Game == GAME_GHWOR ? drumKeyMapRB_wor : drumKeyMapRB_wt;
-                }
-                else
-                {
-                    sysExEvents = timedEvents.Where(e => e.Event is NormalSysExEvent).ToList();
-                    noteDict = Gh4Notes;
-                    try
-                    {
-                        animDict = leftHandMappingsWt[TrackName];
-                    }
-                    catch (KeyNotFoundException)
-                    {
-                        animDict = leftHandMappingsWt[""];
-                    }
-                    if (easyOpens == 1)
-                    {
-                        try
-                        {
-                            animDict[58] = animDict[59];
-                            animDict.Remove(59);
-                        }
-                        catch
-                        {
-                            // Nothing to do here
-                        }
-                    }
-
-                }
-
-                var sysexTaps = new List<StarPower>();
-                var sysexOpens = new Dictionary<int, List<StarPower>>
-                {
-                    { 0, new List<StarPower>() },
-                    { 1, new List<StarPower>() },
-                    { 2, new List<StarPower>() },
-                    { 3, new List<StarPower>() }
-                };
-                if (sysExEvents != null)
-                {
-                    (sysexTaps, sysexOpens) = SplitSysEx(sysExEvents);
-                }
-
-                // Extract all notes from the track once
-                var allNotes = trackChunk.GetNotes().ToList();
-
-                // Extract Face-Off Notes
-                var faceOffP1Notes = allNotes.Where(x => x.NoteNumber == FaceOffP1Note).ToList();
-                FaceOffP1 = ProcessOtherSections(faceOffP1Notes, songQb);
-                var faceOffP2Notes = allNotes.Where(x => x.NoteNumber == FaceOffP2Note).ToList();
-                FaceOffP2 = ProcessOtherSections(faceOffP2Notes, songQb);
-
-
-                // TapNotes = ProcessOtherSections(tapNotes, songQb, isTapNote:true);
-
-
-
-                // Create performance scripts for the instrument, excludes the drummer if GH3 or GHA
-                if (((Game == GAME_GH3 || Game == GAME_GHA) && TrackName != DRUMS_NAME) || (Game != GAME_GH3 && Game != GAME_GHA))
-                {
-                    try
-                    {
-                        PerformanceScript = songQb.InstrumentScripts(textEvents, ActorNameFromTrack[TrackName]);
-                    }
-                    catch
-                    {
-                        // Nothing to do here
-                    }
-                }
-
-                // Extract Star Power, BM Star, and FO Star
-                StarPowerPhrases = allNotes.Where(x => x.NoteNumber == StarPowerNote).ToList();
-                BattleStarPhrases = allNotes.Where(x => x.NoteNumber == BattleStarNote).ToList();
-                if (BattleStarPhrases.Count == 0)
-                {
-                    BattleStarPhrases = StarPowerPhrases;
-                }
-                FaceOffStarPhrases = allNotes.Where(x => x.NoteNumber == FaceOffStarNote).ToList();
-                if (FaceOffStarPhrases.Count == 0)
-                {
-                    FaceOffStarPhrases = StarPowerPhrases;
-                }
-
-                if (!drums)
-                {
-                    AnimNotes = InstrumentAnims(allNotes, GuitarAnimStart, GuitarAnimEnd, animDict, songQb);
-                    // Process notes for each difficulty level
-                    Easy.ProcessDifficultyGuitar(allNotes, EasyNoteMin, EasyNoteMax, noteDict, easyOpens, songQb, StarPowerPhrases, BattleStarPhrases, FaceOffStarPhrases, sysexTaps: sysexTaps, sysexOpens: sysexOpens[0], trackName: TrackName);
-                    Medium.ProcessDifficultyGuitar(allNotes, MediumNoteMin, MediumNoteMax, noteDict, openNotes, songQb, StarPowerPhrases, BattleStarPhrases, sysexTaps: sysexTaps, sysexOpens: sysexOpens[1], trackName: TrackName);
-                    Hard.ProcessDifficultyGuitar(allNotes, HardNoteMin, HardNoteMax, noteDict, openNotes, songQb, StarPowerPhrases, BattleStarPhrases, sysexTaps: sysexTaps, sysexOpens: sysexOpens[2], trackName: TrackName);
-                    Expert.ProcessDifficultyGuitar(allNotes, ExpertNoteMin, ExpertNoteMax, noteDict, openNotes, songQb, StarPowerPhrases, BattleStarPhrases, sysexTaps: sysexTaps, sysexOpens: sysexOpens[3], trackName: TrackName);
-                }
-                else
-                {
-                    var drumFillNotes = allNotes.Where(x => x.NoteNumber == TapNote).ToList();
-                    AnimNotes = InstrumentAnims(allNotes, DrumAnimStart, DrumAnimEnd, drumAnimDict, songQb, true);
-                    DrumFill = ProcessStartEndArrays(drumFillNotes, songQb);
-                    // Process notes for each difficulty level
-                    Easy.ProcessDifficultyDrums(allNotes, EasyNoteMin, EasyNoteMax + 1, noteDict, 0, songQb, StarPowerPhrases, BattleStarPhrases, FaceOffStarPhrases);
-                    Medium.ProcessDifficultyDrums(allNotes, MediumNoteMin, MediumNoteMax + 1, noteDict, 0, songQb, StarPowerPhrases, BattleStarPhrases);
-                    Hard.ProcessDifficultyDrums(allNotes, HardNoteMin, HardNoteMax + 1, noteDict, 0, songQb, StarPowerPhrases, BattleStarPhrases);
-                    Expert.ProcessDifficultyDrums(allNotes, ExpertNoteMin, ExpertNoteMax + 1, noteDict, openNotes, songQb, StarPowerPhrases, BattleStarPhrases);
-                }
-
-
-                if (Hard.PlayNotes.Count == 0)
-                {
-                    Hard.PlayNotes = Expert.PlayNotes; // If Hard has no notes, use Expert's notes
-                }
-                if (Medium.PlayNotes.Count == 0)
-                {
-                    Medium.PlayNotes = Hard.PlayNotes; // If Medium has no notes, use Hard's notes
-                }
-                if (Easy.PlayNotes.Count == 0)
-                {
-                    Easy.PlayNotes = Medium.PlayNotes; // If Easy has no notes, use Medium's notes
-                }
-
-                if (Game == GAME_GHWT && GamePlatform == CONSOLE_PC)
-                {
-                    SoloMarker = ProcessStartEndArrays(allNotes.Where(x => x.NoteNumber == SoloNote).ToList(), songQb, true);
-                }
-
-
-                FaceOffStar = Easy.FaceOffStar;
+                InstrumentGHParser parser = drums
+                    ? new DrumGHParser(this, trackChunk, songQb)
+                    : new GuitarGHParser(this, trackChunk, songQb);
+                parser.Parse();
             }
-            private (List<StarPower>, Dictionary<int, List<StarPower>>) SplitSysEx(List<TimedEvent>? sysExEvents)
+            internal (List<StarPower>, Dictionary<int, List<StarPower>>) SplitSysEx(List<TimedEvent>? sysExEvents)
             {
                 var sysexTaps = new List<StarPower>();
 
@@ -4045,7 +3888,7 @@ namespace GH_Toolkit_Core.MIDI
                 }
                 return (sysexTaps, opensDict);
             }
-            private List<AnimNote> InstrumentAnims(List<MidiData.Note> allNotes, int minNote, int maxNote, Dictionary<int, int> animDict, SongQbFile songQb, bool allowMultiTime = false)
+            internal List<AnimNote> InstrumentAnims(List<MidiData.Note> allNotes, int minNote, int maxNote, Dictionary<int, int> animDict, SongQbFile songQb, bool allowMultiTime = false)
             {
                 int AnimNoteMin = 22;
                 List<AnimNote> animNotes = new List<AnimNote>();
@@ -4110,7 +3953,7 @@ namespace GH_Toolkit_Core.MIDI
                 int RightHandGh3 = 59;
                 int LeftHandWor = 22;
                 int RightHandWor = 85;
-                switch (Game)
+                switch (_songQb.Game)
                 {
                     case GAME_GH3:
                     case GAME_GHA:
@@ -4298,7 +4141,7 @@ namespace GH_Toolkit_Core.MIDI
             }
             public byte[] ProcessNewNotes(ref int entries)
             {
-                bool ghwor = Game == GAME_GHWOR;
+                bool ghwor = _songQb.Game == GAME_GHWOR;
                 string name = TrackName.Replace("_", "");
                 switch (name)
                 {
@@ -4398,7 +4241,7 @@ namespace GH_Toolkit_Core.MIDI
                 }
                 return qbItems;
             }
-            private QBArrayNode ProcessOtherSections(List<MidiData.Note> entryNotes, SongQbFile songQb, bool isTapNote = false)
+            internal QBArrayNode ProcessOtherSections(List<MidiData.Note> entryNotes, SongQbFile songQb, bool isTapNote = false)
             {
                 QBArrayNode entries = new QBArrayNode();
                 if (entryNotes.Count == 0)
@@ -4427,7 +4270,7 @@ namespace GH_Toolkit_Core.MIDI
             }
             // Use this for creating an array of arrays for the start and end times of notes
             // Set lessOne to true if the end time should be one millisecond less than the end time (e.g. for solo markers)
-            private QBArrayNode ProcessStartEndArrays(List<MidiData.Note> entryNotes, SongQbFile songQb, bool lessOne = false)
+            internal QBArrayNode ProcessStartEndArrays(List<MidiData.Note> entryNotes, SongQbFile songQb, bool lessOne = false)
             {
                 QBArrayNode entries = new QBArrayNode();
                 if (entryNotes.Count == 0)
@@ -4790,9 +4633,9 @@ namespace GH_Toolkit_Core.MIDI
                 var timedEvents = trackChunk.GetTimedEvents().ToList();
                 var textEvents = timedEvents.Where(e => e.Event is TextEvent || e.Event is LyricEvent).ToList();
                 PerformanceScript = _songQb.InstrumentScripts(textEvents, VOCALIST);
-                if (Game != GAME_GH3 && Game != GAME_GHA)
+                if (_songQb.Game != GAME_GH3 && _songQb.Game != GAME_GHA)
                 {
-                    bool isGh5orWor = Game == GAME_GH5 || Game == GAME_GHWOR;
+                    bool isGh5orWor = _songQb.Game == GAME_GH5 || _songQb.Game == GAME_GHWOR;
                     var allNotes = trackChunk.GetNotes().ToList();
                     var singNotes = new Dictionary<long, MidiData.Note>();
                     var phraseNotes = new Dictionary<long, VocalPhrase>();
@@ -5818,7 +5661,7 @@ namespace GH_Toolkit_Core.MIDI
                         }
                     }
                 }
-                if (Game == GAME_GH3 && songQb.Gh3Plus)
+                if (songQb.GetGame() == GAME_GH3 && songQb.Gh3Plus)
                 {
                     foreach (var tapMarker in TapNotes)
                     {
@@ -7302,7 +7145,7 @@ namespace GH_Toolkit_Core.MIDI
                     perf = entryData.EntryData;
                 }
             }
-            var songData = new SongQbFile(songName, midQb, midQs, songScripts, notes, perf, perfXml, endian);
+            var songData = new SongQbFile(songName, midQb, midQs, songScripts, notes, perf, perfXml, endian);     
             return songData;
         }
     }
