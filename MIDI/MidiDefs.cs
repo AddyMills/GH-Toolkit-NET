@@ -412,10 +412,35 @@ namespace GH_Toolkit_Core.MIDI
             {59, 85}
         };
 
+        public static Dictionary<int, int> leftHandAux_wt = new Dictionary<int, int>
+        {
+            {40, 78},
+            {41, 77},
+            {42, 76},
+            {43, 75},
+            {44, 74},
+            {45, 73},
+            {46, 72},
+            {47, 71},
+            {48, 70},
+            {49, 69},
+            {50, 68},
+            {51, 67},
+            {52, 66},
+            {53, 65},
+            {54, 64},
+            {55, 63},
+            {56, 62},
+            {57, 61},
+            {58, 61},
+            {59, 61}
+        };
+
         public static Dictionary<string, Dictionary<int, int>> leftHandMappingsWt = new Dictionary<string, Dictionary<int, int>>
         {
             {GUITAR_NAME, leftHandGtr_wt},
-            {RHYTHM_NAME, leftHandBass_wt}
+            {RHYTHM_NAME, leftHandBass_wt},
+            {AUX_NAME, leftHandAux_wt }
         };
 
         public static Dictionary<int, int> drumKeyMapRB_gh3 = new Dictionary<int, int>
