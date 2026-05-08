@@ -139,7 +139,7 @@ namespace GH_Toolkit_Core.MIDI
 
         };
         public QBItem PerfScriptEvents { get; set; }
-        public List<Marker>? Markers { get; set; }
+        public List<Marker> Markers { get; set; } = new List<Marker>();
         public List<int> BandMoments { get; set; } = new List<int>();
         internal MidiFile SongMidiFile { get; set; }
         internal TempoMap SongTempoMap { get; set; }
@@ -336,6 +336,53 @@ namespace GH_Toolkit_Core.MIDI
         {
             return GamePlatform!;
         }
+        public string GetNoteCountsAsString()
+        {
+            var sb = new StringBuilder();
+            void AppendIfAny(string label, Instrument inst)
+            {
+                int e = inst.Easy.PlayNotes?.Count ?? 0;
+                int m = inst.Medium.PlayNotes?.Count ?? 0;
+                int h = inst.Hard.PlayNotes?.Count ?? 0;
+                int x = inst.Expert.PlayNotes?.Count ?? 0;
+                if (e + m + h + x > 0)
+                    sb.AppendLine($"{SongName},{label},{e},{m},{h},{x}");
+            }
+            AppendIfAny("Guitar", Guitar);
+            AppendIfAny("Rhythm", Rhythm);
+            AppendIfAny("GuitarCoop", GuitarCoop);
+            AppendIfAny("RhythmCoop", RhythmCoop);
+            AppendIfAny("Drums", Drums);
+            if (!NoAux)
+                AppendIfAny("Aux", Aux);
+            return sb.ToString();
+        }
+        public string GetStarPowerPhrasesAsString()
+        {
+            var sb = new StringBuilder();
+            void AppendIfAny(string label, Instrument inst)
+            {
+                foreach (var diff in inst.Difficulties)
+                {
+                    foreach (var entry in diff.StarEntries)
+                    {
+                        var endTime = entry.Time + entry.Length;
+                        if (entry.NoteCount == 0)
+                        {
+                            continue;
+                        }
+                        sb.AppendLine($"{SongName},{label},{diff.diffName},{entry.Time},{endTime},{entry.Length},{GetMeasureBeatTick(entry.Time)},{GetMeasureBeatTick(endTime)},{entry.NoteCount}");
+                    }
+                }
+            }
+            AppendIfAny("Guitar", Guitar);
+            AppendIfAny("Rhythm", Rhythm);
+            AppendIfAny("GuitarCoop", GuitarCoop);
+            AppendIfAny("RhythmCoop", RhythmCoop);
+            AppendIfAny("Drums", Drums);
+            AppendIfAny("Aux", Aux);
+            return sb.ToString();
+        }
         public void SetConsole(string console)
         {
             GamePlatform = console;
@@ -485,6 +532,7 @@ namespace GH_Toolkit_Core.MIDI
                         hasBass = true;
                         break;
                     case PARTGUITAR:
+                    case T1GEMS:
                         WriteUsedTrack(trackName);
                         Guitar.MakeInstrumentGH(trackChunk, this);
                         break;
@@ -673,12 +721,56 @@ namespace GH_Toolkit_Core.MIDI
 
             return bandMoments;
         }
-        public string CalculateBaseScore()
+        public BaseScore CalculateBaseScore()
         {
-            var guitar = Guitar.GetBaseScore(Fretbars);
-            //var rhythm = Rhythm.GetBaseScore(Fretbars);
+            var baseScore = new BaseScore();
 
-            return "";
+            var guitar = Guitar.GetBaseScore(Fretbars);
+            baseScore.Guitar = new InstrumentScore
+            {
+                Easy = new DifficultyScore(guitar.easy.baseScore, guitar.easy.simScore, Guitar.Easy.PlayNotes.Count),
+                Medium = new DifficultyScore(guitar.medium.baseScore, guitar.medium.simScore, Guitar.Medium.PlayNotes.Count),
+                Hard = new DifficultyScore(guitar.hard.baseScore, guitar.hard.simScore, Guitar.Hard.PlayNotes.Count),
+                Expert = new DifficultyScore(guitar.expert.baseScore, guitar.expert.simScore, Guitar.Expert.PlayNotes.Count)
+            };
+
+            var guitarCoop = GuitarCoop.GetBaseScore(Fretbars);
+            baseScore.GuitarCoop = new InstrumentScore
+            {
+                Easy = new DifficultyScore(guitarCoop.easy.baseScore, guitarCoop.easy.simScore, GuitarCoop.Easy.PlayNotes.Count),
+                Medium = new DifficultyScore(guitarCoop.medium.baseScore, guitarCoop.medium.simScore, GuitarCoop.Medium.PlayNotes.Count),
+                Hard = new DifficultyScore(guitarCoop.hard.baseScore, guitarCoop.hard.simScore, GuitarCoop.Hard.PlayNotes.Count),
+                Expert = new DifficultyScore(guitarCoop.expert.baseScore, guitarCoop.expert.simScore, GuitarCoop.Expert.PlayNotes.Count)
+            };
+
+            var rhythm = Rhythm.GetBaseScore(Fretbars);
+            baseScore.Bass = new InstrumentScore
+            {
+                Easy = new DifficultyScore(rhythm.easy.baseScore, rhythm.easy.simScore, Rhythm.Easy.PlayNotes.Count),
+                Medium = new DifficultyScore(rhythm.medium.baseScore, rhythm.medium.simScore, Rhythm.Medium.PlayNotes.Count),
+                Hard = new DifficultyScore(rhythm.hard.baseScore, rhythm.hard.simScore, Rhythm.Hard.PlayNotes.Count),
+                Expert = new DifficultyScore(rhythm.expert.baseScore, rhythm.expert.simScore, Rhythm.Expert.PlayNotes.Count)
+            };
+
+            var rhythmCoop = RhythmCoop.GetBaseScore(Fretbars);
+            baseScore.RhythmCoop = new InstrumentScore
+            {
+                Easy = new DifficultyScore(rhythmCoop.easy.baseScore, rhythmCoop.easy.simScore, RhythmCoop.Easy.PlayNotes.Count),
+                Medium = new DifficultyScore(rhythmCoop.medium.baseScore, rhythmCoop.medium.simScore, RhythmCoop.Medium.PlayNotes.Count),
+                Hard = new DifficultyScore(rhythmCoop.hard.baseScore, rhythmCoop.hard.simScore, RhythmCoop.Hard.PlayNotes.Count),
+                Expert = new DifficultyScore(rhythmCoop.expert.baseScore, rhythmCoop.expert.simScore, RhythmCoop.Expert.PlayNotes.Count)
+            };
+
+            var drums = Drums.GetBaseScore(Fretbars);
+            baseScore.Drums = new InstrumentScore
+            {
+                Easy = new DifficultyScore(drums.easy.baseScore, drums.easy.simScore, Drums.Easy.PlayNotes.Count),
+                Medium = new DifficultyScore(drums.medium.baseScore, drums.medium.simScore, Drums.Medium.PlayNotes.Count),
+                Hard = new DifficultyScore(drums.hard.baseScore, drums.hard.simScore, Drums.Hard.PlayNotes.Count),
+                Expert = new DifficultyScore(drums.expert.baseScore, drums.expert.simScore, Drums.Expert.PlayNotes.Count)
+            };
+
+            return baseScore;
         }
         public static void GetFurthestIntegers(List<int> numbers, int numMoments)
         {
@@ -1496,7 +1588,7 @@ namespace GH_Toolkit_Core.MIDI
                             instrumentData[GH5DRUMS][diff]["drumfill"] = drumFillNotes;
                             break;
                         case "gh5_marker_note":
-                            Markers = new List<Marker>();
+                            Markers.Clear();
                             for (int j = 0; j < entries; j++)
                             {
                                 int time = _readWriteGh5.ReadInt32(stream);
@@ -1620,7 +1712,7 @@ namespace GH_Toolkit_Core.MIDI
         }
         private void ParseMarkersFromQ(Dictionary<string, QBItem> qbDict)
         {
-            Markers = new List<Marker>();
+            Markers.Clear();
             if (qbDict.TryGetValue($"{SongName}_markers", out QBItem markers))
             {
                 if (markers.Info.Type != ARRAY)
@@ -2027,7 +2119,7 @@ namespace GH_Toolkit_Core.MIDI
         }
         public List<QBItem> ProcessMarkers()
         {
-            if (Markers == null)
+            if (Markers.Count == 0)
             {
                 Markers = [new Marker(0, "start")];
             }
@@ -3079,7 +3171,7 @@ namespace GH_Toolkit_Core.MIDI
             {
                 crowdDict = crowdMapWt;
             }
-            Markers = new List<Marker>();
+            Markers.Clear();
 
             var crowdScripts = new List<(int, QBStructData)>();
 
@@ -3142,7 +3234,7 @@ namespace GH_Toolkit_Core.MIDI
             CrowdTimedScripts = crowdScripts;
             if (Markers.Count == 0)
             {
-                Markers = [new Marker(0, "start")];
+                Markers.Add(new Marker(0, "start"));
             }
             foreach (var bandMoment in bandMoments)
             {
@@ -5463,6 +5555,11 @@ namespace GH_Toolkit_Core.MIDI
                             break;
                     }
                 }
+                foreach (var star in StarEntries)
+                {
+                    var noteCount = PlayNotes.Count(n => n.Time >= star.Time && n.Time < star.Time + star.Length);
+                    star.SetNoteCount(noteCount);
+                }
             }
             private List<StarPower> ProcessGh5SpEntries(List<int> spEntries)
             {
@@ -6315,16 +6412,17 @@ namespace GH_Toolkit_Core.MIDI
             public (int, int) GetSongScores(List<int> fretbars)
             {
                 // Early exit if no notes were played
-                if (PlayNotes.Count == 0)
+                if (PlayNotes == null || PlayNotes.Count == 0)
                 {
                     return (0, 0);
                 }
+
+                bool oldGame = Q_Game == GAME_GH3 || Q_Game == GAME_GHA;
 
                 // Score tracking variables
                 var score = 0f;          // Score with streak multipliers applied
                 var baseScore = 0f;      // Raw score without multipliers
                 var multiplier = 1;      // Current streak multiplier
-                var lastMultiplier = 1;  // Previous streak multiplier (for detecting changes)
 
                 // Timing variables
                 var beat_time = fretbars[1] - fretbars[0];  // Duration of current beat
@@ -6337,22 +6435,21 @@ namespace GH_Toolkit_Core.MIDI
                 // Position tracking variables
                 var fIndex = 0;              // Current position in fretbars list
                 var sim_bot_note_count = 0;  // Count of consecutive notes hit (for streak multiplier)
-
+                var extendedNotes = 0;
+                var extendedSustains = 0;
                 // Process each played note
                 foreach (var note in PlayNotes)
                 {
                     // Update streak multiplier
                     sim_bot_note_count++;
                     multiplier = GetMultiplier(sim_bot_note_count);
-                    bool multiplierChanged = multiplier != lastMultiplier;
-                    lastMultiplier = multiplier;
 
                     // Advance fretbar index to current note's timing
                     UpdateFretIndex(ref fIndex, fretbars, note.Time);
                     beat_time = fretbars[fIndex + 1] - fretbars[fIndex];
 
                     // Calculate base score for this note (based on number of notes in chord)
-                    var notesInChord = countSetBits(note.Note);
+                    var notesInChord = countSetBits(note.Note, oldGame);
                     var baseNoteScore = notesInChord * BASENOTE;
 
                     // Add to both base and multiplied scores
@@ -6360,51 +6457,49 @@ namespace GH_Toolkit_Core.MIDI
                     score += baseNoteScore * multiplier;
 
                     // Check if this note qualifies for sustain points
+                    var noteTime = note.Time;
                     var length = note.Length;
                     var timePlusLengthCurrent = note.Time + length;
                     var timePlusLengthCheck = activeSustainTime + activeSustainLength;
                     bool skipLengthCalc = timePlusLengthCurrent <= timePlusLengthCheck;
                     bool sustainCalcCheck = length > origSustainCheck;
+                    bool extendedAdded = false;
 
                     if (sustainCalcCheck)
                     {
-                        if (note.Time < timePlusLengthCheck && timePlusLengthCurrent > timePlusLengthCheck)
+                        if (noteTime < timePlusLengthCheck && timePlusLengthCurrent >= timePlusLengthCheck)
                         {
-                            note.Time = timePlusLengthCheck;
+                            noteTime = timePlusLengthCheck;
                             length = timePlusLengthCurrent - timePlusLengthCheck;
-                            while (fretbars[fIndex + 1] <= note.Time)
+                            while (fIndex + 1 < fretbars.Count && fretbars[fIndex + 1] <= noteTime)
                             {
                                 beat_time = fretbars[fIndex + 1] - fretbars[fIndex];
                                 fIndex++;
                             }
+                            extendedSustains++;
+                            extendedAdded = true;
                         }
-                        activeSustainTime = note.Time;
+                        activeSustainTime = noteTime;
                         activeSustainLength = length;
 
-
-                        var sustainPoints = CalculateSustainPoints(note.Time, length, fIndex, fretbars, multiplier);
-                        var roundedSustain = (int)(sustainPoints + 0.5f); // Round like the original
-                        if ((!skipLengthCalc))
+                        if (length > 0 && !skipLengthCalc)
                         {
+                            var sustainPoints = CalculateSustainPoints(noteTime, length, fIndex, fretbars);
+                            var roundedSustain = (int)(sustainPoints + 0.5f); // Round like the original
                             baseScore += roundedSustain;
                             score += roundedSustain * multiplier; // Apply streak multiplier
                         }
-                        
-                        
-
                     }
-                    else if (multiplierChanged && sustainCalcCheck)
+                    if (noteTime < timePlusLengthCheck && !extendedAdded)
                     {
-                        multiplier = 1; // This is if the multiplier changes on an extended sustain. You need to reset the multiplier to 1 to add the portion of the sustain that has an additional multiplier.
-
-                        var sustainPoints = CalculateSustainPoints(note.Time, length, fIndex, fretbars, multiplier);
-
-                        var roundedSustain = (int)(sustainPoints + 0.5f); // Round like the original
-                        score += roundedSustain * multiplier; // Apply streak multiplier
+                        extendedNotes++;
                     }
-                    multiplierChanged = false;
                 }
-                Console.WriteLine($"{nameProper} Base Score: {baseScore}, {nameProper} No SP Score: {score}");
+                /*
+                if (extendedNotes + extendedSustains > 0)
+                {
+                    Console.WriteLine($"{nameProper}, Extended Sustains: {extendedSustains}, Extended Notes: {extendedNotes}, Total: {extendedNotes + extendedSustains}");
+                }*/
                 return ((int)baseScore, (int)score);
             }
             /// <summary>
@@ -6429,32 +6524,42 @@ namespace GH_Toolkit_Core.MIDI
             /// <param name="length">Duration of the note</param>
             /// <param name="startFIndex">Starting fretbar index</param>
             /// <param name="fretbars">List of fretbar positions</param>
-            /// <param name="scoreMultiplier">Multiplier to apply to sustain points</param>
             /// <returns>Calculated sustain points</returns>
             private float CalculateSustainPoints(
                 int noteTime,
                 int length,
                 int startFIndex,
-                List<int> fretbars,
-                int scoreMultiplier)
+                List<int> fretbars)
             {
                 var sustainPoints = 0f;
                 int totalNoteLength = length;
-                var sustainValueBeat = totalNoteLength;
-
                 var finished = false;
                 var sustainFretBarCount = startFIndex;
 
                 while (!finished)
                 {
+                    if (sustainFretBarCount + 1 >= fretbars.Count)
+                    {
+                        break;
+                    }
                     var currSustainFret = fretbars[sustainFretBarCount];
                     var nextSustainFret = fretbars[sustainFretBarCount + 1];
                     var segmentDuration = nextSustainFret - currSustainFret;
+                    if (segmentDuration <= 0)
+                    {
+                        sustainFretBarCount++;
+                        continue;
+                    }
                     var noteLength = segmentDuration;
                     if (currSustainFret <= noteTime)
                     {
                         var timeFromBeatLine = nextSustainFret - noteTime;
                         noteLength = timeFromBeatLine;
+                    }
+                    if (noteLength <= 0)
+                    {
+                        sustainFretBarCount++;
+                        continue;
                     }
                     if (totalNoteLength <= noteLength)
                     {

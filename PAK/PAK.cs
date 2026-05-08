@@ -339,7 +339,7 @@ namespace GH_Toolkit_Core.PAK
                 throw new Exception("Invalid File");
             }
 
-            string fileNoExt = fileName.Substring(0, fileName.ToLower().IndexOf(".pak"));
+            string fileNoExt = fileName.Substring(0, fileName.ToLower().IndexOf(".pak")).ToLower();
             string vramFile = fileNoExt + "_vram.pak.ps3".ToUpper();
             string fileExt = Path.GetExtension(file).ToLower();
             Console.WriteLine($"Processing {fileNoExt}");

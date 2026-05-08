@@ -91,6 +91,7 @@ namespace GH_Toolkit_Core.MIDI
 
         public const string PARTDRUMS = "PART DRUMS";
         public const string PARTGUITAR = "PART GUITAR";
+        public const string T1GEMS = "T1 GEMS";
         public const string PARTRHYTHM = "PART RHYTHM";
         public const string PARTGUITARCOOP = "PART GUITAR COOP";
         public const string PARTBASS = "PART BASS";
