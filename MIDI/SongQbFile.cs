@@ -7142,7 +7142,8 @@ namespace GH_Toolkit_Core.MIDI
         {
             ReadingSettings readingSettings = new ReadingSettings
             {
-                TextEncoding = Encoding.Latin1
+                TextEncoding = Encoding.Latin1,
+                InvalidChannelEventParameterValuePolicy = InvalidChannelEventParameterValuePolicy.ReadValid
             };
             SongMidiFile = MidiFile.Read(midiPath, readingSettings);
             var timeDivision = SongMidiFile.TimeDivision;
