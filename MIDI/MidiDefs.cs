@@ -105,6 +105,16 @@ namespace GH_Toolkit_Core.MIDI
         public const string CROWD = "CROWD";
         public const string ANIMS = "ANIMS";
 
+        // Rock Band track names
+        public const string PARTKEYS = "PART KEYS";
+        public const string PARTREALGUITAR = "PART REAL_GUITAR";
+        public const string PARTREALBASS = "PART REAL_BASS";
+        public const string PARTREALKEYS_X = "PART REAL_KEYS_X";
+        public const string PARTREALKEYS_H = "PART REAL_KEYS_H";
+        public const string PARTREALKEYS_M = "PART REAL_KEYS_M";
+        public const string PARTREALKEYS_E = "PART REAL_KEYS_E";
+        public const string PARTREALDRUMS = "PART REAL_DRUMS_PS";
+
         public const string GUITARIST = "guitarist";
         public const string BASSIST = "bassist";
         public const string DRUMMER = "drummer";
